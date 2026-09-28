@@ -1,6 +1,6 @@
 # ADR-002: Daemon / UI Process Separation
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-09-29
 
 ## Context

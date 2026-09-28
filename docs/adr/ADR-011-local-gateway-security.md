@@ -1,6 +1,6 @@
 # ADR-011: Local Gateway Security
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-09-29
 
 ## Context

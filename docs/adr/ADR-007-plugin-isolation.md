@@ -1,6 +1,6 @@
 # ADR-007: Provider Isolation (No Dynamic Plugins in v1)
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-09-29
 
 ## Context
