@@ -1,0 +1,23 @@
+[package]
+name = "loadout-core"
+description = "Loadout Core runtime: assembles storage, secrets, IPC and gateway under a supervisor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+loadout-gateway.workspace = true
+loadout-ipc.workspace = true
+loadout-platform.workspace = true
+loadout-secrets.workspace = true
+loadout-storage.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

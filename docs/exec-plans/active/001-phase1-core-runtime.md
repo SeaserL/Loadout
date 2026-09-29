@@ -1,6 +1,6 @@
 # ExecPlan 001: Phase 1 — Core Runtime
 
-- **Status**: Draft（等待项目所有者确认）
+- **Status**: In progress（2026-09-29 项目所有者确认）
 - **Created**: 2026-09-29
 - **Phase**: Harness §26 Phase 1 — Core runtime · Database · Daemon · Secret store · Gateway skeleton
 
@@ -339,7 +339,12 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
 
 ## 14. Progress
 
-- [ ] Stage 0 — Workspace 骨架
+- [x] Stage 0 — Workspace 骨架（2026-09-29）
+  - workspace（edition 2024、resolver 3）、6 个 lib crate + 2 个 bin 空壳、`rust-toolchain.toml` 固定 1.98.1、CRT 静态链接。
+  - `rusqlite` 0.40.2 与 `rusqlite_migration` 2.6.0 兼容：依赖树中只有一份 `rusqlite` / `libsqlite3-sys` 0.38.2。
+  - 141 个第三方包许可证已扫描：全部为 MIT / Apache-2.0 / BSD / Zlib / Unicode-3.0 / Unlicense 等宽松协议；唯一含 LGPL 的包为多选一（`MIT OR Apache-2.0 OR LGPL-2.1-or-later`），按 MIT/Apache 使用。
+  - `cargo build`、`cargo test`、`cargo clippy --all-targets -- -D warnings`、`cargo fmt --check` 全部通过。
+  - `windows-sys` 的 feature 按 stage 逐步补充。
 - [ ] Stage 1 — secrets
 - [ ] Stage 2 — storage
 - [ ] Stage 3 — platform
