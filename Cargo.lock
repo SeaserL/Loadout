@@ -413,6 +413,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -1133,11 +1134,21 @@ name = "loadout-benchmarks"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bytes",
  "criterion",
+ "futures-util",
  "loadout-gateway",
  "loadout-ipc",
  "loadout-platform",
+ "loadout-protocol",
+ "loadout-provider-sdk",
+ "loadout-providers",
+ "loadout-router",
+ "loadout-secrets",
+ "loadout-storage",
+ "reqwest",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-util",
  "uuid",

@@ -1,6 +1,6 @@
 # ExecPlan 002: Data-Plane Foundation — Accounts, Protocols, Proxying, Telemetry
 
-- **Status**: In progress
+- **Status**: Completed（2026-09-29）
 - **Created**: 2026-09-29
 - **Phase**: Harness §26 Phase 2（canonical protocol · OpenAI-compatible provider · streaming · usage logging）+ Phase 3 的数据模型部分（provider SDK · account model）
 
@@ -202,13 +202,13 @@ loadout model list | remove | set-price
 
 ## 12. Definition of Done
 
-- [ ] §1 全部行为可用，端到端测试覆盖
-- [ ] 所有测试、clippy、fmt 通过
-- [ ] §8 基准记录
-- [ ] 日志 / telemetry / 错误中无正文与 secret
-- [ ] 新依赖许可证核对
-- [ ] AGENTS.md / glossary 更新
-- [ ] 本文件移入 `completed/`
+- [x] §1 全部行为可用，端到端测试覆盖
+- [x] 所有测试、clippy、fmt 通过
+- [x] §8 基准记录
+- [x] 日志 / telemetry / 错误中无正文与 secret（telemetry 只有 metadata；上游错误信息经脱敏；e2e 断言数据库文件不含上游 key）
+- [x] 新依赖许可证核对
+- [x] AGENTS.md 更新（glossary 无需改动）
+- [x] 本文件移入 `completed/`
 
 ## 13. Progress
 
@@ -257,7 +257,24 @@ loadout model list | remove | set-price
   - CLI：`provider kinds|add|list|remove`、`account add|list|enable|disable|set-key|remove`、`model sync|add|list|enable|disable|price|remove`、`route status`、`logs`。API key 通过关闭回显的控制台输入或 `--api-key-stdin` 读取，从不作为命令行参数。
   - `--secret-prefix`（隐藏参数）让 e2e 测试的 daemon 使用独立的 Credential Manager 前缀；测试结束时清理。
   - 端到端测试 `proxy_e2e`：CLI 配置 → 目录同步 → 两种协议经真实 daemon 转发 → telemetry 落库 → 错误 key 触发 `AUTH_FAILED` → 恢复 → 删除 Provider 后凭据被清除；并断言数据库文件中不含上游 key。
-- [ ] Stage 7 — e2e + benchmarks + docs
+- [x] Stage 7 — e2e + benchmarks + docs（2026-09-29）
+  - e2e 见 Stage 6（`apps/loadout/tests/proxy_e2e.rs`）；代理行为的完整矩阵在 `crates/gateway/tests/proxy.rs`。
+  - 基准（本机，criterion 均值）：
+
+    | Benchmark | 结果 | 目标 |
+    |---|---|---|
+    | `route_selection/provider_model_100_targets` | 0.44 µs | P95 < 2 ms |
+    | `route_selection/exact_100_targets` | 0.22 µs | — |
+    | `canonical_conversion/chat_to_messages`（12 轮 + 3 tools，含 JSON 解析与序列化） | 70 µs | P95 < 1 ms |
+    | `canonical_conversion/passthrough_rewrite` | 30 µs | — |
+    | `stream_proxy/passthrough_200_events` | 192 µs（≈1 µs/事件） | — |
+    | `stream_proxy/convert_chat_to_messages_200_events` | 437 µs（≈2.2 µs/事件） | — |
+    | `ttft/direct_upstream` → `ttft/via_gateway_passthrough` | 91 µs → 533 µs（**gateway 额外 ≈0.44 ms**） | P95 < 10 ms |
+    | `ttft/via_gateway_converted_messages` | 557 µs | P95 < 10 ms |
+    | `sqlite_usage_write/writer_5000_events` | ≈351,000 events/s | ≥ 5,000 events/s |
+
+  - 许可证：280 个第三方包，全部宽松协议。`webpki-root-certs`（CDLA-Permissive-2.0）与 Unicode-3.0 系列分发时需附带许可证文本 → 纳入 Phase 10 安装包的第三方许可证清单。
+  - AGENTS.md §10 更新。
 
 ## 14. Decisions
 
@@ -265,3 +282,7 @@ loadout model list | remove | set-price
 - 转换路径上游一律流式（§5.3）。
 - RouteTarget 不建表（§5.2）。
 - 模拟上游服务器用 axum 编写，不引入额外 mock 库。
+- 有状态 Responses 的 `response_id → target` 映射：内存（1 万条）未命中时查一次 SQLite 主键（仅影响带 `previous_response_id` 的请求，daemon 重启后）——"热路径不访问数据库"规则的受控例外。
+- 能力"未知即允许"：目录普遍不声明 vision 等能力，只在明确不满足时排除（context window 已知时才检查）。
+- 非流式客户端在转换路径上：上游仍以流式调用，整个响应聚合完成前都视为提交前，可 failover。
+- 日志级别由 `--log` / `LOADOUT_LOG` 控制（日志初始化早于数据库）。

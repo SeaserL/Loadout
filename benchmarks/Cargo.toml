@@ -14,11 +14,21 @@ bench = false
 
 [dev-dependencies]
 axum.workspace = true
+bytes.workspace = true
 criterion.workspace = true
+futures-util.workspace = true
 loadout-gateway.workspace = true
 loadout-ipc.workspace = true
 loadout-platform.workspace = true
+loadout-protocol.workspace = true
+loadout-provider-sdk.workspace = true
+loadout-providers.workspace = true
+loadout-router.workspace = true
+loadout-secrets.workspace = true
+loadout-storage.workspace = true
+reqwest.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 uuid.workspace = true
@@ -33,6 +43,22 @@ harness = false
 
 [[bench]]
 name = "ipc_roundtrip"
+harness = false
+
+[[bench]]
+name = "route_selection"
+harness = false
+
+[[bench]]
+name = "canonical_conversion"
+harness = false
+
+[[bench]]
+name = "stream_proxy"
+harness = false
+
+[[bench]]
+name = "sqlite_usage_write"
 harness = false
 
 [lints]

@@ -74,7 +74,7 @@ tracing-appender = "0.2"
 
 # Dev
 tempfile = "3.27"
-criterion = "0.8"
+criterion = { version = "0.8", features = ["async_tokio"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

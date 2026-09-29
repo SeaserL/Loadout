@@ -138,12 +138,17 @@ cargo bench -p loadout-benchmarks                性能基准（Harness §20）
 ### 运行
 
 ```text
-target\debug\loadout.exe daemon start            启动 daemon（数据在 %LOCALAPPDATA%\Loadout）
-target\debug\loadout.exe client create <name>    创建 client key
-target\debug\loadout.exe daemon status
-target\debug\loadout.exe daemon stop
-target\debug\loadoutd.exe --foreground           前台运行，日志输出到终端
+loadout daemon start                              启动 daemon（数据在 %LOCALAPPDATA%\Loadout）
+loadout provider add <slug> --kind openai-compatible --base-url https://…/v1
+loadout account add <slug> <alias>                提示输入 API key（不回显），并同步模型列表
+loadout model list                                可用的 provider/account/model 名称
+loadout client create <name>                      创建客户端使用的 client key
+loadout route status | loadout logs               路由健康 / 最近请求
+loadout daemon stop
+loadoutd --foreground                             前台运行，日志输出到终端
 ```
+
+客户端配置：Base URL `http://127.0.0.1:8317/v1`，API key 为 client key，模型名用 `provider/account/model` 或 `provider/model`。
 
 ### 测试隔离约定
 
@@ -155,6 +160,8 @@ target\debug\loadoutd.exe --foreground           前台运行，日志输出到�
 
 ### 平台注意事项
 
+- 测试 daemon 必须传 `--secret-prefix loadout-e2e-<id>:`，测试结束清理该前缀的凭据。
 - 判断 daemon 是否运行一律通过 IPC；Windows 上连接已关闭的 loopback 端口约需 2 秒才失败。
+- 用 PowerShell 批量替换文本时使用单引号 here-string（`@' '@`）；双引号版本会吞掉反引号。
 - 启动后台进程必须用 `loadout_platform::spawn_detached`，不要用 `std::process::Command`（会泄漏调用方句柄，见 ExecPlan 001 Stage 7）。
 - Credential Manager 调用必须串行（见 ADR-004）。
