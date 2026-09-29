@@ -15,6 +15,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+tracing.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
@@ -22,6 +23,10 @@ windows-sys = { workspace = true, features = [
     "Win32_Security",
     "Win32_Security_Authorization",
 ] }
+
+[dev-dependencies]
+loadout-platform.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

@@ -356,8 +356,16 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - 数据库版本高于当前程序时拒绝打开（`SchemaTooNew`），不做降级猜测修复（Harness §21）。
   - Client 撤销只置 `enabled=0` + `revoked_at`，保留行以便请求历史可追溯；名称在撤销后仍占用。
   - 9 个测试。
-- [ ] Stage 3 — platform
-- [ ] Stage 4 — ipc
+- [x] Stage 3 — platform（2026-09-29）
+  - 当前用户 SID、`%LOCALAPPDATA%\Loadout`、命名 mutex 单实例锁（`Local\Loadout-<SID>`）、HKCU Run 自启动（enable / disable / status，检测 exe 是否仍存在）。
+  - **偏离计划**：没有定义 `trait Platform`。crate 本身就是平台边界（非 Windows 编译直接 `compile_error!`），v1 只有一个实现，trait 只会增加间接层。移植到其他系统时提供同名函数即可。
+  - 测试使用唯一的 mutex 名与 `Loadout-Test-<uuid>` 注册表值名，不触碰真实条目。6 个测试。
+- [x] Stage 4 — ipc（2026-09-29）
+  - 帧：4 字节长度前缀 + JSON，单帧上限 1 MiB；信封含协议版本；`hello` 握手必须是第一帧。
+  - Pipe 安全：SDDL `D:P(A;;GA;;;<SID>)(A;;GA;;;SY)`，`reject_remote_clients`，`first_pipe_instance` 防止抢占 pipe 名（第二个 daemon 或恶意进程 bind 同名会失败）。
+  - `api` 模块定义全部方法的类型化参数/结果，daemon、CLI、未来 Tauri 后端共用；`ClientCreated` 的 Debug 输出隐藏 key。
+  - 事件：`events.subscribe` 后推送（broadcast，慢订阅者丢弃并记录日志）。
+  - 16 个测试（含 16 并发客户端 × 25 请求、版本不一致、未握手请求、关闭时断开连接）。
 - [ ] Stage 5 — gateway
 - [ ] Stage 6 — core + daemon
 - [ ] Stage 7 — cli
