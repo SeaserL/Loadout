@@ -22,7 +22,10 @@ fn damaged_database_is_moved_aside_and_reported() {
 
     // The new database works.
     d.json(&["client", "create", "after-recovery"], None);
-    assert_eq!(d.json(&["client", "list"], None)[0]["name"], "after-recovery");
+    assert_eq!(
+        d.json(&["client", "list"], None)[0]["name"],
+        "after-recovery"
+    );
 
     // The human-readable status explains how to restore.
     let text = String::from_utf8(d.cli(&["daemon", "status"], None).stdout).expect("utf8");

@@ -134,7 +134,11 @@ cargo test --workspace                           全部测试（含真实 Named 
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo bench -p loadout-benchmarks                性能基准（Harness §20）
+python scripts\third_party_licenses.py --check   第三方许可证策略检查（发布前必须通过）
+powershell -ExecutionPolicy Bypass -File scripts\package.ps1   发布包：dist\Loadout-<版本>-windows-x64.zip
 ```
+
+发布包内的 `install.ps1` / `uninstall.ps1` 源文件在 `packaging/`。测试安装脚本时必须传 `-InstallDir <临时目录> -ShortcutDir <临时目录> -NoStart`，不要触碰真实安装与开始菜单。
 
 ### 运行
 

@@ -1,6 +1,6 @@
 # ExecPlan 007: Release Packaging, Recovery, Hardening and License Bundle
 
-- **Status**: In progress
+- **Status**: Completed
 - **Created**: 2026-09-29
 - **Phase**: Harness §26 Phase 10（E2E hardening、Performance、installer/update、recovery）
 
@@ -38,9 +38,9 @@
 
 ## 5. Definition of Done
 
-- [ ] §1 全部完成，测试覆盖 §4
-- [ ] clippy / fmt / 测试 / 前端构建通过；打包脚本产出 zip
-- [ ] 文档完成；本文件移入 `completed/`
+- [x] §1 全部完成，测试覆盖 §4
+- [x] clippy / fmt / 测试 / 前端构建通过；打包脚本产出 zip
+- [x] 文档完成；本文件移入 `completed/`
 
 ## 6. Progress
 
@@ -49,6 +49,12 @@
   - 每日自动配置备份到 `<data>ackupsuto`，保留 7 份；空配置不写，避免恢复后把好的备份轮转掉。
   - 修正：UI 中请求历史保留期写成了 30 天，实际按 ADR-008 为 400 天。
   - 教训：经 Bash heredoc 传给 Python 的反斜杠被吃掉一层，生成了退格字符、字符串续行变成空格；已全部修复并记入 memory，此后含反斜杠的编辑一律用 Edit 工具或 `chr(92)`。
-- [ ] Stage 2 — packaging
-- [ ] Stage 3 — hardening / performance
-- [ ] Stage 4 — docs
+- [x] Stage 2 — packaging（2026-09-29）
+  - `scripts/package.ps1` → `dist/Loadout-0.1.0-windows-x64.zip`（9.8 MB，附 SHA-256）；`packaging/install.ps1`（按用户安装、升级时先优雅停止、开始菜单快捷方式、可选 PATH / 自启动、刷新已存在的自启动路径）、`uninstall.ps1`（可选删除数据与 `loadout:` 凭据；只在 PATH 含安装目录时才改写 PATH）、`install.cmd`、`README.txt`。
+  - `scripts/third_party_licenses.py`：335 个第三方包（crates + 前端运行时 npm 包），0 违规；生成的 `THIRD_PARTY_LICENSES.md` 按相同许可证文本分组。CI 增加许可证检查。
+  - 隔离冒烟：安装到临时目录（`-ShortcutDir` 临时目录、`-NoStart`）→ 以隔离参数运行已安装的 release daemon 与桌面端（内嵌前端正常加载）→ 卸载；真实自启动登记与开始菜单未被触碰。
+- [x] Stage 3 — hardening / performance（2026-09-29）
+  - `stress_e2e`：32 并发 × 4 轮，混合协议与流式，全部成功且全部记录。
+  - 新增 Harness §20 要求的 `snapshot_swap` 基准；全部基准结果、体积、启动时间与空闲内存写入 `docs/performance/baseline.md`。
+- [x] Stage 4 — docs（2026-09-29）
+  - README（中文用户指南）、`docs/testing/system-test-plan.md`、AGENTS.md 打包与安装脚本测试约定。

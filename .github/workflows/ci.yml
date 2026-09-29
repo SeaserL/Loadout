@@ -48,3 +48,6 @@ jobs:
 
       - name: Benchmarks compile
         run: cargo bench -p loadout-benchmarks --no-run
+
+      - name: Third-party license policy
+        run: python scripts/third_party_licenses.py --check
