@@ -363,6 +363,93 @@ pub struct RequestSummary {
     pub cost_usd: Option<f64>,
 }
 
+// ---- usage (ExecPlan 003) ----------------------------------------------------------------
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UsageWindow {
+    pub scope: String,
+    pub label: String,
+    /// `percent`, `requests`, `tokens`, `usd` or `credits`.
+    pub unit: String,
+    pub used: Option<f64>,
+    pub limit: Option<f64>,
+    /// 0–100, when computable.
+    pub remaining_percent: Option<f64>,
+    pub window_seconds: Option<i64>,
+    pub resets_at_ms: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UsageBalance {
+    pub currency: String,
+    pub amount: f64,
+    pub included: Option<f64>,
+    pub topup: Option<f64>,
+    pub granted: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UsagePlan {
+    pub name: Option<String>,
+    pub price_usd_monthly: Option<f64>,
+    /// Billing renewal — not the quota reset (product doc §35).
+    pub renews_at_ms: Option<i64>,
+    pub auto_renew: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SpendInfo {
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountUsage {
+    pub provider: String,
+    pub alias: String,
+    pub account_type: String,
+    /// The provider can report usage (otherwise only Loadout's own spend is shown).
+    pub supported: bool,
+    pub fetched_at_ms: Option<i64>,
+    pub source: Option<String>,
+    pub confidence: Option<String>,
+    pub error: Option<String>,
+    pub account_label: Option<String>,
+    pub plan: Option<UsagePlan>,
+    pub windows: Vec<UsageWindow>,
+    pub balances: Vec<UsageBalance>,
+    /// Estimated from Loadout's own request records (since local midnight / month start).
+    pub spend_today: SpendInfo,
+    pub spend_month: SpendInfo,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct UsageListParams {
+    pub provider: Option<String>,
+    /// Refresh from upstreams before answering.
+    #[serde(default)]
+    pub refresh: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountPlanParams {
+    pub provider: String,
+    pub alias: String,
+    pub name: Option<String>,
+    pub price_usd_monthly: Option<f64>,
+    pub renews_at_ms: Option<i64>,
+}
+
+method!(UsageList, "usage.list", UsageListParams, Vec<AccountUsage>);
+method!(
+    AccountSetPlan,
+    "account.set_plan",
+    AccountPlanParams,
+    AccountInfo
+);
+
 method!(ProviderKinds, "provider.kinds", (), Vec<ProviderKind>);
 method!(ProviderAdd, "provider.add", ProviderAddParams, ProviderInfo);
 method!(ProviderList, "provider.list", (), Vec<ProviderInfo>);

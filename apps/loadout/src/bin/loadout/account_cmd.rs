@@ -51,6 +51,21 @@ pub enum AccountCommand {
     },
     /// Remove the account, its key and its models.
     Remove { provider: String, alias: String },
+    /// Record the subscription plan, monthly price and next renewal date (for the usage
+    /// view and subscription value statistics).
+    Plan {
+        provider: String,
+        alias: String,
+        /// Plan name, e.g. "Pro".
+        #[arg(long)]
+        name: Option<String>,
+        /// Monthly price in USD.
+        #[arg(long)]
+        price: Option<f64>,
+        /// Next renewal date, YYYY-MM-DD.
+        #[arg(long)]
+        renews: Option<String>,
+    },
 }
 
 fn read_key(input: &KeyInput, what: &str) -> Result<Option<String>, Failure> {
@@ -181,6 +196,36 @@ pub async fn run(ctx: &Ctx, cmd: AccountCommand) -> Result<(), Failure> {
         AccountCommand::Enable { provider, alias } => set_enabled(ctx, provider, alias, true).await,
         AccountCommand::Disable { provider, alias } => {
             set_enabled(ctx, provider, alias, false).await
+        }
+        AccountCommand::Plan {
+            provider,
+            alias,
+            name,
+            price,
+            renews,
+        } => {
+            let renews_at_ms =
+                match renews {
+                    Some(d) => Some(output::parse_date(&d).ok_or_else(|| {
+                        Failure::new(format!("invalid date {d:?}; use YYYY-MM-DD"))
+                    })?),
+                    None => None,
+                };
+            let mut ipc = ctx.connect().await?;
+            let info = ipc
+                .call::<api::AccountSetPlan>(&api::AccountPlanParams {
+                    provider,
+                    alias,
+                    name,
+                    price_usd_monthly: price,
+                    renews_at_ms,
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&info);
+            }
+            println!("Saved the plan of {}/{}.", info.provider, info.alias);
+            Ok(())
         }
         AccountCommand::Remove { provider, alias } => {
             let mut ipc = ctx.connect().await?;

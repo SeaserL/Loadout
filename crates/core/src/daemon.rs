@@ -47,6 +47,8 @@ pub struct DaemonOptions {
     pub port: Option<u16>,
     /// Credential Manager target-name prefix (tests use their own, ADR-004).
     pub secret_prefix: Option<String>,
+    /// Home directory for official-CLI discovery and usage (default: the user profile).
+    pub home_dir: Option<PathBuf>,
 }
 
 /// Runs the daemon until shutdown is requested over IPC, by Ctrl+C, or a critical service
@@ -87,6 +89,11 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         Registry::builtin(),
         routes.clone(),
         http.clone(),
+        options
+            .home_dir
+            .clone()
+            .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+            .unwrap_or_else(|| PathBuf::from(".")),
     ));
     control
         .rebuild_routes()
@@ -144,6 +151,12 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     })?;
 
     let shutdown = CancellationToken::new();
+    {
+        let (control, token) = (control.clone(), shutdown.clone());
+        spawn_restartable("usage", shutdown.clone(), Backoff::default(), move || {
+            crate::usage::poll(control.clone(), token.clone())
+        });
+    }
     let state = Arc::new(DaemonState {
         db: db.clone(),
         control,

@@ -221,6 +221,7 @@ mod tests {
                 http: &http,
                 config: &cfg,
                 key: Some(&key),
+                home: None,
             })
             .await
             .expect("models");

@@ -268,6 +268,8 @@ fn method_names_are_unique() {
         ModelRemove::NAME,
         RouteStatus::NAME,
         RequestsRecent::NAME,
+        UsageList::NAME,
+        AccountSetPlan::NAME,
     ];
     let unique: std::collections::HashSet<_> = names.iter().collect();
     assert_eq!(unique.len(), names.len());

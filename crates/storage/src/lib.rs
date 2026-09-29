@@ -16,6 +16,7 @@ mod response_routes;
 mod routing;
 mod settings;
 pub mod telemetry;
+mod usage;
 
 pub use account_models::{AccountModel, AccountModelRepo, ModelInput, SyncCounts};
 pub use accounts::{Account, AccountRepo, Credential, NewAccount};
@@ -27,6 +28,7 @@ pub use providers::{NewProvider, Provider, ProviderRepo};
 pub use request_events::RequestEvent;
 pub use routing::RoutableModel;
 pub use settings::SettingsRepo;
+pub use usage::{BalanceRow, Spend, UsageRecord, WindowRow};
 
 impl Database {
     pub fn providers(&self) -> ProviderRepo<'_> {

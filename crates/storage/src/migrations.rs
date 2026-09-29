@@ -15,6 +15,8 @@ const MIGRATIONS: &[M<'static>] = &[
     .down(include_str!(
         "../migrations/0002_accounts_models_telemetry/down.sql"
     )),
+    M::up(include_str!("../migrations/0003_usage/up.sql"))
+        .down(include_str!("../migrations/0003_usage/down.sql")),
 ];
 
 /// Schema version after applying every migration.

@@ -17,6 +17,7 @@ loadout-providers.workspace = true
 loadout-router.workspace = true
 loadout-secrets.workspace = true
 loadout-storage.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

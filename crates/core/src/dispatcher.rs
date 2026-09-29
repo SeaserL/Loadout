@@ -331,6 +331,23 @@ impl Dispatcher {
                 encode_result::<api::ModelRemove>(&api::Revoked { revoked })
             }
             api::RouteStatus::NAME => encode_result::<api::RouteStatus>(&c.route_status()),
+            api::UsageList::NAME => {
+                let p = decode_params::<api::UsageList>(params)?;
+                encode_result::<api::UsageList>(&c.usage_list(p.provider, p.refresh).await?)
+            }
+            api::AccountSetPlan::NAME => {
+                let p = decode_params::<api::AccountSetPlan>(params)?;
+                let info = c
+                    .set_account_plan(
+                        p.provider,
+                        p.alias,
+                        p.name,
+                        p.price_usd_monthly,
+                        p.renews_at_ms,
+                    )
+                    .await?;
+                encode_result::<api::AccountSetPlan>(&info)
+            }
             api::RequestsRecent::NAME => {
                 let p = decode_params::<api::RequestsRecent>(params)?;
                 encode_result::<api::RequestsRecent>(&c.recent_requests(p.limit).await?)
@@ -356,6 +373,7 @@ mod tests {
             loadout_providers::Registry::builtin(),
             Arc::default(),
             loadout_provider_sdk::HttpClient::new(&Default::default()).expect("http"),
+            std::path::PathBuf::from("."),
         ));
         Arc::new(DaemonState {
             db,

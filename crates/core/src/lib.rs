@@ -13,6 +13,7 @@ mod route_build;
 pub mod settings;
 mod sinks;
 pub mod supervisor;
+mod usage;
 
 pub use daemon::{DaemonOptions, run};
 pub use error::DaemonError;

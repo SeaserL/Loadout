@@ -87,6 +87,9 @@ pub struct DriverContext<'a> {
     pub http: &'a HttpClient,
     pub config: &'a ProviderConfig,
     pub key: Option<&'a Secret>,
+    /// The user's home directory, where official CLIs keep their state (discovery and
+    /// external-managed usage). Overridable for tests.
+    pub home: Option<&'a std::path::Path>,
 }
 
 /// A Provider module (ADR-005). Only [`ProviderModule::descriptor`] is mandatory; every
@@ -138,6 +141,11 @@ pub trait ProviderModule: Send + Sync + 'static {
     }
 
     // ---- usage driver ----
+
+    /// How often the background poller refreshes usage (ExecPlan 003 §4.2).
+    fn usage_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(300)
+    }
 
     fn fetch_usage<'a>(
         &'a self,

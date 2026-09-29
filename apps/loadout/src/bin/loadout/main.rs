@@ -11,6 +11,7 @@ mod model_cmd;
 mod output;
 mod provider_cmd;
 mod status_cmd;
+mod usage_cmd;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -65,6 +66,14 @@ enum Command {
     /// Inspect routing.
     #[command(subcommand)]
     Route(status_cmd::RouteCommand),
+    /// Quota, balance and plan of every account, plus what Loadout routed to it.
+    Usage {
+        /// Only this provider.
+        provider: Option<String>,
+        /// Fetch fresh usage from the providers first.
+        #[arg(long)]
+        refresh: bool,
+    },
     /// Show recent requests (metadata only; no prompts or responses are stored).
     Logs {
         #[arg(long, default_value_t = 30)]
@@ -185,6 +194,7 @@ fn main() -> ExitCode {
             Command::Model(cmd) => model_cmd::run(&ctx, cmd).await,
             Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
             Command::Logs { limit } => status_cmd::logs(&ctx, limit).await,
+            Command::Usage { provider, refresh } => usage_cmd::run(&ctx, provider, refresh).await,
         }
     });
     match result {

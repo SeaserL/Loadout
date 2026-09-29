@@ -250,6 +250,7 @@ mod tests {
                 http: &http,
                 config: &cfg,
                 key: Some(&key),
+                home: None,
             })
             .await
             .expect("models");
@@ -278,6 +279,7 @@ mod tests {
                 http: &http,
                 config: &cfg,
                 key: None,
+                home: None,
             })
             .await
             .expect_err("401");

@@ -44,6 +44,9 @@ struct Args {
 
     #[arg(long, hide = true)]
     secret_prefix: Option<String>,
+
+    #[arg(long, hide = true)]
+    home_dir: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -89,6 +92,7 @@ fn main() -> ExitCode {
         instance_id: args.instance_id,
         port: args.port,
         secret_prefix: args.secret_prefix,
+        home_dir: args.home_dir,
     };
     match runtime.block_on(loadout_core::run(options)) {
         Ok(()) => ExitCode::SUCCESS,

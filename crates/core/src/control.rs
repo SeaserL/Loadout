@@ -30,6 +30,8 @@ pub(crate) struct ControlPlane {
     pub health: Arc<HealthRegistry>,
     pub routes: Arc<RouteTableHandle>,
     pub http: HttpClient,
+    /// Home directory whose official-CLI state is read (overridable for tests).
+    pub home: std::path::PathBuf,
     version: AtomicU64,
     rebuild: tokio::sync::Mutex<()>,
 }
@@ -42,7 +44,7 @@ impl std::fmt::Debug for ControlPlane {
     }
 }
 
-fn storage(e: StorageError) -> ErrorBody {
+pub(crate) fn storage(e: StorageError) -> ErrorBody {
     match e {
         StorageError::Conflict(what) => ErrorBody::conflict(format!("{what} already exists")),
         StorageError::NotFound(what) => ErrorBody::not_found(format!("{what} not found")),
@@ -62,7 +64,7 @@ fn provider_error(e: ProviderError) -> ErrorBody {
 }
 
 /// Runs blocking work (SQLite, Credential Manager) on the blocking pool.
-async fn blocking<T, F>(f: F) -> Result<T, ErrorBody>
+pub(crate) async fn blocking<T, F>(f: F) -> Result<T, ErrorBody>
 where
     T: Send + 'static,
     F: FnOnce() -> Result<T, ErrorBody> + Send + 'static,
@@ -100,6 +102,7 @@ impl ControlPlane {
         registry: Registry,
         routes: Arc<RouteTableHandle>,
         http: HttpClient,
+        home: std::path::PathBuf,
     ) -> Self {
         Self {
             db,
@@ -108,6 +111,7 @@ impl ControlPlane {
             health: Arc::default(),
             routes,
             http,
+            home,
             version: AtomicU64::new(0),
             rebuild: tokio::sync::Mutex::new(()),
         }
@@ -510,6 +514,35 @@ impl ControlPlane {
         self.account(&provider, &alias).await
     }
 
+    /// Records the user's subscription plan, price and renewal date (product doc §35).
+    pub async fn set_account_plan(
+        &self,
+        provider: String,
+        alias: String,
+        name: Option<String>,
+        price: Option<f64>,
+        renews_at_ms: Option<i64>,
+    ) -> Result<AccountInfo, ErrorBody> {
+        if price.is_some_and(|p| !p.is_finite() || p < 0.0) {
+            return Err(ErrorBody::invalid_params(
+                "price must be a non-negative number",
+            ));
+        }
+        let db = self.db.clone();
+        let (p2, a2) = (provider.clone(), alias.clone());
+        blocking(move || {
+            let p = Self::load_provider(&db, &p2)?;
+            let a = Self::load_account(&db, &p, &a2)?;
+            let name = name.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty());
+            db.accounts()
+                .set_plan(&a.id, name.as_deref(), price, renews_at_ms)
+                .map_err(storage)?;
+            Ok(())
+        })
+        .await?;
+        self.account(&provider, &alias).await
+    }
+
     pub async fn remove_account(&self, provider: String, alias: String) -> Result<bool, ErrorBody> {
         let (db, secrets) = (self.db.clone(), self.secrets.clone());
         let removed = blocking(move || {
@@ -575,6 +608,7 @@ impl ControlPlane {
                 http: &self.http,
                 config: &config,
                 key: key.as_ref(),
+                home: Some(&self.home),
             })
             .await
             .map_err(|e| match e {

@@ -1168,6 +1168,7 @@ dependencies = [
  "loadout-router",
  "loadout-secrets",
  "loadout-storage",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",

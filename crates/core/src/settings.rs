@@ -32,6 +32,7 @@ pub const GATEWAY_PORT: &str = "gateway.port";
 pub const GATEWAY_ALLOWED_ORIGINS: &str = "gateway.allowed_origins";
 pub const FIRST_TOKEN_TIMEOUT: &str = "upstream.first_token_timeout_secs";
 pub const MAX_ATTEMPTS: &str = "routing.max_attempts";
+pub const QUOTA_RESERVE: &str = "routing.quota_reserve_percent";
 
 pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
@@ -63,6 +64,14 @@ pub const SETTINGS: &[SettingDef] = &[
         restart_required: true,
         validate: validate_attempts,
     },
+    SettingDef {
+        key: QUOTA_RESERVE,
+        default: "0",
+        description: "Stop routing to an account when any quota window has less than this \
+                      percent left (0 disables; ADR-003)",
+        restart_required: false,
+        validate: validate_reserve,
+    },
 ];
 
 pub fn find(key: &str) -> Option<&'static SettingDef> {
@@ -87,6 +96,13 @@ fn validate_attempts(value: &str) -> Result<(), String> {
     match value.parse::<usize>() {
         Ok(1..=10) => Ok(()),
         _ => Err("expected 1-10".into()),
+    }
+}
+
+fn validate_reserve(value: &str) -> Result<(), String> {
+    match value.parse::<f64>() {
+        Ok(v) if (0.0..=50.0).contains(&v) => Ok(()),
+        _ => Err("expected a percentage between 0 and 50".into()),
     }
 }
 
