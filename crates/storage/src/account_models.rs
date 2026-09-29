@@ -23,6 +23,8 @@ pub struct AccountModel {
     pub enabled: bool,
     /// `catalog` (synced from upstream) or `manual`.
     pub source: String,
+    /// Latency tier pinned by the user (ExecPlan 004).
+    pub tier_override: Option<String>,
 }
 
 /// Model data from a catalog sync or manual entry.
@@ -55,7 +57,7 @@ pub struct AccountModelRepo<'a> {
 
 pub(crate) const COLUMNS: &str = "id, account_id, upstream_model_id, model_id, protocols_json, \
      context_window, max_output_tokens, capabilities_json, input_price, output_price, \
-     cache_read_price, cache_write_price, enabled, source";
+     cache_read_price, cache_write_price, enabled, source, tier_override";
 
 pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Result<AccountModel> {
     Ok(AccountModel {
@@ -73,6 +75,7 @@ pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Resul
         cache_write_price: row.get(offset + 11)?,
         enabled: row.get::<_, i64>(offset + 12)? == 1,
         source: row.get(offset + 13)?,
+        tier_override: row.get(offset + 14)?,
     })
 }
 

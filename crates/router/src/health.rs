@@ -75,6 +75,9 @@ pub struct TargetHealth {
     last_success_ms: AtomicI64,
     last_failure_ms: AtomicI64,
     last_error: Mutex<Option<String>>,
+    /// Recent outcomes: low 32 bits are a shift register (1 = failure, newest in bit 0),
+    /// the high bits count how many are valid (at most 32).
+    recent: AtomicU64,
 }
 
 /// Point-in-time view for status displays.
@@ -89,7 +92,15 @@ pub struct HealthSnapshot {
     pub last_success_ms: Option<i64>,
     pub last_failure_ms: Option<i64>,
     pub last_error: Option<String>,
+    /// Healthy, but failing often recently (Harness §18). Still eligible; ordered later.
+    pub degraded: bool,
+    /// Failures among the recent outcomes, and how many outcomes that covers.
+    pub recent_failures: u32,
+    pub recent_outcomes: u32,
 }
+
+/// Minimum recent outcomes before a target can be degraded.
+const DEGRADED_MIN_OUTCOMES: u32 = 4;
 
 fn backoff(base: Duration, max: Duration, failures: u32) -> Duration {
     let factor = 1u32 << failures.saturating_sub(1).min(16);
@@ -110,7 +121,38 @@ impl TargetHealth {
         }
     }
 
+    fn push_outcome(&self, failed: bool) {
+        let _ = self
+            .recent
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |v| {
+                let count = ((v >> 32) + 1).min(32);
+                let bits = ((v as u32) << 1) | u32::from(failed);
+                Some((count << 32) | u64::from(bits))
+            });
+    }
+
+    /// `(failures, outcomes)` over the recent window.
+    fn recent(&self) -> (u32, u32) {
+        let v = self.recent.load(Ordering::Acquire);
+        let count = (v >> 32) as u32;
+        let mask = if count >= 32 {
+            u32::MAX
+        } else {
+            (1u32 << count) - 1
+        };
+        ((v as u32 & mask).count_ones(), count)
+    }
+
+    /// Healthy but with ≥ 25 % failures among at least 4 recent outcomes.
+    pub fn is_degraded(&self) -> bool {
+        let (failures, count) = self.recent();
+        self.state() == HealthState::Healthy
+            && count >= DEGRADED_MIN_OUTCOMES
+            && failures * 4 >= count
+    }
+
     pub fn record_success(&self, now_ms: i64) {
+        self.push_outcome(false);
         self.state
             .store(HealthState::Healthy as u8, Ordering::Release);
         self.until_ms.store(0, Ordering::Release);
@@ -143,6 +185,7 @@ impl TargetHealth {
             FailureKind::ModelNotFound => (HealthState::Cooldown, COOLDOWN_MAX),
             FailureKind::InvalidRequest => return,
         };
+        self.push_outcome(true);
         self.state.store(state as u8, Ordering::Release);
         self.until_ms.store(
             now_ms.saturating_add(wait.as_millis() as i64),
@@ -168,6 +211,7 @@ impl TargetHealth {
             .store(HealthState::Unknown as u8, Ordering::Release);
         self.until_ms.store(0, Ordering::Release);
         self.consecutive_failures.store(0, Ordering::Release);
+        self.recent.store(0, Ordering::Release);
     }
 
     /// RAII in-flight counter.
@@ -188,6 +232,9 @@ impl TargetHealth {
             last_success_ms: nonzero(self.last_success_ms.load(Ordering::Relaxed)),
             last_failure_ms: nonzero(self.last_failure_ms.load(Ordering::Relaxed)),
             last_error: self.last_error.lock().ok().and_then(|e| e.clone()),
+            degraded: self.is_degraded(),
+            recent_failures: self.recent().0,
+            recent_outcomes: self.recent().1,
         }
     }
 }
@@ -300,6 +347,29 @@ mod tests {
         h.reset();
         assert!(h.is_available(60_000));
         assert_eq!(h.snapshot().last_error.as_deref(), Some("401"));
+    }
+
+    #[test]
+    fn frequent_failures_degrade_a_healthy_target() {
+        let h = TargetHealth::default();
+        for _ in 0..3 {
+            h.record_success(0);
+        }
+        assert!(!h.is_degraded(), "too few outcomes");
+        h.record_failure(FailureKind::Server, "x", 0);
+        h.record_success(10_000);
+        assert!(!h.is_degraded(), "1 failure in 5 outcomes = 20 %");
+        h.record_failure(FailureKind::Server, "x", 10_000);
+        assert!(!h.is_degraded(), "in cooldown, not merely degraded");
+        h.record_success(20_000);
+        assert!(h.is_degraded(), "2 failures in 7 outcomes");
+        let snap = h.snapshot();
+        assert_eq!((snap.recent_failures, snap.recent_outcomes), (2, 7));
+        for _ in 0..32 {
+            h.record_success(30_000);
+        }
+        assert!(!h.is_degraded(), "old failures age out of the window");
+        assert_eq!(h.snapshot().recent_outcomes, 32);
     }
 
     #[test]

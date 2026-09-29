@@ -3,7 +3,7 @@
 //! Control-plane operations on providers, accounts and models (ExecPlan 002 §5.6). Every
 //! change rebuilds and republishes the route table.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -14,7 +14,9 @@ use loadout_ipc::api::{
 use loadout_protocol::Protocol;
 use loadout_provider_sdk::{AuthMethod, CatalogModel, DriverContext, HttpClient, ProviderError};
 use loadout_providers::Registry;
-use loadout_router::{HealthRegistry, RouteTableHandle, now_ms, validate_alias, validate_slug};
+use loadout_router::{
+    HealthRegistry, LatencyBook, RouteTableHandle, now_ms, validate_alias, validate_slug,
+};
 use loadout_secrets::{Secret, SecretRef, SecretStore};
 use loadout_storage::{
     Account, AccountModel, Database, ModelInput, NewAccount, NewProvider, Provider, StorageError,
@@ -32,6 +34,10 @@ pub(crate) struct ControlPlane {
     pub http: HttpClient,
     /// Home directory whose official-CLI state is read (overridable for tests).
     pub home: std::path::PathBuf,
+    /// Latency statistics per account model (ExecPlan 004).
+    pub latency: Arc<LatencyBook>,
+    /// Last automatic probe per account model (ms).
+    pub last_probe: std::sync::Mutex<HashMap<String, i64>>,
     version: AtomicU64,
     rebuild: tokio::sync::Mutex<()>,
 }
@@ -83,7 +89,7 @@ fn auth_name(a: AuthMethod) -> &'static str {
 }
 
 /// Splits `provider/account/model` (model ids may contain `/`).
-fn split_exact(name: &str) -> Result<(&str, &str, &str), ErrorBody> {
+pub(crate) fn split_exact(name: &str) -> Result<(&str, &str, &str), ErrorBody> {
     let mut parts = name.splitn(3, '/');
     match (parts.next(), parts.next(), parts.next()) {
         (Some(p), Some(a), Some(m)) if !p.is_empty() && !a.is_empty() && !m.is_empty() => {
@@ -112,6 +118,8 @@ impl ControlPlane {
             routes,
             http,
             home,
+            latency: Arc::default(),
+            last_probe: std::sync::Mutex::default(),
             version: AtomicU64::new(0),
             rebuild: tokio::sync::Mutex::new(()),
         }
@@ -121,14 +129,16 @@ impl ControlPlane {
     pub async fn rebuild_routes(&self) -> Result<Vec<String>, ErrorBody> {
         let _serial = self.rebuild.lock().await;
         let version = self.version.fetch_add(1, Ordering::AcqRel) + 1;
-        let (db, secrets, registry, health) = (
+        let (db, secrets, registry, health, latency) = (
             self.db.clone(),
             self.secrets.clone(),
             self.registry.clone(),
             self.health.clone(),
+            self.latency.clone(),
         );
         let (table, report) = blocking(move || {
-            route_build::build(&db, secrets.as_ref(), &registry, &health, version).map_err(storage)
+            route_build::build(&db, secrets.as_ref(), &registry, &health, &latency, version)
+                .map_err(storage)
         })
         .await?;
         for w in &report.warnings {
@@ -290,14 +300,18 @@ impl ControlPlane {
 
     // ---- accounts -------------------------------------------------------------------------
 
-    fn load_provider(db: &Database, slug: &str) -> Result<Provider, ErrorBody> {
+    pub(crate) fn load_provider(db: &Database, slug: &str) -> Result<Provider, ErrorBody> {
         db.providers()
             .get_by_slug(slug)
             .map_err(storage)?
             .ok_or_else(|| ErrorBody::not_found(format!("provider {slug:?} not found")))
     }
 
-    fn load_account(db: &Database, provider: &Provider, alias: &str) -> Result<Account, ErrorBody> {
+    pub(crate) fn load_account(
+        db: &Database,
+        provider: &Provider,
+        alias: &str,
+    ) -> Result<Account, ErrorBody> {
         db.accounts()
             .get(&provider.id, alias)
             .map_err(storage)?
@@ -764,7 +778,7 @@ impl ControlPlane {
     }
 
     /// Applies `f` to the model named `provider/account/model`, rebuilds routes and returns it.
-    async fn update_model<F>(&self, name: String, f: F) -> Result<ModelInfo, ErrorBody>
+    pub(crate) async fn update_model<F>(&self, name: String, f: F) -> Result<ModelInfo, ErrorBody>
     where
         F: FnOnce(&Database, &AccountModel) -> Result<(), StorageError> + Send + 'static,
     {
@@ -856,6 +870,9 @@ impl ControlPlane {
             .iter()
             .map(|t| {
                 let h = t.health.snapshot();
+                let key = loadout_router::account_model_key(&t.id);
+                let stats = self.latency.stats(key, now);
+                let rank = self.latency.rank(key);
                 TargetStatus {
                     name: t.exact_name(),
                     protocol: t.protocol.as_str().to_owned(),
@@ -864,6 +881,8 @@ impl ControlPlane {
                         && h.state != loadout_router::HealthState::Healthy
                     {
                         "RECOVERING".to_owned()
+                    } else if h.degraded {
+                        "DEGRADED".to_owned()
                     } else {
                         h.state.as_str().to_owned()
                     },
@@ -873,6 +892,13 @@ impl ControlPlane {
                     successes: h.successes,
                     failures: h.failures,
                     last_error: h.last_error,
+                    tier: rank.tier.as_str().to_owned(),
+                    tier_pinned: rank.pinned,
+                    ttft_p50_ms: stats.ttft_p50_ms,
+                    ttft_p90_ms: stats.ttft_p90_ms,
+                    tps: stats.tps_p50,
+                    samples: stats.samples,
+                    last_sample_ms: stats.last_sample_ms,
                 }
             })
             .collect()
@@ -953,5 +979,6 @@ fn model_info(p: &Provider, a: &Account, m: &AccountModel) -> ModelInfo {
         context_window: m.context_window,
         input_price: m.input_price,
         output_price: m.output_price,
+        tier_override: m.tier_override.clone(),
     }
 }

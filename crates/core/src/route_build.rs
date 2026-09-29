@@ -9,7 +9,10 @@ use std::sync::Arc;
 use loadout_protocol::Protocol;
 use loadout_provider_sdk::{AuthMethod, Capabilities, ProviderConfig};
 use loadout_providers::Registry;
-use loadout_router::{HealthRegistry, Prices, RouteTable, RouteTarget, TargetId};
+use loadout_router::{
+    HealthRegistry, LatencyBook, Prices, RankedItem, RouteTable, RouteTarget, TargetId, Tier,
+    account_model_key, order_by_latency,
+};
 use loadout_secrets::{Secret, SecretRef, SecretStore};
 use loadout_storage::{Database, RoutableModel, StorageError};
 use serde_json::Value;
@@ -55,11 +58,112 @@ pub(crate) struct BuildReport {
     pub warnings: Vec<String>,
 }
 
+/// Built-in virtual models (ADR-003 §4–6, ExecPlan 004 §3.4).
+pub(crate) const VIRTUAL_REALTIME: &str = "realtime";
+pub(crate) const VIRTUAL_FAST: &str = "fast";
+pub(crate) const VIRTUAL_DEFAULT: &str = "default";
+/// Names reserved for built-in virtual models, now or later (ADR-003 Consequences).
+pub(crate) const RESERVED_VIRTUAL_NAMES: &[&str] = &[
+    VIRTUAL_REALTIME,
+    VIRTUAL_FAST,
+    VIRTUAL_DEFAULT,
+    "balanced",
+    "quality",
+    "economy",
+    "coding",
+    "batch",
+    "auto",
+    "manual",
+];
+
+/// Account models of a table in table order, each with its target ids.
+fn account_models(table: &RouteTable) -> Vec<(Arc<str>, Vec<TargetId>, bool)> {
+    let mut out: Vec<(Arc<str>, Vec<TargetId>, bool)> = Vec::new();
+    for t in table.targets() {
+        let key = account_model_key(&t.id);
+        let degraded = t.health.is_degraded();
+        match out.iter_mut().find(|(k, _, _)| &**k == key) {
+            Some((_, ids, d)) => {
+                ids.push(t.id.clone());
+                *d |= degraded;
+            }
+            None => out.push((Arc::from(key), vec![t.id.clone()], degraded)),
+        }
+    }
+    out
+}
+
+fn expand(
+    items: &[RankedItem<usize>],
+    models: &[(Arc<str>, Vec<TargetId>, bool)],
+) -> Vec<TargetId> {
+    items
+        .iter()
+        .flat_map(|i| models[i.key].1.iter().cloned())
+        .collect()
+}
+
+/// Adds the built-in virtual models and the user's pools.
+fn add_virtuals(
+    mut table: RouteTable,
+    latency: &LatencyBook,
+    pools: &[loadout_storage::Pool],
+) -> RouteTable {
+    let models = account_models(&table);
+    let ranked: Vec<RankedItem<usize>> = models
+        .iter()
+        .enumerate()
+        .map(|(i, (key, _, degraded))| RankedItem {
+            key: i,
+            rank: latency.rank(key),
+            degraded: *degraded,
+            base_order: i,
+        })
+        .collect();
+    let mut all = ranked.clone();
+    order_by_latency(&mut all);
+    let realtime: Vec<_> = all
+        .iter()
+        .filter(|i| i.rank.tier == Tier::UltraFast)
+        .cloned()
+        .collect();
+    let fast: Vec<_> = all
+        .iter()
+        .filter(|i| i.rank.tier <= Tier::Fast)
+        .cloned()
+        .collect();
+    table = table
+        .with_virtual(VIRTUAL_REALTIME, &expand(&realtime, &models))
+        .with_virtual(VIRTUAL_FAST, &expand(&fast, &models))
+        .with_virtual(VIRTUAL_DEFAULT, &expand(&all, &models));
+
+    for pool in pools {
+        let mut members: Vec<RankedItem<usize>> = pool
+            .members
+            .iter()
+            .enumerate()
+            .filter_map(|(pos, id)| {
+                let i = models.iter().position(|(k, _, _)| &**k == id.as_str())?;
+                Some(RankedItem {
+                    base_order: pos,
+                    ..ranked[i].clone()
+                })
+            })
+            .collect();
+        if pool.ordering == "latency" {
+            order_by_latency(&mut members);
+        }
+        table = table.with_virtual(&pool.name, &expand(&members, &models));
+    }
+    table
+}
+
 pub(crate) fn build(
     db: &Database,
     secrets: &dyn SecretStore,
     registry: &Registry,
     health: &HealthRegistry,
+    latency: &LatencyBook,
     version: u64,
 ) -> Result<(RouteTable, BuildReport), StorageError> {
     let rows: Vec<RoutableModel> = db.routable_models()?;
@@ -151,6 +255,12 @@ pub(crate) fn build(
         }
     }
     health.retain(|id| ids.contains(id));
+    let models: HashSet<&str> = ids.iter().map(|id| account_model_key(id)).collect();
+    latency.retain(|key| models.contains(key));
     report.targets = targets.len();
-    Ok((RouteTable::new(version, targets), report))
+    let pools = db.pools()?;
+    Ok((
+        add_virtuals(RouteTable::new(version, targets), latency, &pools),
+        report,
+    ))
 }

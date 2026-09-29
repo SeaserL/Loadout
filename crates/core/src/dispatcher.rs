@@ -331,6 +331,32 @@ impl Dispatcher {
                 encode_result::<api::ModelRemove>(&api::Revoked { revoked })
             }
             api::RouteStatus::NAME => encode_result::<api::RouteStatus>(&c.route_status()),
+            api::RouteVirtuals::NAME => encode_result::<api::RouteVirtuals>(&c.virtuals().await?),
+            api::BenchRun::NAME => {
+                let p = decode_params::<api::BenchRun>(params)?;
+                let results = c.run_bench(p.names).await?;
+                changed(s);
+                encode_result::<api::BenchRun>(&results)
+            }
+            api::ModelSetTier::NAME => {
+                let p = decode_params::<api::ModelSetTier>(params)?;
+                let info = c.set_model_tier(p.name, p.tier).await?;
+                changed(s);
+                encode_result::<api::ModelSetTier>(&info)
+            }
+            api::PoolSave::NAME => {
+                let p = decode_params::<api::PoolSave>(params)?;
+                let info = c.save_pool(p.name, p.ordering, p.members).await?;
+                changed(s);
+                encode_result::<api::PoolSave>(&info)
+            }
+            api::PoolList::NAME => encode_result::<api::PoolList>(&c.list_pools().await?),
+            api::PoolRemove::NAME => {
+                let p = decode_params::<api::PoolRemove>(params)?;
+                let revoked = c.remove_pool(p.name).await?;
+                changed(s);
+                encode_result::<api::PoolRemove>(&api::Revoked { revoked })
+            }
             api::DiscoveryScan::NAME => encode_result::<api::DiscoveryScan>(&c.scan().await?),
             api::DiscoveryImport::NAME => {
                 let p = decode_params::<api::DiscoveryImport>(params)?;

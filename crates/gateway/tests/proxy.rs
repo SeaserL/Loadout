@@ -331,6 +331,7 @@ impl Harness {
                 first_token_timeout: Duration::from_secs(10),
                 ..UpstreamLimits::default()
             },
+            sessions: Arc::default(),
         };
         let key = generate_client_key();
         let keys = Arc::new(ClientKeyIndex::new([(

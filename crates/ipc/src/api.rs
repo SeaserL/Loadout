@@ -285,6 +285,9 @@ pub struct ModelInfo {
     pub context_window: Option<i64>,
     pub input_price: Option<f64>,
     pub output_price: Option<f64>,
+    /// Latency tier pinned by the user (`ULTRA_FAST`, `FAST`, `NORMAL`).
+    #[serde(default)]
+    pub tier_override: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -336,6 +339,87 @@ pub struct TargetStatus {
     pub successes: u64,
     pub failures: u64,
     pub last_error: Option<String>,
+    /// `ULTRA_FAST`, `FAST`, `NORMAL` or `UNMEASURED` (ExecPlan 004).
+    #[serde(default)]
+    pub tier: String,
+    #[serde(default)]
+    pub tier_pinned: bool,
+    #[serde(default)]
+    pub ttft_p50_ms: Option<u32>,
+    #[serde(default)]
+    pub ttft_p90_ms: Option<u32>,
+    /// Median output tokens per second.
+    #[serde(default)]
+    pub tps: Option<f32>,
+    #[serde(default)]
+    pub samples: usize,
+    #[serde(default)]
+    pub last_sample_ms: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct VirtualInfo {
+    /// `loadout/<name>`.
+    pub name: String,
+    /// `builtin` or `pool`.
+    pub kind: String,
+    /// Pools: `manual` or `latency`.
+    pub ordering: Option<String>,
+    /// Routes in selection order (`provider/account/model`).
+    pub routes: Vec<String>,
+}
+
+// ---- latency (ExecPlan 004) --------------------------------------------------------------
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct BenchParams {
+    /// Model names (`provider/account/model`, `provider/model`, `loadout/<name>`); empty =
+    /// every route that is not measured yet.
+    #[serde(default)]
+    pub names: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BenchResult {
+    pub name: String,
+    pub protocol: String,
+    pub ok: bool,
+    pub ttft_ms: Option<u64>,
+    pub duration_ms: u64,
+    pub output_tokens: Option<u64>,
+    pub error: Option<String>,
+    /// Tier after this run.
+    pub tier: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelTierParams {
+    pub name: String,
+    /// `ultra-fast`, `fast`, `normal`; `None` returns to measured.
+    pub tier: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PoolSaveParams {
+    pub name: String,
+    /// `manual` (members in order) or `latency`.
+    pub ordering: String,
+    /// `provider/account/model` names.
+    pub members: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PoolRef {
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PoolInfo {
+    /// Without the `loadout/` prefix.
+    pub name: String,
+    pub ordering: String,
+    /// Members as `provider/account/model`, in the user's order.
+    pub members: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -526,6 +610,12 @@ method!(
 );
 method!(ModelRemove, "model.remove", ModelRef, Revoked);
 method!(RouteStatus, "route.status", (), Vec<TargetStatus>);
+method!(RouteVirtuals, "route.virtuals", (), Vec<VirtualInfo>);
+method!(BenchRun, "bench.run", BenchParams, Vec<BenchResult>);
+method!(ModelSetTier, "model.set_tier", ModelTierParams, ModelInfo);
+method!(PoolSave, "pool.save", PoolSaveParams, PoolInfo);
+method!(PoolList, "pool.list", (), Vec<PoolInfo>);
+method!(PoolRemove, "pool.remove", PoolRef, Revoked);
 method!(
     RequestsRecent,
     "requests.recent",

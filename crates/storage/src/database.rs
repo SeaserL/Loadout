@@ -100,7 +100,7 @@ impl Database {
         Ok(conn.query_row("PRAGMA journal_mode", [], |row| row.get(0))?)
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         // A panic while holding the lock cannot leave the connection structurally invalid:
         // uncommitted transactions are rolled back when dropped.
         self.conn.lock().unwrap_or_else(|e| e.into_inner())

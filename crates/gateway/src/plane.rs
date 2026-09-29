@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use loadout_protocol::{Protocol, Usage};
 use loadout_provider_sdk::{BoxFuture, HttpClient};
-use loadout_router::RouteTableHandle;
+use loadout_router::{RouteTableHandle, SessionAffinity};
 
 /// Metadata of one client request (ADR-008 §1). No content, no credentials.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -93,6 +93,8 @@ pub struct DataPlane {
     pub telemetry: Arc<dyn TelemetrySink>,
     pub response_routes: Arc<dyn ResponseRouteStore>,
     pub limits: UpstreamLimits,
+    /// `X-Loadout-Session-ID` → account model (ADR-003 §5).
+    pub sessions: Arc<SessionAffinity>,
 }
 
 impl DataPlane {
@@ -104,6 +106,7 @@ impl DataPlane {
             telemetry: Arc::new(NullSink),
             response_routes: Arc::new(NullSink),
             limits: UpstreamLimits::default(),
+            sessions: Arc::default(),
         }
     }
 

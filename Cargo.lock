@@ -1159,6 +1159,7 @@ name = "loadout-core"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "futures-util",
  "loadout-gateway",
  "loadout-ipc",
  "loadout-platform",
@@ -1168,6 +1169,7 @@ dependencies = [
  "loadout-router",
  "loadout-secrets",
  "loadout-storage",
+ "reqwest",
  "serde",
  "serde_json",
  "tempfile",

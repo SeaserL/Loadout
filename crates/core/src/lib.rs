@@ -3,11 +3,13 @@
 //! Loadout Core: runtime assembly, configuration, control plane, task supervision
 //! (ADR-007) and coordinated graceful shutdown (ADR-002).
 
+mod bench;
 mod control;
 mod daemon;
 mod discovery;
 mod dispatcher;
 mod error;
+mod latency;
 pub mod logging;
 mod paths;
 mod route_build;

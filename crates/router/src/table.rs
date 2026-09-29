@@ -150,6 +150,18 @@ impl RouteTable {
         }
     }
 
+    /// Virtual models and pools (without the `loadout/` prefix) with their ordered targets,
+    /// sorted by name.
+    pub fn virtuals(&self) -> Vec<(&str, Vec<&Arc<RouteTarget>>)> {
+        let mut out: Vec<(&str, Vec<&Arc<RouteTarget>>)> = self
+            .virtuals
+            .iter()
+            .map(|(k, idx)| (k.as_str(), idx.iter().map(|&i| &self.targets[i]).collect()))
+            .collect();
+        out.sort_by_key(|(k, _)| *k);
+        out
+    }
+
     /// Names for `GET /v1/models`: virtual models, then exact names.
     pub fn model_names(&self) -> Vec<String> {
         let mut virtuals: Vec<String> = self

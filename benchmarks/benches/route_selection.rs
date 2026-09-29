@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! Name resolution + eligibility over a 100-target table (target P95 < 2 ms).
+//! Name resolution + eligibility over a 100-target table (target P95 < 2 ms), including a
+//! virtual model over every target with session affinity (ExecPlan 004).
 
 use std::hint::black_box;
 use std::sync::Arc;
@@ -11,7 +12,8 @@ use loadout_protocol::hints::RouteHints;
 use loadout_provider_sdk::{Capabilities, Endpoint, ProviderConfig, ProviderModule, TrustLevel};
 use loadout_providers::OpenAiCompatible;
 use loadout_router::{
-    HealthRegistry, Prices, RouteTable, RouteTarget, SelectRequest, TargetId, select,
+    HealthRegistry, Prices, RouteTable, RouteTarget, SelectRequest, SessionAffinity, TargetId,
+    select,
 };
 use serde_json::Value;
 
@@ -49,7 +51,8 @@ fn table(reg: &HealthRegistry) -> RouteTable {
             }
         }
     }
-    RouteTable::new(1, targets)
+    let ids: Vec<TargetId> = targets.iter().map(|t| t.id.clone()).collect();
+    RouteTable::new(1, targets).with_virtual("default", &ids)
 }
 
 fn route_selection(c: &mut Criterion) {
@@ -79,6 +82,31 @@ fn route_selection(c: &mut Criterion) {
                     max_attempts: 3,
                     pinned_target: None,
                     allow_account_failover: true,
+                    preferred: None,
+                },
+            )
+        })
+    });
+    let sessions = SessionAffinity::default();
+    for i in 0..5_000 {
+        sessions.put(&format!("session-{i}"), Arc::from("a7-m4"), 0);
+    }
+    let mut virtual_hints = hints.clone();
+    virtual_hints.model = "loadout/default".into();
+    c.bench_function("route_selection/virtual_100_targets_with_session", |b| {
+        b.iter(|| {
+            let preferred = sessions.get(black_box("session-4242"), 1);
+            let res = t.resolve(&virtual_hints.model).expect("resolve");
+            select(
+                &res,
+                &SelectRequest {
+                    ingress: Protocol::Chat,
+                    hints: &virtual_hints,
+                    now_ms: 0,
+                    max_attempts: 3,
+                    pinned_target: None,
+                    allow_account_failover: true,
+                    preferred: preferred.as_deref(),
                 },
             )
         })

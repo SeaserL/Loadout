@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use loadout_gateway::{RequestRecord, ResponseRouteStore, TelemetrySink};
 use loadout_provider_sdk::BoxFuture;
+use loadout_router::{LatencyBook, account_model_key};
 use loadout_storage::telemetry::{TelemetryEvent, TelemetrySender};
 use loadout_storage::{Database, RequestEvent, now_ms};
 
@@ -49,6 +50,31 @@ impl TelemetrySink for StorageTelemetry {
             usage_confidence: Some(r.usage_confidence.to_owned()),
         };
         self.sender.send(TelemetryEvent::Request(Box::new(event)));
+    }
+}
+
+/// Feeds completed requests into the latency statistics (passive benchmark, ExecPlan 004
+/// §3.2), then forwards the record. Runs after the response, never before routing.
+#[derive(Debug)]
+pub(crate) struct LatencyTap<S> {
+    pub latency: Arc<LatencyBook>,
+    pub inner: S,
+}
+
+impl<S: TelemetrySink> TelemetrySink for LatencyTap<S> {
+    fn record(&self, r: RequestRecord) {
+        if let Some(target) = &r.route_target
+            && let Some(sample) = crate::latency::passive_sample(
+                r.ts_ms,
+                r.status,
+                r.ttft_ms,
+                r.usage.output_tokens,
+                r.output_tps,
+            )
+        {
+            self.latency.record(account_model_key(target), sample);
+        }
+        self.inner.record(r);
     }
 }
 

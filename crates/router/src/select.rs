@@ -2,12 +2,14 @@
 
 //! Candidate selection (ADR-003 §5–6): eligibility filters over the resolved chain, keeping
 //! the chain's order (sticky: the first eligible target always wins), preferring the
-//! ingress protocol within each account model (ADR-006 §2).
+//! ingress protocol within each account model (ADR-006 §2). A session's previous account
+//! model moves to the front while it stays eligible (ADR-003 §5).
 
 use std::sync::Arc;
 
 use loadout_protocol::Protocol;
 use loadout_protocol::hints::RouteHints;
+use loadout_provider_sdk::Capabilities;
 
 use crate::{Resolution, ResolutionKind, RouteTarget, TargetId};
 
@@ -22,6 +24,8 @@ pub struct SelectRequest<'a> {
     /// Exact-model requests may fail over to the same model on other accounts of the same
     /// provider (ADR-003 §8); `false` restricts to the named account.
     pub allow_account_failover: bool,
+    /// Account model this request's session used last (`X-Loadout-Session-ID`).
+    pub preferred: Option<&'a str>,
 }
 
 #[derive(Debug, Default)]
@@ -32,8 +36,10 @@ pub struct Candidates {
     pub skipped: Vec<(TargetId, &'static str)>,
 }
 
-fn account_model_key(t: &RouteTarget) -> &str {
-    t.id.rsplit_once(':').map_or(&*t.id, |(k, _)| k)
+/// The account model part of a target id (`"{account_model_id}:{protocol}"`), the unit of
+/// latency statistics and session affinity.
+pub fn account_model_key(target_id: &str) -> &str {
+    target_id.rsplit_once(':').map_or(target_id, |(k, _)| k)
 }
 
 pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidates {
@@ -45,11 +51,25 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
     for t in &resolution.candidates {
         match groups
             .iter_mut()
-            .find(|g| account_model_key(g[0]) == account_model_key(t))
+            .find(|g| account_model_key(&g[0].id) == account_model_key(&t.id))
         {
             Some(g) => g.push(t),
             None => groups.push(vec![t]),
         }
+    }
+    let is_virtual = resolution.kind == ResolutionKind::Virtual;
+    if is_virtual && req.hints.has_images {
+        // Vision support is only known for some catalogs: prefer models known to have it
+        // rather than excluding the rest.
+        groups.sort_by_key(|g| !g[0].capabilities.contains(Capabilities::VISION));
+    }
+    if let Some(pref) = req.preferred
+        && let Some(i) = groups
+            .iter()
+            .position(|g| account_model_key(&g[0].id) == pref)
+    {
+        let g = groups.remove(i);
+        groups.insert(0, g);
     }
 
     for mut group in groups {
@@ -69,6 +89,11 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
                 .is_some_and(|cw| req.hints.estimated_input_tokens > cw)
             {
                 Some("input exceeds context window")
+            } else if is_virtual
+                && req.hints.has_tools
+                && !t.capabilities.contains(Capabilities::TOOLS)
+            {
+                Some("model does not support tools")
             } else if !t.health.is_available(req.now_ms) {
                 Some("unavailable (circuit breaker)")
             } else {
@@ -189,6 +214,7 @@ mod tests {
             max_attempts: 3,
             pinned_target: None,
             allow_account_failover: true,
+            preferred: None,
         }
     }
 
@@ -361,5 +387,71 @@ mod tests {
             vec!["ocg-main-kimi:chat", "cc-backup-kimi:chat"]
         );
         assert_eq!(t.model_names()[0], "loadout/fast");
+    }
+
+    #[test]
+    fn session_preference_moves_its_account_model_first_while_eligible() {
+        let reg = HealthRegistry::default();
+        let t = table(&reg);
+        let h = hints("cc/kimi");
+        let res = t.resolve("cc/kimi").expect("resolve");
+        let mut req = request(Protocol::Chat, &h);
+        req.preferred = Some("cc-backup-kimi");
+        assert_eq!(
+            ids(&select(&res, &req)),
+            vec![
+                "cc-backup-kimi:chat",
+                "cc-main-kimi:chat",
+                "cc-main-kimi:messages"
+            ]
+        );
+        reg.get("cc-backup-kimi:chat")
+            .expect("h")
+            .record_failure(FailureKind::Server, "down", 0);
+        assert_eq!(ids(&select(&res, &req))[0], "cc-main-kimi:chat");
+        req.preferred = Some("unknown");
+        assert_eq!(ids(&select(&res, &req))[0], "cc-main-kimi:chat");
+    }
+
+    #[test]
+    fn virtual_models_filter_tools_and_prefer_vision() {
+        let reg = HealthRegistry::default();
+        let plain = {
+            let mut t = Arc::try_unwrap(target(&reg, "x", "a", 0, "plain", Protocol::Chat))
+                .expect("unique");
+            t.capabilities = Capabilities::STREAMING;
+            Arc::new(t)
+        };
+        let vision = {
+            let mut t = Arc::try_unwrap(target(&reg, "x", "a", 0, "vision", Protocol::Chat))
+                .expect("unique");
+            t.capabilities = Capabilities::DEFAULT_MODEL | Capabilities::VISION;
+            Arc::new(t)
+        };
+        let tools = target(&reg, "x", "a", 0, "tools", Protocol::Chat);
+        let ids_in = [plain.id.clone(), tools.id.clone(), vision.id.clone()];
+        let t = RouteTable::new(1, vec![plain, tools, vision]).with_virtual("default", &ids_in);
+        let res = t.resolve("loadout/default").expect("virtual");
+
+        let mut h = hints("loadout/default");
+        h.has_tools = true;
+        assert_eq!(
+            ids(&select(&res, &request(Protocol::Chat, &h))),
+            vec!["x-a-tools:chat", "x-a-vision:chat"]
+        );
+        let mut h = hints("loadout/default");
+        h.has_images = true;
+        assert_eq!(
+            ids(&select(&res, &request(Protocol::Chat, &h)))[0],
+            "x-a-vision:chat"
+        );
+        // Exact names are the user's explicit choice: no capability filtering.
+        let mut h = hints("x/a/plain");
+        h.has_tools = true;
+        let exact = t.resolve("x/a/plain").expect("exact");
+        assert_eq!(
+            select(&exact, &request(Protocol::Chat, &h)).attempts.len(),
+            1
+        );
     }
 }

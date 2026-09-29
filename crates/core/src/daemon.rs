@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use crate::control::ControlPlane;
 use crate::dispatcher::{DaemonState, Dispatcher};
 use crate::settings::Resolved;
-use crate::sinks::{ResponseRoutes, StorageTelemetry};
+use crate::sinks::{LatencyTap, ResponseRoutes, StorageTelemetry};
 use crate::supervisor::{Backoff, spawn_critical, spawn_restartable};
 use crate::{DaemonError, DataPaths, VERSION};
 
@@ -99,14 +99,21 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         .rebuild_routes()
         .await
         .map_err(|e| DaemonError::Config(format!("building routes: {}", e.message)))?;
+    match control.seed_latency().await {
+        Ok(n) => tracing::info!(samples = n, "latency history loaded"),
+        Err(e) => tracing::warn!(error = %e.message, "could not load latency history"),
+    }
 
     // Telemetry writer (ADR-008 §5).
     let (telemetry_writer, telemetry) = TelemetryWriter::spawn(&paths.database, DEFAULT_CAPACITY)?;
     let plane = Arc::new(DataPlane {
         routes: routes.clone(),
         http,
-        telemetry: Arc::new(StorageTelemetry {
-            sender: telemetry.clone(),
+        telemetry: Arc::new(LatencyTap {
+            latency: control.latency.clone(),
+            inner: StorageTelemetry {
+                sender: telemetry.clone(),
+            },
         }),
         response_routes: Arc::new(ResponseRoutes::new(db.clone(), telemetry.clone())),
         limits: UpstreamLimits {
@@ -114,6 +121,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             max_attempts: settings.max_attempts,
             ..UpstreamLimits::default()
         },
+        sessions: Arc::default(),
     });
     drop(telemetry);
 
@@ -155,6 +163,12 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         let (control, token) = (control.clone(), shutdown.clone());
         spawn_restartable("usage", shutdown.clone(), Backoff::default(), move || {
             crate::usage::poll(control.clone(), token.clone())
+        });
+    }
+    {
+        let (control, token) = (control.clone(), shutdown.clone());
+        spawn_restartable("latency", shutdown.clone(), Backoff::default(), move || {
+            crate::latency::run(control.clone(), token.clone())
         });
     }
     let state = Arc::new(DaemonState {
@@ -216,6 +230,7 @@ fn spawn_retention(db: Arc<Database>, shutdown: CancellationToken) {
                         db2.prune_requests(now - REQUEST_RETENTION.as_millis() as i64)?;
                     let routes = db2
                         .prune_response_routes(now - RESPONSE_ROUTE_RETENTION.as_millis() as i64)?;
+                    db2.prune_probe_samples(now - loadout_router::MAX_SAMPLE_AGE_MS)?;
                     Ok::<_, loadout_storage::StorageError>((requests, routes))
                 })
                 .await

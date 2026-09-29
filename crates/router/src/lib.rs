@@ -8,15 +8,22 @@
 //! per-target health. Everything here is in-memory; nothing touches disk or network.
 
 mod health;
+mod latency;
 mod name;
 mod select;
+mod session;
 mod table;
 mod target;
 
 pub use health::{HealthRegistry, HealthSnapshot, HealthState, InFlight, TargetHealth, now_ms};
+pub use latency::{
+    LatencyBook, LatencyStats, MAX_SAMPLE_AGE_MS, RING_CAPACITY, Rank, RankedItem, Sample,
+    SampleSource, Tier, TierThresholds, order_by_latency,
+};
 pub use name::{
     NameError, ParsedName, RESERVED_PROVIDER_SLUG, parse_name, validate_alias, validate_slug,
 };
-pub use select::{Candidates, SelectRequest, select};
+pub use select::{Candidates, SelectRequest, account_model_key, select};
+pub use session::SessionAffinity;
 pub use table::{Resolution, ResolutionKind, ResolveError, RouteTable, RouteTableHandle};
 pub use target::{Prices, RouteTarget, TargetId};

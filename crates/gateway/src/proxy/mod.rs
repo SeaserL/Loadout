@@ -28,7 +28,9 @@ use loadout_protocol::{
     messages, observe, responses,
 };
 use loadout_provider_sdk::{FailureKind, UpstreamFailure};
-use loadout_router::{RouteTarget, SelectRequest, now_ms, select};
+use loadout_router::{
+    ResolutionKind, RouteTarget, SelectRequest, account_model_key, now_ms, select,
+};
 use serde_json::Value;
 use tokio::time::timeout_at;
 
@@ -41,6 +43,7 @@ const ERROR_BODY_LIMIT: usize = 64 * 1024;
 const PUMP_BUFFER: usize = 64;
 /// Client headers forwarded to the upstream on passthrough (ExecPlan 002 §9).
 const FORWARDED_HEADERS: [&str; 3] = ["anthropic-version", "anthropic-beta", "openai-beta"];
+const SESSION_HEADER: &str = "x-loadout-session-id";
 
 type ByteStream = Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>;
 
@@ -166,6 +169,13 @@ pub(crate) async fn handle(
         .get("x-loadout-no-failover")
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
+    let session = parts
+        .headers
+        .get(SESSION_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let preferred = session.and_then(|s| plane.sessions.get(s, ts_ms));
     let candidates = select(
         &resolution,
         &SelectRequest {
@@ -179,11 +189,22 @@ pub(crate) async fn handle(
             },
             pinned_target: pinned.as_deref(),
             allow_account_failover: true,
+            preferred: preferred.as_deref(),
         },
     );
 
     if candidates.attempts.is_empty() {
-        let (category, message) = if hints.is_stateful() {
+        let (category, message) = if resolution.kind == ResolutionKind::Virtual
+            && resolution.candidates.is_empty()
+        {
+            (
+                ErrorCategory::NoEligibleTarget,
+                format!(
+                    "{} has no routes yet: loadout/realtime and loadout/fast only contain                      measured routes (run `loadout bench`), pools need members",
+                    hints.model
+                ),
+            )
+        } else if hints.is_stateful() {
             (
                 ErrorCategory::UnsupportedCapability,
                 format!(
@@ -250,7 +271,14 @@ pub(crate) async fn handle(
             attempt_no: attempts,
         };
         match attempt.run(body).await {
-            Outcome::Committed(resp) => return resp,
+            Outcome::Committed(resp) => {
+                if let Some(s) = session {
+                    plane
+                        .sessions
+                        .put(s, Arc::from(account_model_key(&target.id)), now_ms());
+                }
+                return resp;
+            }
             Outcome::Skipped(why) => skipped.push(why),
             Outcome::Failed(failure) => {
                 tracing::info!(
