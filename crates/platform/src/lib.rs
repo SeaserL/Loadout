@@ -19,7 +19,7 @@ mod sid;
 mod wide;
 
 pub use autostart::{Autostart, AutostartStatus};
-pub use console::attach_parent_console;
+pub use console::{attach_parent_console, read_hidden_line};
 pub use error::PlatformError;
 pub use instance::InstanceLock;
 pub use paths::default_data_dir;

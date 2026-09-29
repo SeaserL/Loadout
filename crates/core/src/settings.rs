@@ -30,6 +30,8 @@ impl SettingDef {
 
 pub const GATEWAY_PORT: &str = "gateway.port";
 pub const GATEWAY_ALLOWED_ORIGINS: &str = "gateway.allowed_origins";
+pub const FIRST_TOKEN_TIMEOUT: &str = "upstream.first_token_timeout_secs";
+pub const MAX_ATTEMPTS: &str = "routing.max_attempts";
 
 pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
@@ -47,6 +49,20 @@ pub const SETTINGS: &[SettingDef] = &[
         restart_required: true,
         validate: validate_origins,
     },
+    SettingDef {
+        key: FIRST_TOKEN_TIMEOUT,
+        default: "120",
+        description: "Seconds to wait for an upstream's first output token before failing over",
+        restart_required: true,
+        validate: validate_timeout,
+    },
+    SettingDef {
+        key: MAX_ATTEMPTS,
+        default: "3",
+        description: "Routes tried per request before giving up (ADR-003)",
+        restart_required: true,
+        validate: validate_attempts,
+    },
 ];
 
 pub fn find(key: &str) -> Option<&'static SettingDef> {
@@ -57,6 +73,20 @@ fn validate_port(value: &str) -> Result<(), String> {
     match value.parse::<u16>() {
         Ok(0) | Err(_) => Err("expected a port number between 1 and 65535".into()),
         Ok(_) => Ok(()),
+    }
+}
+
+fn validate_timeout(value: &str) -> Result<(), String> {
+    match value.parse::<u64>() {
+        Ok(5..=1800) => Ok(()),
+        _ => Err("expected 5-1800 seconds".into()),
+    }
+}
+
+fn validate_attempts(value: &str) -> Result<(), String> {
+    match value.parse::<usize>() {
+        Ok(1..=10) => Ok(()),
+        _ => Err("expected 1-10".into()),
     }
 }
 
@@ -82,6 +112,8 @@ fn split_list(value: &str) -> impl Iterator<Item = &str> {
 pub struct Resolved {
     pub gateway_port: u16,
     pub allowed_origins: Vec<String>,
+    pub first_token_timeout_secs: u64,
+    pub max_attempts: usize,
 }
 
 impl Resolved {
@@ -103,6 +135,8 @@ impl Resolved {
             allowed_origins: split_list(&get(GATEWAY_ALLOWED_ORIGINS)?)
                 .map(str::to_owned)
                 .collect(),
+            first_token_timeout_secs: get(FIRST_TOKEN_TIMEOUT)?.parse().unwrap_or(120),
+            max_attempts: get(MAX_ATTEMPTS)?.parse().unwrap_or(3),
         })
     }
 }
@@ -157,7 +191,9 @@ mod tests {
             Resolved::load(&db).expect("load"),
             Resolved {
                 gateway_port: 8317,
-                allowed_origins: vec![]
+                allowed_origins: vec![],
+                first_token_timeout_secs: 120,
+                max_attempts: 3,
             }
         );
 

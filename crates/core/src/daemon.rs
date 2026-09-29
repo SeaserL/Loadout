@@ -1,25 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! Daemon lifecycle (ExecPlan 001 §5.5):
-//! single-instance lock → database → settings → gateway bind → IPC bind → serve → shutdown.
+//! Daemon lifecycle (ExecPlan 001 §5.5, ExecPlan 002):
+//! single-instance lock → database → settings → control plane + route table → telemetry
+//! writer → gateway bind → IPC bind → serve → shutdown (gateway drains, telemetry flushes).
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
-use loadout_gateway::{ClientKeyIndex, Gateway, GatewayConfig};
+use loadout_gateway::{ClientKeyIndex, DataPlane, Gateway, GatewayConfig, UpstreamLimits};
 use loadout_ipc::{IpcServer, pipe_name_for};
 use loadout_platform::{InstanceLock, current_user_sid};
+use loadout_provider_sdk::{HttpClient, HttpConfig};
+use loadout_providers::Registry;
+use loadout_router::RouteTableHandle;
+use loadout_secrets::CredentialManagerStore;
+use loadout_storage::telemetry::{DEFAULT_CAPACITY, TelemetryWriter};
 use loadout_storage::{Database, now_ms};
 use tokio_util::sync::CancellationToken;
 
+use crate::control::ControlPlane;
 use crate::dispatcher::{DaemonState, Dispatcher};
 use crate::settings::Resolved;
-use crate::supervisor::spawn_critical;
+use crate::sinks::{ResponseRoutes, StorageTelemetry};
+use crate::supervisor::{Backoff, spawn_critical, spawn_restartable};
 use crate::{DaemonError, DataPaths, VERSION};
 
 /// Win32 ERROR_ACCESS_DENIED: returned when the pipe name is already owned.
 const ERROR_ACCESS_DENIED: i32 = 5;
+const DEFAULT_SECRET_PREFIX: &str = "loadout:";
+
+/// Retention (ADR-008 §4).
+const REQUEST_RETENTION: Duration = Duration::from_secs(400 * 24 * 3600);
+const RESPONSE_ROUTE_RETENTION: Duration = Duration::from_secs(30 * 24 * 3600);
+const RETENTION_INTERVAL: Duration = Duration::from_secs(6 * 3600);
 
 #[derive(Clone, Debug)]
 pub struct DaemonOptions {
@@ -30,6 +45,8 @@ pub struct DaemonOptions {
     pub instance_id: Option<String>,
     /// Overrides the `gateway.port` setting; `0` picks a free port (tests).
     pub port: Option<u16>,
+    /// Credential Manager target-name prefix (tests use their own, ADR-004).
+    pub secret_prefix: Option<String>,
 }
 
 /// Runs the daemon until shutdown is requested over IPC, by Ctrl+C, or a critical service
@@ -55,6 +72,44 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             .map_err(|_| DaemonError::ServiceFailed("settings load"))??
     };
 
+    // Control plane and the first route table.
+    let http =
+        HttpClient::new(&HttpConfig::default()).map_err(|e| DaemonError::Config(e.to_string()))?;
+    let routes = Arc::new(RouteTableHandle::default());
+    let control = Arc::new(ControlPlane::new(
+        db.clone(),
+        Arc::new(CredentialManagerStore::with_prefix(
+            options
+                .secret_prefix
+                .clone()
+                .unwrap_or_else(|| DEFAULT_SECRET_PREFIX.to_owned()),
+        )),
+        Registry::builtin(),
+        routes.clone(),
+        http.clone(),
+    ));
+    control
+        .rebuild_routes()
+        .await
+        .map_err(|e| DaemonError::Config(format!("building routes: {}", e.message)))?;
+
+    // Telemetry writer (ADR-008 §5).
+    let (telemetry_writer, telemetry) = TelemetryWriter::spawn(&paths.database, DEFAULT_CAPACITY)?;
+    let plane = Arc::new(DataPlane {
+        routes: routes.clone(),
+        http,
+        telemetry: Arc::new(StorageTelemetry {
+            sender: telemetry.clone(),
+        }),
+        response_routes: Arc::new(ResponseRoutes::new(db.clone(), telemetry.clone())),
+        limits: UpstreamLimits {
+            first_token_timeout: Duration::from_secs(settings.first_token_timeout_secs),
+            max_attempts: settings.max_attempts,
+            ..UpstreamLimits::default()
+        },
+    });
+    drop(telemetry);
+
     let port = options.port.unwrap_or(settings.gateway_port);
     let keys = Arc::new(ClientKeyIndex::default());
     let gateway = Gateway::bind(
@@ -64,7 +119,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             ..GatewayConfig::default()
         },
         keys.clone(),
-        Arc::new(loadout_gateway::DataPlane::empty()),
+        plane.clone(),
     )
     .await
     .map_err(|e| match e.kind() {
@@ -91,6 +146,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     let shutdown = CancellationToken::new();
     let state = Arc::new(DaemonState {
         db: db.clone(),
+        control,
         keys,
         events: ipc.events(),
         shutdown: shutdown.clone(),
@@ -109,6 +165,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         shutdown.clone(),
         ipc.serve(Arc::new(Dispatcher { state }), shutdown.clone()),
     );
+    spawn_retention(db.clone(), shutdown.clone());
     spawn_signal_listener(shutdown.clone());
 
     tracing::info!(gateway = %gateway_addr, pipe = %pipe_name, "loadoutd ready");
@@ -116,6 +173,9 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     tracing::info!("loadoutd shutting down");
 
     let (gateway_result, ipc_result) = tokio::join!(gateway_task, ipc_task);
+    drop(plane);
+    // Flush queued telemetry (bounded even if stray stream tasks still hold senders).
+    let _ = tokio::task::spawn_blocking(move || telemetry_writer.shutdown()).await;
     drop(db);
     for result in [gateway_result, ipc_result] {
         match result {
@@ -126,6 +186,42 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     }
     tracing::info!("loadoutd stopped");
     Ok(())
+}
+
+/// Periodically deletes expired request metadata and response routes (ADR-008 §4).
+fn spawn_retention(db: Arc<Database>, shutdown: CancellationToken) {
+    let token = shutdown.clone();
+    spawn_restartable("retention", shutdown, Backoff::default(), move || {
+        let db = db.clone();
+        let token = token.clone();
+        async move {
+            loop {
+                let db2 = db.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    let now = now_ms();
+                    let requests =
+                        db2.prune_requests(now - REQUEST_RETENTION.as_millis() as i64)?;
+                    let routes = db2
+                        .prune_response_routes(now - RESPONSE_ROUTE_RETENTION.as_millis() as i64)?;
+                    Ok::<_, loadout_storage::StorageError>((requests, routes))
+                })
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())?;
+                if result != (0, 0) {
+                    tracing::info!(
+                        requests = result.0,
+                        response_routes = result.1,
+                        "pruned expired records"
+                    );
+                }
+                tokio::select! {
+                    () = tokio::time::sleep(RETENTION_INTERVAL) => {}
+                    () = token.cancelled() => return Ok::<(), String>(()),
+                }
+            }
+        }
+    });
 }
 
 /// Ctrl+C / Ctrl+Break when running attached to a console (`--foreground`). A windowless

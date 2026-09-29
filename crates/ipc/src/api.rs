@@ -151,6 +151,266 @@ method!(SettingsList, "settings.list", (), Vec<Setting>);
 method!(SettingsSet, "settings.set", SettingSetParams, Setting);
 method!(SettingsReset, "settings.reset", SettingKeyParams, Setting);
 
+// ---- providers / accounts / models (ExecPlan 002 §5.6) ---------------------------------
+
+/// An API key in transit from the CLI/UI to the daemon. `Debug` never shows it.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ApiKey(pub String);
+
+impl std::fmt::Debug for ApiKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ApiKey([REDACTED])")
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderKind {
+    pub kind: String,
+    pub display_name: String,
+    pub fixed_slug: Option<String>,
+    pub default_base_url: Option<String>,
+    /// `api_key`, `optional_api_key` or `external_managed`.
+    pub auth: String,
+    pub protocols: Vec<String>,
+    pub drivers: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderInfo {
+    pub slug: String,
+    pub kind: String,
+    pub display_name: String,
+    pub base_url: Option<String>,
+    pub settings: serde_json::Value,
+    pub accounts: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderAddParams {
+    pub slug: String,
+    pub kind: String,
+    pub base_url: Option<String>,
+    #[serde(default)]
+    pub settings: serde_json::Value,
+    pub display_name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SlugParams {
+    pub slug: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountInfo {
+    pub provider: String,
+    pub alias: String,
+    pub display_name: Option<String>,
+    pub account_type: String,
+    pub enabled: bool,
+    pub position: i64,
+    pub has_key: bool,
+    pub models: usize,
+    pub enabled_models: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountAddParams {
+    pub provider: String,
+    pub alias: String,
+    pub api_key: Option<ApiKey>,
+    pub display_name: Option<String>,
+    /// Fetch the model list right away (default true).
+    #[serde(default = "default_true")]
+    pub sync_models: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountAdded {
+    pub account: AccountInfo,
+    /// Result of the initial model sync, or why it failed.
+    pub sync: Option<SyncResult>,
+    pub sync_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountRef {
+    pub provider: String,
+    pub alias: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountListParams {
+    pub provider: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountEnableParams {
+    pub provider: String,
+    pub alias: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountKeyParams {
+    pub provider: String,
+    pub alias: String,
+    pub api_key: ApiKey,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SyncResult {
+    pub added: usize,
+    pub updated: usize,
+    pub disabled: usize,
+    pub total: usize,
+    /// Models whose id starts with another account's alias (ADR-010 §3).
+    pub ambiguous: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelInfo {
+    /// `provider/account/model`.
+    pub name: String,
+    pub provider: String,
+    pub account: String,
+    pub upstream_model: String,
+    pub protocols: Vec<String>,
+    pub enabled: bool,
+    pub source: String,
+    pub context_window: Option<i64>,
+    pub input_price: Option<f64>,
+    pub output_price: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelListParams {
+    pub provider: Option<String>,
+    pub account: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelAddParams {
+    pub provider: String,
+    pub account: String,
+    pub model: String,
+    #[serde(default)]
+    pub protocols: Vec<String>,
+    pub context_window: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelRef {
+    /// `provider/account/model`.
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelEnableParams {
+    pub name: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelPriceParams {
+    pub name: String,
+    pub input: Option<f64>,
+    pub output: Option<f64>,
+    pub cache_read: Option<f64>,
+    pub cache_write: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TargetStatus {
+    pub name: String,
+    pub protocol: String,
+    pub trust: String,
+    pub state: String,
+    pub unavailable_until_ms: Option<i64>,
+    pub consecutive_failures: u32,
+    pub in_flight: u32,
+    pub successes: u64,
+    pub failures: u64,
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RecentParams {
+    pub limit: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RequestSummary {
+    pub ts_ms: i64,
+    pub client: Option<String>,
+    pub requested_model: String,
+    pub route: Option<String>,
+    pub protocol_in: String,
+    pub protocol_out: Option<String>,
+    pub mode: Option<String>,
+    pub stream: bool,
+    pub status: String,
+    pub error_category: Option<String>,
+    pub attempts: i64,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub ttft_ms: Option<i64>,
+    pub duration_ms: i64,
+    pub cost_usd: Option<f64>,
+}
+
+method!(ProviderKinds, "provider.kinds", (), Vec<ProviderKind>);
+method!(ProviderAdd, "provider.add", ProviderAddParams, ProviderInfo);
+method!(ProviderList, "provider.list", (), Vec<ProviderInfo>);
+method!(ProviderRemove, "provider.remove", SlugParams, Revoked);
+method!(AccountAdd, "account.add", AccountAddParams, AccountAdded);
+method!(
+    AccountList,
+    "account.list",
+    AccountListParams,
+    Vec<AccountInfo>
+);
+method!(
+    AccountSetEnabled,
+    "account.set_enabled",
+    AccountEnableParams,
+    AccountInfo
+);
+method!(
+    AccountSetKey,
+    "account.set_key",
+    AccountKeyParams,
+    AccountInfo
+);
+method!(AccountRemove, "account.remove", AccountRef, Revoked);
+method!(ModelSync, "model.sync", AccountRef, SyncResult);
+method!(ModelAdd, "model.add", ModelAddParams, ModelInfo);
+method!(ModelList, "model.list", ModelListParams, Vec<ModelInfo>);
+method!(
+    ModelSetEnabled,
+    "model.set_enabled",
+    ModelEnableParams,
+    ModelInfo
+);
+method!(
+    ModelSetPrice,
+    "model.set_price",
+    ModelPriceParams,
+    ModelInfo
+);
+method!(ModelRemove, "model.remove", ModelRef, Revoked);
+method!(RouteStatus, "route.status", (), Vec<TargetStatus>);
+method!(
+    RequestsRecent,
+    "requests.recent",
+    RecentParams,
+    Vec<RequestSummary>
+);
+
 // ---- events ----------------------------------------------------------------------------
 
 pub mod events {
@@ -160,4 +420,6 @@ pub mod events {
     pub const CLIENTS_CHANGED: &str = "clients.changed";
     /// A setting changed.
     pub const SETTINGS_CHANGED: &str = "settings.changed";
+    /// Providers, accounts or models changed (the route table was rebuilt).
+    pub const ROUTES_CHANGED: &str = "routes.changed";
 }

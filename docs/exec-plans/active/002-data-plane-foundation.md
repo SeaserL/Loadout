@@ -245,7 +245,18 @@ loadout model list | remove | set-price
   - `/v1/models` 由路由表生成；带 `anthropic-version` 头时返回 Anthropic 格式。
   - 16 个代理集成测试（脚本化 mock 上游）+ 连续 5 次运行稳定。
   - **发现**：Windows 上对端以 RST 立即中断连接时，接收方可能丢弃已到达但未读取的数据。此时 gateway 会视为提交前失败并 failover，这是可接受的行为；mock 在断开前等待 100 ms 以模拟真实上游。
-- [ ] Stage 6 — IPC + CLI
+- [x] Stage 6 — IPC + CLI（2026-09-29）
+  - Core 控制面 `ControlPlane`：Provider / 账号 / 模型的增删改、目录同步、路由表构建与发布（串行化，阻塞工作在 blocking 线程池）；每次变更触发重建并发出 `routes.changed` 事件。
+  - 路由表构建时按账号读取一次 Credential Manager，并由 Provider 模块预先生成 endpoint；要求 API key 的账号缺少 key 时，其模型不可路由（给出警告）。
+  - 更换 key：新 key 写入后删除旧 secret，并清除该账号所有 target 的熔断状态。删除 Provider / 账号：同步删除 Credential Manager 中的 secret。
+  - 目录同步的协议优先级：目录声明 → Provider 设置 `model_protocols` → 模块默认；同步结果列出与账号 alias 冲突的模型 id（ADR-010 §3）。
+  - Telemetry sink（→ 写入线程）与 Responses 路由存储（内存 1 万条 + SQLite 回退）适配器。
+  - Telemetry 写入线程改为停止标志驱动，关闭耗时有上限（即使仍有存活的 sender）。
+  - 新设置：`upstream.first_token_timeout_secs`（默认 120）、`routing.max_attempts`（默认 3）。
+  - 过期数据清理：restartable 后台任务每 6 小时运行（request_events 400 天、response_routes 30 天）。
+  - CLI：`provider kinds|add|list|remove`、`account add|list|enable|disable|set-key|remove`、`model sync|add|list|enable|disable|price|remove`、`route status`、`logs`。API key 通过关闭回显的控制台输入或 `--api-key-stdin` 读取，从不作为命令行参数。
+  - `--secret-prefix`（隐藏参数）让 e2e 测试的 daemon 使用独立的 Credential Manager 前缀；测试结束时清理。
+  - 端到端测试 `proxy_e2e`：CLI 配置 → 目录同步 → 两种协议经真实 daemon 转发 → telemetry 落库 → 错误 key 触发 `AUTH_FAILED` → 恢复 → 删除 Provider 后凭据被清除；并断言数据库文件中不含上游 key。
 - [ ] Stage 7 — e2e + benchmarks + docs
 
 ## 14. Decisions

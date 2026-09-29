@@ -2,11 +2,15 @@
 
 //! `loadout` — command-line client for `loadoutd` over IPC (ADR-002).
 
+mod account_cmd;
 mod autostart_cmd;
 mod client_cmd;
 mod config_cmd;
 mod daemon_cmd;
+mod model_cmd;
 mod output;
+mod provider_cmd;
+mod status_cmd;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -49,6 +53,23 @@ enum Command {
     /// View and change settings.
     #[command(subcommand)]
     Config(config_cmd::ConfigCommand),
+    /// Manage providers (API endpoints such as OpenRouter or a local server).
+    #[command(subcommand)]
+    Provider(provider_cmd::ProviderCommand),
+    /// Manage accounts (API keys) of a provider.
+    #[command(subcommand)]
+    Account(account_cmd::AccountCommand),
+    /// Manage the models of an account.
+    #[command(subcommand)]
+    Model(model_cmd::ModelCommand),
+    /// Inspect routing.
+    #[command(subcommand)]
+    Route(status_cmd::RouteCommand),
+    /// Show recent requests (metadata only; no prompts or responses are stored).
+    Logs {
+        #[arg(long, default_value_t = 30)]
+        limit: usize,
+    },
 }
 
 /// Global options shared by subcommands.
@@ -159,6 +180,11 @@ fn main() -> ExitCode {
             Command::Autostart(cmd) => autostart_cmd::run(&ctx, cmd),
             Command::Client(cmd) => client_cmd::run(&ctx, cmd).await,
             Command::Config(cmd) => config_cmd::run(&ctx, cmd).await,
+            Command::Provider(cmd) => provider_cmd::run(&ctx, cmd).await,
+            Command::Account(cmd) => account_cmd::run(&ctx, cmd).await,
+            Command::Model(cmd) => model_cmd::run(&ctx, cmd).await,
+            Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
+            Command::Logs { limit } => status_cmd::logs(&ctx, limit).await,
         }
     });
     match result {

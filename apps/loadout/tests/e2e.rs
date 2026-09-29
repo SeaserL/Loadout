@@ -37,6 +37,25 @@ impl Sandbox {
         self.data.path()
     }
 
+    /// Credential Manager prefix for this test's daemon (never the real `loadout:`).
+    fn secret_prefix(&self) -> String {
+        format!("loadout-e2e-{}:", self.id)
+    }
+
+    /// Credential Manager entries this test's daemon left behind.
+    fn stored_secrets(&self) -> Vec<String> {
+        let out = Command::new("cmdkey")
+            .arg("/list")
+            .output()
+            .expect("cmdkey");
+        text(&out.stdout)
+            .lines()
+            .filter_map(|l| l.split("target=").nth(1))
+            .filter(|t| t.starts_with(&self.secret_prefix()))
+            .map(|t| t.trim().to_owned())
+            .collect()
+    }
+
     /// Runs the CLI with captured stdout/stderr. Waiting for EOF on those pipes doubles as a
     /// regression test: if the daemon inherited them, this would never return.
     fn cli(&self, args: &[&str]) -> Output {
@@ -44,17 +63,29 @@ impl Sandbox {
     }
 
     fn cli_env(&self, args: &[&str], env: &[(&str, &str)]) -> Output {
+        self.cli_full(args, env, None)
+    }
+
+    fn cli_full(&self, args: &[&str], env: &[(&str, &str)], input: Option<&str>) -> Output {
         let mut cmd = Command::new(CLI);
         cmd.arg("--pipe-name").arg(&self.pipe).args(args);
         for (k, v) in env {
             cmd.env(k, v);
         }
-        let child = cmd
-            .stdin(Stdio::null())
+        let mut child = cmd
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .expect("spawn loadout");
+        if let Some(input) = input {
+            let mut stdin = child.stdin.take().expect("stdin");
+            stdin.write_all(input.as_bytes()).expect("write stdin");
+        }
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
             let _ = tx.send(child.wait_with_output());
@@ -98,6 +129,8 @@ impl Sandbox {
                 "0",
                 "--instance-id",
                 &self.id,
+                "--secret-prefix",
+                &self.secret_prefix(),
             ],
             env,
         );
@@ -118,6 +151,12 @@ impl Drop for Sandbox {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
+        for target in self.stored_secrets() {
+            let _ = Command::new("cmdkey")
+                .arg(format!("/delete:{target}"))
+                .stdout(Stdio::null())
+                .status();
+        }
     }
 }
 

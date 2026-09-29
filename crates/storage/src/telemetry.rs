@@ -8,7 +8,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -61,11 +61,12 @@ impl TelemetrySender {
     }
 }
 
-/// Owns the writer thread. Dropping every [`TelemetrySender`] and then calling
-/// [`TelemetryWriter::shutdown`] flushes everything queued.
+/// Owns the writer thread. [`TelemetryWriter::shutdown`] flushes everything already queued
+/// and returns within about one flush interval, even if senders are still alive.
 #[derive(Debug)]
 pub struct TelemetryWriter {
     thread: Option<JoinHandle<()>>,
+    stop: Arc<AtomicBool>,
 }
 
 impl TelemetryWriter {
@@ -79,28 +80,36 @@ impl TelemetryWriter {
         let (tx, rx) = sync_channel(capacity);
         let stats = Arc::new(TelemetryStats::default());
         let thread_stats = stats.clone();
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = stop.clone();
         let thread = std::thread::Builder::new()
             .name("loadout-telemetry".into())
-            .spawn(move || run(conn, rx, &thread_stats))
+            .spawn(move || run(conn, rx, &thread_stats, &thread_stop))
             .map_err(StorageError::Io)?;
         Ok((
             Self {
                 thread: Some(thread),
+                stop,
             },
             TelemetrySender { tx, stats },
         ))
     }
 
-    /// Waits for the thread to drain the queue. All senders must be dropped first, otherwise
-    /// this waits until they are.
+    /// Drains what is queued, writes it and stops the thread.
     pub fn shutdown(mut self) {
+        self.stop.store(true, Ordering::Release);
         if let Some(t) = self.thread.take() {
             let _ = t.join();
         }
     }
 }
 
-fn run(mut conn: Connection, rx: Receiver<TelemetryEvent>, stats: &TelemetryStats) {
+fn run(
+    mut conn: Connection,
+    rx: Receiver<TelemetryEvent>,
+    stats: &TelemetryStats,
+    stop: &AtomicBool,
+) {
     let mut requests: Vec<RequestEvent> = Vec::with_capacity(MAX_BATCH);
     let mut routes: Vec<(String, String, i64)> = Vec::new();
     let mut last_flush = Instant::now();
@@ -120,6 +129,13 @@ fn run(mut conn: Connection, rx: Receiver<TelemetryEvent>, stats: &TelemetryStat
             Err(RecvTimeoutError::Timeout) => false,
             Err(RecvTimeoutError::Disconnected) => true,
         };
+        let stopping = stop.load(Ordering::Acquire);
+        if stopping {
+            while let Ok(event) = rx.try_recv() {
+                push(event, &mut requests, &mut routes);
+            }
+        }
+        let disconnected = disconnected || stopping;
         let due = requests.len() >= MAX_BATCH || last_flush.elapsed() >= FLUSH_INTERVAL;
         if (due || disconnected) && (!requests.is_empty() || !routes.is_empty()) {
             flush(&mut conn, &mut requests, &mut routes, stats);
@@ -216,6 +232,27 @@ mod tests {
             db.response_route("resp_1").expect("route").as_deref(),
             Some("t1:responses")
         );
+    }
+
+    #[test]
+    fn shutdown_is_bounded_even_with_live_senders() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("t.db");
+        let db = Database::open(&path).expect("db");
+        let (writer, sender) = TelemetryWriter::spawn(&path, 100).expect("spawn");
+        for i in 0..10 {
+            sender.send(event(i));
+        }
+        let started = Instant::now();
+        writer.shutdown();
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert_eq!(
+            db.recent_requests(100).expect("recent").len(),
+            10,
+            "queued events flushed"
+        );
+        sender.send(event(99)); // after shutdown: counted as dropped, never panics
+        assert_eq!(sender.stats().dropped.load(Ordering::Relaxed), 1);
     }
 
     #[test]

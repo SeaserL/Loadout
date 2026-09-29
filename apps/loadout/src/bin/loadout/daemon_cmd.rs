@@ -27,6 +27,8 @@ pub enum DaemonCommand {
         port: Option<u16>,
         #[arg(long, hide = true)]
         instance_id: Option<String>,
+        #[arg(long, hide = true)]
+        secret_prefix: Option<String>,
     },
     /// Stop the daemon gracefully.
     Stop,
@@ -40,7 +42,8 @@ pub async fn run(ctx: &Ctx, cmd: DaemonCommand) -> Result<(), Failure> {
             data_dir,
             port,
             instance_id,
-        } => start(ctx, data_dir, port, instance_id).await,
+            secret_prefix,
+        } => start(ctx, data_dir, port, instance_id, secret_prefix).await,
         DaemonCommand::Stop => stop(ctx).await,
         DaemonCommand::Status => status(ctx).await,
     }
@@ -66,6 +69,7 @@ async fn start(
     data_dir: Option<PathBuf>,
     port: Option<u16>,
     instance_id: Option<String>,
+    secret_prefix: Option<String>,
 ) -> Result<(), Failure> {
     if let Ok(s) = fetch_status(ctx).await {
         if !ctx.json {
@@ -87,6 +91,9 @@ async fn start(
     }
     if let Some(id) = instance_id {
         args.extend(["--instance-id".into(), id.into()]);
+    }
+    if let Some(prefix) = secret_prefix {
+        args.extend(["--secret-prefix".into(), prefix.into()]);
     }
     let arg_refs: Vec<&OsStr> = args.iter().map(OsString::as_os_str).collect();
     let child = loadout_platform::spawn_detached(&exe, &arg_refs)

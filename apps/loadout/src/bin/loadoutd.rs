@@ -41,6 +41,9 @@ struct Args {
 
     #[arg(long, hide = true)]
     instance_id: Option<String>,
+
+    #[arg(long, hide = true)]
+    secret_prefix: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -85,6 +88,7 @@ fn main() -> ExitCode {
         pipe_name: args.pipe_name,
         instance_id: args.instance_id,
         port: args.port,
+        secret_prefix: args.secret_prefix,
     };
     match runtime.block_on(loadout_core::run(options)) {
         Ok(()) => ExitCode::SUCCESS,

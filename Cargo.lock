@@ -1114,10 +1114,12 @@ name = "loadout"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "loadout-core",
  "loadout-ipc",
  "loadout-platform",
+ "reqwest",
  "serde",
  "serde_json",
  "tempfile",
@@ -1149,6 +1151,10 @@ dependencies = [
  "loadout-gateway",
  "loadout-ipc",
  "loadout-platform",
+ "loadout-protocol",
+ "loadout-provider-sdk",
+ "loadout-providers",
+ "loadout-router",
  "loadout-secrets",
  "loadout-storage",
  "serde_json",

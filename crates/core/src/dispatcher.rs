@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+use crate::control::ControlPlane;
 use crate::settings;
 
 const MAX_CLIENT_NAME: usize = 64;
@@ -22,6 +23,7 @@ const MAX_CLIENT_NAME: usize = 64;
 #[derive(Debug)]
 pub(crate) struct DaemonState {
     pub db: Arc<Database>,
+    pub control: Arc<ControlPlane>,
     pub keys: Arc<ClientKeyIndex>,
     pub events: broadcast::Sender<Event>,
     pub shutdown: CancellationToken,
@@ -208,6 +210,131 @@ impl Handler for Dispatcher {
                 encode_result::<api::SettingsReset>(&setting)
             }
 
+            other => self.handle_routes(other, params).await,
+        }
+    }
+}
+
+impl Dispatcher {
+    /// Provider / account / model / status methods (ExecPlan 002 §5.6).
+    async fn handle_routes(&self, method: &str, params: Value) -> Result<Value, ErrorBody> {
+        let s = &self.state;
+        let c = &s.control;
+        let changed = |s: &DaemonState| s.emit(events::ROUTES_CHANGED, Value::Null);
+        match method {
+            api::ProviderKinds::NAME => encode_result::<api::ProviderKinds>(&c.kinds()),
+            api::ProviderAdd::NAME => {
+                let p = decode_params::<api::ProviderAdd>(params)?;
+                let info = c
+                    .add_provider(p.slug, p.kind, p.base_url, p.settings, p.display_name)
+                    .await?;
+                changed(s);
+                encode_result::<api::ProviderAdd>(&info)
+            }
+            api::ProviderList::NAME => {
+                encode_result::<api::ProviderList>(&c.list_providers().await?)
+            }
+            api::ProviderRemove::NAME => {
+                let p = decode_params::<api::ProviderRemove>(params)?;
+                let revoked = c.remove_provider(p.slug).await?;
+                changed(s);
+                encode_result::<api::ProviderRemove>(&api::Revoked { revoked })
+            }
+            api::AccountAdd::NAME => {
+                let p = decode_params::<api::AccountAdd>(params)?;
+                let (account, sync) = c
+                    .add_account(
+                        p.provider,
+                        p.alias,
+                        p.api_key.map(|k| k.0),
+                        p.display_name,
+                        p.sync_models,
+                    )
+                    .await?;
+                changed(s);
+                let (sync, sync_error) = match sync {
+                    Some(Ok(r)) => (Some(r), None),
+                    Some(Err(e)) => (None, Some(e.message)),
+                    None => (None, None),
+                };
+                encode_result::<api::AccountAdd>(&api::AccountAdded {
+                    account,
+                    sync,
+                    sync_error,
+                })
+            }
+            api::AccountList::NAME => {
+                let p = decode_params::<api::AccountList>(params)?;
+                encode_result::<api::AccountList>(&c.list_accounts(p.provider).await?)
+            }
+            api::AccountSetEnabled::NAME => {
+                let p = decode_params::<api::AccountSetEnabled>(params)?;
+                let info = c
+                    .set_account_enabled(p.provider, p.alias, p.enabled)
+                    .await?;
+                changed(s);
+                encode_result::<api::AccountSetEnabled>(&info)
+            }
+            api::AccountSetKey::NAME => {
+                let p = decode_params::<api::AccountSetKey>(params)?;
+                let info = c.set_account_key(p.provider, p.alias, p.api_key.0).await?;
+                changed(s);
+                encode_result::<api::AccountSetKey>(&info)
+            }
+            api::AccountRemove::NAME => {
+                let p = decode_params::<api::AccountRemove>(params)?;
+                let revoked = c.remove_account(p.provider, p.alias).await?;
+                changed(s);
+                encode_result::<api::AccountRemove>(&api::Revoked { revoked })
+            }
+            api::ModelSync::NAME => {
+                let p = decode_params::<api::ModelSync>(params)?;
+                let r = c.sync_models(p.provider, p.alias).await?;
+                changed(s);
+                encode_result::<api::ModelSync>(&r)
+            }
+            api::ModelAdd::NAME => {
+                let p = decode_params::<api::ModelAdd>(params)?;
+                let info = c
+                    .add_model(
+                        p.provider,
+                        p.account,
+                        p.model,
+                        p.protocols,
+                        p.context_window,
+                    )
+                    .await?;
+                changed(s);
+                encode_result::<api::ModelAdd>(&info)
+            }
+            api::ModelList::NAME => {
+                let p = decode_params::<api::ModelList>(params)?;
+                encode_result::<api::ModelList>(&c.list_models(p.provider, p.account).await?)
+            }
+            api::ModelSetEnabled::NAME => {
+                let p = decode_params::<api::ModelSetEnabled>(params)?;
+                let info = c.set_model_enabled(p.name, p.enabled).await?;
+                changed(s);
+                encode_result::<api::ModelSetEnabled>(&info)
+            }
+            api::ModelSetPrice::NAME => {
+                let p = decode_params::<api::ModelSetPrice>(params)?;
+                let info = c
+                    .set_model_price(p.name, p.input, p.output, p.cache_read, p.cache_write)
+                    .await?;
+                encode_result::<api::ModelSetPrice>(&info)
+            }
+            api::ModelRemove::NAME => {
+                let p = decode_params::<api::ModelRemove>(params)?;
+                let revoked = c.remove_model(p.name).await?;
+                changed(s);
+                encode_result::<api::ModelRemove>(&api::Revoked { revoked })
+            }
+            api::RouteStatus::NAME => encode_result::<api::RouteStatus>(&c.route_status()),
+            api::RequestsRecent::NAME => {
+                let p = decode_params::<api::RequestsRecent>(params)?;
+                encode_result::<api::RequestsRecent>(&c.recent_requests(p.limit).await?)
+            }
             other => Err(ErrorBody::new(
                 ErrorCode::MethodNotFound,
                 format!("unknown method {other}"),
@@ -222,8 +349,17 @@ mod tests {
 
     fn state() -> Arc<DaemonState> {
         let (events, _) = broadcast::channel(16);
+        let db = Arc::new(Database::open_in_memory().expect("db"));
+        let control = Arc::new(ControlPlane::new(
+            db.clone(),
+            Arc::new(loadout_secrets::InMemorySecretStore::new()),
+            loadout_providers::Registry::builtin(),
+            Arc::default(),
+            loadout_provider_sdk::HttpClient::new(&Default::default()).expect("http"),
+        ));
         Arc::new(DaemonState {
-            db: Arc::new(Database::open_in_memory().expect("db")),
+            db,
+            control,
             keys: Arc::default(),
             events,
             shutdown: CancellationToken::new(),

@@ -251,6 +251,23 @@ fn method_names_are_unique() {
         SettingsList::NAME,
         SettingsSet::NAME,
         SettingsReset::NAME,
+        ProviderKinds::NAME,
+        ProviderAdd::NAME,
+        ProviderList::NAME,
+        ProviderRemove::NAME,
+        AccountAdd::NAME,
+        AccountList::NAME,
+        AccountSetEnabled::NAME,
+        AccountSetKey::NAME,
+        AccountRemove::NAME,
+        ModelSync::NAME,
+        ModelAdd::NAME,
+        ModelList::NAME,
+        ModelSetEnabled::NAME,
+        ModelSetPrice::NAME,
+        ModelRemove::NAME,
+        RouteStatus::NAME,
+        RequestsRecent::NAME,
     ];
     let unique: std::collections::HashSet<_> = names.iter().collect();
     assert_eq!(unique.len(), names.len());
