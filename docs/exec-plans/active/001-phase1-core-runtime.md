@@ -381,7 +381,11 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - `loadoutd.exe` 使用 Windows GUI 子系统（登录自启动时不弹控制台窗口），启动时尝试附加父控制台以显示 `--help` / 错误 / `--foreground` 日志。
   - 无窗口进程收不到注销通知，注销时会被系统终止；SQLite WAL 保证一致性。Ctrl+C / Ctrl+Break 在附加控制台时触发优雅关闭。
   - 18 个测试。
-- [ ] Stage 7 — cli
+- [x] Stage 7 — cli（2026-09-29）
+  - `loadout daemon start|stop|status`、`autostart enable|disable|status`、`client create|list|revoke`、`config list|get|set|reset`，全部支持 `--json`；daemon 未运行时退出码 3。
+  - **结构调整**：`loadout` 与 `loadoutd` 合并为同一个包 `apps/loadout` 的两个 bin。原因：端到端测试需要同时拿到两个可执行文件（`CARGO_BIN_EXE_*` 只对同包 bin 提供），并保证 Cargo 在运行测试前构建两者。
+  - **发现并修复**：用 `std::process::Command` 启动 daemon 时，Windows 会把 CLI 的所有可继承句柄传给子进程，包括调用方管道（`loadout daemon start | ...`）。daemon 持有管道写端，调用方永远等不到 EOF（冒烟测试中 PowerShell 管道挂起即此原因）。改为 `platform::spawn_detached`：`CreateProcessW` + `bInheritHandles = FALSE` + `CREATE_BREAKAWAY_FROM_JOB`（Job 不允许时回退）。e2e 测试全部通过管道捕获 CLI 输出并设超时，回归时会立即失败。
+  - 5 个 e2e 测试：完整生命周期（含撤销即时生效）、同实例第二个 daemon 退出码 2、端口占用提示、trace 级日志中不出现 client key（含 URL 中的 key）、autostart 指向 CLI 同目录的 `loadoutd.exe`。
 - [ ] Stage 8 — 集成测试、benchmark、CI
 
 ---

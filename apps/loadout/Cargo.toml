@@ -1,0 +1,37 @@
+[package]
+name = "loadout"
+description = "Loadout executables: loadoutd (daemon) and loadout (CLI)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Both binaries live in one package so end-to-end tests get both paths via CARGO_BIN_EXE_*
+# and Cargo always builds both before running them.
+[[bin]]
+name = "loadoutd"
+path = "src/bin/loadoutd.rs"
+
+[[bin]]
+name = "loadout"
+path = "src/bin/loadout/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["env"] }
+loadout-core.workspace = true
+loadout-ipc.workspace = true
+loadout-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

@@ -1,8 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "apps/cli",
-    "apps/daemon",
+    "apps/loadout",
     "crates/core",
     "crates/gateway",
     "crates/ipc",

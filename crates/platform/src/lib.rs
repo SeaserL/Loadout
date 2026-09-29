@@ -14,6 +14,7 @@ mod console;
 mod error;
 mod instance;
 mod paths;
+mod process;
 mod sid;
 mod wide;
 
@@ -22,4 +23,5 @@ pub use console::attach_parent_console;
 pub use error::PlatformError;
 pub use instance::InstanceLock;
 pub use paths::default_data_dir;
+pub use process::{DetachedProcess, spawn_detached};
 pub use sid::current_user_sid;
