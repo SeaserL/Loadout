@@ -230,7 +230,12 @@ loadout model list | remove | set-price
   - 删除 Provider / 账号时级联删除，并返回需要从 Credential Manager 清除的 secret_ref。
   - Telemetry：有界 `sync_channel`（默认 10,000）+ 独立线程与独立 SQLite 连接，批量事务写入（≤512 条或 200 ms）；队列满时丢弃并计数，`send` 永不阻塞（测试：1 万条写入 4 容量队列 < 2 s）。Responses 路由映射也经此线程写入。
   - 18 个测试。
-- [ ] Stage 4 — router
+- [x] Stage 4 — router（2026-09-29）
+  - `RouteTable`（按 provider → 账号顺序 → alias → 模型 → 协议排序，保证确定性）+ `RouteTableHandle`（ArcSwap）；名称解析遵循 ADR-010，精确名称后接同 Provider 其他账号的同一模型（ADR-003 §8，可关闭）。
+  - `select`：按候选链顺序（粘性），同一账号模型内优先 ingress 协议；过滤 v1 不允许推理的 transport（非 tier A）、context window 超限（仅在已知时）、熔断中的 target；有状态 Responses 只允许原生 Responses target、可固定到原 target、不 failover。
+  - 能力"未知即允许"：目录普遍不声明 vision 等能力，只在明确不满足时排除。
+  - 熔断器：原子状态；5xx/超时 5 s 起指数退避（上限 5 min）；429 用 Retry-After 或 30 s 起退避；额度耗尽默认 1 h（Usage driver 可给出准确 reset）；401/403 阻断 1 h 后半开探测，凭证更新时清除；请求类错误不计入。`HealthRegistry` 按 target id 保存状态，路由表重建不丢失。
+  - 14 个测试。
 - [ ] Stage 5 — gateway proxy
 - [ ] Stage 6 — IPC + CLI
 - [ ] Stage 7 — e2e + benchmarks + docs

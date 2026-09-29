@@ -1247,6 +1247,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "loadout-router"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "loadout-protocol",
+ "loadout-provider-sdk",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "loadout-secrets"
 version = "0.1.0"
 dependencies = [

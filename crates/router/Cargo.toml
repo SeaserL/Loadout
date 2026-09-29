@@ -1,0 +1,20 @@
+[package]
+name = "loadout-router"
+description = "Route table, model-name resolution, eligibility and per-target circuit breakers."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+arc-swap.workspace = true
+loadout-protocol.workspace = true
+loadout-provider-sdk.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -10,6 +10,7 @@ members = [
     "crates/protocol",
     "crates/provider-sdk",
     "crates/providers",
+    "crates/router",
     "crates/secrets",
     "crates/storage",
 ]
