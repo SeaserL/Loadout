@@ -1,6 +1,6 @@
 [package]
 name = "loadout-gateway"
-description = "Local HTTP gateway: security middleware and OpenAI / Anthropic compatible endpoints."
+description = "Local HTTP gateway: security middleware, OpenAI / Anthropic compatible proxying."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,13 @@ publish.workspace = true
 [dependencies]
 arc-swap.workspace = true
 axum.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+loadout-protocol.workspace = true
+loadout-provider-sdk.workspace = true
+loadout-router.workspace = true
 rand.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -22,6 +28,9 @@ tower-http.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+loadout-providers.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+loadout-secrets.workspace = true
 tower = { workspace = true, features = ["util"] }
 
 [lints]

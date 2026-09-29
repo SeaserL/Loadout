@@ -19,6 +19,7 @@ pub mod chat;
 mod error;
 pub mod hints;
 pub mod messages;
+pub mod observe;
 mod protocol;
 pub mod responses;
 pub mod sse;

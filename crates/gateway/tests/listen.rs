@@ -6,7 +6,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use loadout_gateway::{ClientId, ClientKeyIndex, Gateway, GatewayConfig, generate_client_key};
+use loadout_gateway::{
+    ClientId, ClientKeyIndex, DataPlane, Gateway, GatewayConfig, generate_client_key,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
@@ -34,7 +36,7 @@ async fn raw_get(addr: SocketAddr, path: &str, key: &str) -> String {
 async fn serves_over_tcp_and_stops_on_shutdown() {
     let key = generate_client_key();
     let keys = Arc::new(ClientKeyIndex::new([(key.hash, ClientId::from("c"))]));
-    let gateway = Gateway::bind(loopback_any_port(), keys)
+    let gateway = Gateway::bind(loopback_any_port(), keys, Arc::new(DataPlane::empty()))
         .await
         .expect("bind");
     let addr = gateway.local_addr();
@@ -68,6 +70,7 @@ async fn serves_over_tcp_and_stops_on_shutdown() {
             ..loopback_any_port()
         },
         Arc::default(),
+        Arc::new(DataPlane::empty()),
     )
     .await;
     assert!(rebound.is_ok(), "port must be released: {rebound:?}");
@@ -75,14 +78,18 @@ async fn serves_over_tcp_and_stops_on_shutdown() {
 
 #[tokio::test]
 async fn port_conflict_is_reported_not_worked_around() {
-    let first = Gateway::bind(loopback_any_port(), Arc::default())
-        .await
-        .expect("bind");
+    let first = Gateway::bind(
+        loopback_any_port(),
+        Arc::default(),
+        Arc::new(DataPlane::empty()),
+    )
+    .await
+    .expect("bind");
     let taken = GatewayConfig {
         bind: first.local_addr(),
         ..loopback_any_port()
     };
-    let err = Gateway::bind(taken, Arc::default())
+    let err = Gateway::bind(taken, Arc::default(), Arc::new(DataPlane::empty()))
         .await
         .expect_err("port is taken");
     assert_eq!(err.kind(), std::io::ErrorKind::AddrInUse);

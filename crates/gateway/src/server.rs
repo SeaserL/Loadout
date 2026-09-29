@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
-use axum::extract::DefaultBodyLimit;
 use axum::middleware;
 use axum::routing::{get, post};
 use tokio::net::TcpListener;
@@ -15,7 +14,8 @@ use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetReques
 use tower_http::trace::TraceLayer;
 
 use crate::ClientKeyIndex;
-use crate::routes;
+use crate::plane::DataPlane;
+use crate::routes::{self, AppState};
 use crate::security::{self, SecurityPolicy};
 
 pub const DEFAULT_PORT: u16 = 8317;
@@ -53,7 +53,11 @@ pub struct Gateway {
 }
 
 impl Gateway {
-    pub async fn bind(config: GatewayConfig, keys: Arc<ClientKeyIndex>) -> io::Result<Self> {
+    pub async fn bind(
+        config: GatewayConfig,
+        keys: Arc<ClientKeyIndex>,
+        plane: Arc<DataPlane>,
+    ) -> io::Result<Self> {
         if !config.bind.ip().is_loopback() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -62,7 +66,7 @@ impl Gateway {
         }
         let listener = TcpListener::bind(config.bind).await?;
         let addr = listener.local_addr()?;
-        let router = build_router(addr.port(), &config, keys);
+        let router = build_router(addr.port(), &config, keys, plane);
         Ok(Self {
             listener,
             router,
@@ -95,7 +99,12 @@ impl Gateway {
     }
 }
 
-pub(crate) fn build_router(port: u16, config: &GatewayConfig, keys: Arc<ClientKeyIndex>) -> Router {
+pub(crate) fn build_router(
+    port: u16,
+    config: &GatewayConfig,
+    keys: Arc<ClientKeyIndex>,
+    plane: Arc<DataPlane>,
+) -> Router {
     let policy = Arc::new(SecurityPolicy::new(
         port,
         config.allowed_origins.clone(),
@@ -103,11 +112,14 @@ pub(crate) fn build_router(port: u16, config: &GatewayConfig, keys: Arc<ClientKe
     ));
     Router::new()
         .route("/v1/models", get(routes::list_models))
-        .route("/v1/chat/completions", post(routes::not_implemented))
-        .route("/v1/responses", post(routes::not_implemented))
-        .route("/v1/messages", post(routes::not_implemented))
+        .route("/v1/chat/completions", post(routes::chat))
+        .route("/v1/responses", post(routes::responses))
+        .route("/v1/messages", post(routes::messages))
         .fallback(routes::not_found)
-        .layer(DefaultBodyLimit::max(config.max_body_bytes))
+        .with_state(AppState {
+            plane,
+            max_body: config.max_body_bytes,
+        })
         .layer(middleware::from_fn_with_state(policy, security::enforce))
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::x_request_id())
@@ -139,7 +151,7 @@ mod tests {
             ..GatewayConfig::default()
         };
         Fixture {
-            router: build_router(PORT, &config, keys),
+            router: build_router(PORT, &config, keys, Arc::new(DataPlane::empty())),
             key: key.key,
         }
     }
@@ -246,9 +258,9 @@ mod tests {
             .body(Body::from("{}"))
             .expect("req");
         let (status, body, _) = send(&f, anthropic).await;
-        assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(status, StatusCode::BAD_REQUEST, "missing model");
         assert_eq!(body["type"], "error");
-        assert_eq!(body["error"]["type"], "api_error");
+        assert_eq!(body["error"]["type"], "invalid_request_error");
 
         let unauth_anthropic = request("POST", "/v1/messages")
             .body(Body::from("{}"))
@@ -260,11 +272,13 @@ mod tests {
         for path in ["/v1/chat/completions", "/v1/responses"] {
             let openai = request("POST", path)
                 .header("authorization", format!("Bearer {}", f.key))
-                .body(Body::from("{}"))
+                .body(Body::from(
+                    r#"{"model":"acme/main/x","messages":[],"input":"hi"}"#,
+                ))
                 .expect("req");
             let (status, body, _) = send(&f, openai).await;
-            assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "{path}");
-            assert_eq!(body["error"]["code"], "not_implemented");
+            assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
+            assert_eq!(body["error"]["code"], "model_not_found");
         }
 
         let unknown = request("GET", "/v2/whatever")
@@ -280,7 +294,7 @@ mod tests {
             bind: SocketAddr::from(([0, 0, 0, 0], 0)),
             ..GatewayConfig::default()
         };
-        let err = Gateway::bind(config, Arc::default())
+        let err = Gateway::bind(config, Arc::default(), Arc::new(DataPlane::empty()))
             .await
             .expect_err("must refuse");
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);

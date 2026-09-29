@@ -236,7 +236,15 @@ loadout model list | remove | set-price
   - 能力"未知即允许"：目录普遍不声明 vision 等能力，只在明确不满足时排除。
   - 熔断器：原子状态；5xx/超时 5 s 起指数退避（上限 5 min）；429 用 Retry-After 或 30 s 起退避；额度耗尽默认 1 h（Usage driver 可给出准确 reset）；401/403 阻断 1 h 后半开探测，凭证更新时清除；请求类错误不计入。`HealthRegistry` 按 target id 保存状态，路由表重建不丢失。
   - 14 个测试。
-- [ ] Stage 5 — gateway proxy
+- [x] Stage 5 — gateway proxy（2026-09-29）
+  - `DataPlane`（路由表句柄、HTTP 客户端、`TelemetrySink`、`ResponseRouteStore`、上游超时与尝试次数）；gateway 不直接依赖数据库。
+  - 请求生命周期按 §5.4 实现；首个输出事件之前的任何失败（连接、超时、非 2xx、流内错误事件、空流）都 failover；非流式客户端在整个响应聚合完成前都算"提交前"，因此同样可 failover。
+  - 提交后上游中断：passthrough 按客户端协议补发错误事件（Chat 附 `[DONE]`），转换路径由编码器输出错误；记录 `upstream_interrupted`。
+  - 请求类错误（400 等）直接返回客户端且不计入熔断；错误信息包含路由名与上游消息（已脱敏）。
+  - 只转发白名单客户端头（`anthropic-version`、`anthropic-beta`、`openai-beta`，仅 passthrough）；客户端 key 永不转发。
+  - `/v1/models` 由路由表生成；带 `anthropic-version` 头时返回 Anthropic 格式。
+  - 16 个代理集成测试（脚本化 mock 上游）+ 连续 5 次运行稳定。
+  - **发现**：Windows 上对端以 RST 立即中断连接时，接收方可能丢弃已到达但未读取的数据。此时 gateway 会视为提交前失败并 failover，这是可接受的行为；mock 在断开前等待 100 ms 以模拟真实上游。
 - [ ] Stage 6 — IPC + CLI
 - [ ] Stage 7 — e2e + benchmarks + docs
 

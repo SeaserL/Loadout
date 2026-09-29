@@ -64,6 +64,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             ..GatewayConfig::default()
         },
         keys.clone(),
+        Arc::new(loadout_gateway::DataPlane::empty()),
     )
     .await
     .map_err(|e| match e.kind() {

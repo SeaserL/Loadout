@@ -7,6 +7,8 @@
 
 mod auth;
 mod error;
+mod plane;
+mod proxy;
 mod routes;
 mod security;
 mod server;
@@ -16,6 +18,9 @@ pub use auth::{
     hash_client_key,
 };
 pub use error::{ApiError, ApiFlavor, ErrorCategory};
+pub use plane::{
+    DataPlane, NullSink, RequestRecord, ResponseRouteStore, TelemetrySink, UpstreamLimits,
+};
 pub use server::{Gateway, GatewayConfig};
 
 /// Identifier of the authenticated client, attached to each request as an extension.

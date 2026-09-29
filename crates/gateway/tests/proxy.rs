@@ -1,0 +1,976 @@
+// SPDX-License-Identifier: Apache-2.0
+
+//! Proxy behaviour against scripted mock upstreams (ExecPlan 002 §7).
+
+use std::collections::{HashMap, VecDeque};
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use axum::Router;
+use axum::body::{Body, Bytes};
+use axum::extract::{Request, State};
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::routing::post;
+use loadout_gateway::{
+    ClientId, ClientKeyIndex, DataPlane, Gateway, GatewayConfig, RequestRecord, ResponseRouteStore,
+    TelemetrySink, UpstreamLimits, generate_client_key,
+};
+use loadout_protocol::Protocol;
+use loadout_protocol::sse::SseParser;
+use loadout_provider_sdk::{
+    BoxFuture, Capabilities, HttpClient, HttpConfig, ProviderConfig, ProviderModule, TrustLevel,
+};
+use loadout_providers::{AnthropicCompatible, OpenAiCompatible};
+use loadout_router::{
+    HealthRegistry, HealthState, Prices, RouteTable, RouteTableHandle, RouteTarget, TargetId,
+};
+use loadout_secrets::Secret;
+use serde_json::{Value, json};
+use tokio_util::sync::CancellationToken;
+
+// ---- mock upstream ------------------------------------------------------------------------
+
+#[derive(Clone)]
+enum Reply {
+    Status(u16, String),
+    Json(Value),
+    Sse(Vec<String>),
+    /// Sends these events, then drops the connection.
+    SseThenDrop(Vec<String>),
+}
+
+#[derive(Clone, Debug)]
+struct Seen {
+    path: String,
+    headers: HeaderMap,
+    body: Value,
+}
+
+#[derive(Clone, Default)]
+struct Mock {
+    replies: Arc<Mutex<HashMap<String, VecDeque<Reply>>>>,
+    seen: Arc<Mutex<Vec<Seen>>>,
+}
+
+impl Mock {
+    fn push(&self, path: &str, reply: Reply) {
+        self.replies
+            .lock()
+            .expect("lock")
+            .entry(path.to_owned())
+            .or_default()
+            .push_back(reply);
+    }
+
+    fn seen(&self) -> Vec<Seen> {
+        self.seen.lock().expect("lock").clone()
+    }
+}
+
+async fn mock_handler(State(mock): State<Mock>, req: Request) -> Response {
+    let path = req.uri().path().to_owned();
+    let headers = req.headers().clone();
+    let bytes = axum::body::to_bytes(req.into_body(), 1 << 20)
+        .await
+        .expect("body");
+    let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    mock.seen.lock().expect("lock").push(Seen {
+        path: path.clone(),
+        headers,
+        body,
+    });
+    let reply = mock
+        .replies
+        .lock()
+        .expect("lock")
+        .get_mut(&path)
+        .and_then(VecDeque::pop_front)
+        .unwrap_or(Reply::Status(500, "no scripted reply".into()));
+    match reply {
+        Reply::Status(code, body) => {
+            (StatusCode::from_u16(code).expect("status"), body).into_response()
+        }
+        Reply::Json(v) => axum::Json(v).into_response(),
+        Reply::Sse(events) => sse_response(events, false),
+        Reply::SseThenDrop(events) => sse_response(events, true),
+    }
+}
+
+fn sse_response(events: Vec<String>, drop_after: bool) -> Response {
+    let items: Vec<Result<Bytes, std::io::Error>> =
+        events.into_iter().map(|e| Ok(Bytes::from(e))).collect();
+    // Resetting the connection immediately can make Windows discard data the client has not
+    // read yet; wait briefly so the drop happens after the events were delivered.
+    let tail = futures_util::stream::once(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        Err(std::io::Error::other("connection reset"))
+    });
+    let stream = futures_util::stream::iter(items);
+    use futures_util::StreamExt;
+    let body = if drop_after {
+        Body::from_stream(stream.chain(tail))
+    } else {
+        Body::from_stream(stream)
+    };
+    let mut resp = Response::new(body);
+    resp.headers_mut()
+        .insert("content-type", "text/event-stream".parse().expect("ct"));
+    resp
+}
+
+async fn start_mock() -> (Mock, String) {
+    let mock = Mock::default();
+    let app = Router::new()
+        .route("/v1/chat/completions", post(mock_handler))
+        .route("/v1/messages", post(mock_handler))
+        .route("/v1/responses", post(mock_handler))
+        .with_state(mock.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    (mock, format!("http://{addr}/v1"))
+}
+
+// ---- upstream stream fixtures --------------------------------------------------------------
+
+fn chat_chunk(delta: Value, finish: Option<&str>) -> String {
+    format!(
+        "data: {}\n\n",
+        json!({"id": "up1", "model": "up-model", "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]})
+    )
+}
+
+fn chat_stream_text(text: &str) -> Vec<String> {
+    vec![
+        chat_chunk(json!({"role": "assistant", "content": ""}), None),
+        chat_chunk(json!({"content": text}), None),
+        chat_chunk(json!({}), Some("stop")),
+        format!(
+            "data: {}\n\n",
+            json!({"id": "up1", "choices": [], "usage": {"prompt_tokens": 11, "completion_tokens": 7}})
+        ),
+        "data: [DONE]\n\n".into(),
+    ]
+}
+
+fn chat_stream_tool() -> Vec<String> {
+    vec![
+        chat_chunk(json!({"role": "assistant"}), None),
+        chat_chunk(json!({"content": "Let me check."}), None),
+        chat_chunk(
+            json!({"tool_calls": [{"index": 0, "id": "call_9", "type": "function", "function": {"name": "weather", "arguments": ""}}]}),
+            None,
+        ),
+        chat_chunk(
+            json!({"tool_calls": [{"index": 0, "function": {"arguments": "{\"city\":\"Paris\"}"}}]}),
+            None,
+        ),
+        chat_chunk(json!({}), Some("tool_calls")),
+        format!(
+            "data: {}\n\n",
+            json!({"choices": [], "usage": {"prompt_tokens": 20, "completion_tokens": 9}})
+        ),
+        "data: [DONE]\n\n".into(),
+    ]
+}
+
+fn anthropic_stream_text(text: &str) -> Vec<String> {
+    let ev = |name: &str, data: Value| format!("event: {name}\ndata: {data}\n\n");
+    vec![
+        ev(
+            "message_start",
+            json!({"type": "message_start", "message": {"id": "msg_up", "model": "claude-up", "usage": {"input_tokens": 12, "output_tokens": 1}}}),
+        ),
+        ev(
+            "content_block_start",
+            json!({"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}),
+        ),
+        ev(
+            "content_block_delta",
+            json!({"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": text}}),
+        ),
+        ev(
+            "content_block_stop",
+            json!({"type": "content_block_stop", "index": 0}),
+        ),
+        ev(
+            "message_delta",
+            json!({"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 5}}),
+        ),
+        ev("message_stop", json!({"type": "message_stop"})),
+    ]
+}
+
+fn responses_stream_text(id: &str, text: &str) -> Vec<String> {
+    let ev = |name: &str, data: Value| format!("event: {name}\ndata: {data}\n\n");
+    vec![
+        ev(
+            "response.created",
+            json!({"type": "response.created", "response": {"id": id, "model": "gpt-up"}}),
+        ),
+        ev(
+            "response.output_text.delta",
+            json!({"type": "response.output_text.delta", "item_id": "m", "delta": text}),
+        ),
+        ev(
+            "response.completed",
+            json!({"type": "response.completed", "response": {"id": id, "status": "completed", "usage": {"input_tokens": 3, "output_tokens": 2}}}),
+        ),
+    ]
+}
+
+// ---- gateway harness ------------------------------------------------------------------------
+
+#[derive(Default)]
+struct Records(Mutex<Vec<RequestRecord>>);
+
+impl TelemetrySink for Records {
+    fn record(&self, r: RequestRecord) {
+        self.0.lock().expect("lock").push(r);
+    }
+}
+
+#[derive(Default)]
+struct Routes(Mutex<HashMap<String, String>>);
+
+impl ResponseRouteStore for Routes {
+    fn get<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Option<String>> {
+        let v = self.0.lock().expect("lock").get(id).cloned();
+        Box::pin(async move { v })
+    }
+    fn put(&self, id: String, target: String) {
+        self.0.lock().expect("lock").insert(id, target);
+    }
+}
+
+struct TargetSpec {
+    provider: &'static str,
+    alias: &'static str,
+    position: i64,
+    model: &'static str,
+    protocol: Protocol,
+    base: String,
+}
+
+fn build_target(reg: &HealthRegistry, s: &TargetSpec) -> Arc<RouteTarget> {
+    let module: Arc<dyn ProviderModule> = match s.protocol {
+        Protocol::Messages => Arc::new(AnthropicCompatible),
+        _ => Arc::new(OpenAiCompatible),
+    };
+    let config = ProviderConfig {
+        slug: s.provider.into(),
+        kind: module.descriptor().kind.into(),
+        base_url: Some(s.base.clone()),
+        settings: Value::Object(Default::default()),
+    };
+    let key = Secret::new(format!("sk-upstream-{}-{}", s.provider, s.alias));
+    let endpoint = module
+        .endpoint(&config, s.protocol, Some(&key))
+        .expect("endpoint");
+    let id: TargetId = Arc::from(format!(
+        "{}-{}-{}:{}",
+        s.provider,
+        s.alias,
+        s.model,
+        s.protocol.as_str()
+    ));
+    Arc::new(RouteTarget {
+        health: reg.get_or_create(&id),
+        id,
+        provider_slug: Arc::from(s.provider),
+        account_id: Arc::from(format!("{}-{}", s.provider, s.alias)),
+        account_alias: Arc::from(s.alias),
+        account_position: s.position,
+        upstream_model: Arc::from(s.model),
+        protocol: s.protocol,
+        trust: TrustLevel::Local,
+        context_window: None,
+        max_output_tokens: None,
+        capabilities: Capabilities::DEFAULT_MODEL,
+        prices: Prices {
+            input: Some(1.0),
+            output: Some(2.0),
+            cache_read: None,
+            cache_write: None,
+        },
+        endpoint,
+        module,
+        config: Arc::new(config),
+    })
+}
+
+struct Harness {
+    addr: SocketAddr,
+    key: String,
+    http: reqwest::Client,
+    records: Arc<Records>,
+    health: Arc<HealthRegistry>,
+    routes_store: Arc<Routes>,
+    _shutdown: CancellationToken,
+}
+
+impl Harness {
+    async fn new(specs: Vec<TargetSpec>) -> Self {
+        let health = Arc::new(HealthRegistry::default());
+        let targets = specs.iter().map(|s| build_target(&health, s)).collect();
+        let routes = Arc::new(RouteTableHandle::new(RouteTable::new(1, targets)));
+        let records = Arc::new(Records::default());
+        let routes_store = Arc::new(Routes::default());
+        let plane = DataPlane {
+            routes,
+            http: HttpClient::new(&HttpConfig::default()).expect("http"),
+            telemetry: records.clone(),
+            response_routes: routes_store.clone(),
+            limits: UpstreamLimits {
+                first_token_timeout: Duration::from_secs(10),
+                ..UpstreamLimits::default()
+            },
+        };
+        let key = generate_client_key();
+        let keys = Arc::new(ClientKeyIndex::new([(
+            key.hash,
+            ClientId::from("test-client"),
+        )]));
+        let gateway = Gateway::bind(
+            GatewayConfig {
+                bind: SocketAddr::from(([127, 0, 0, 1], 0)),
+                ..GatewayConfig::default()
+            },
+            keys,
+            Arc::new(plane),
+        )
+        .await
+        .expect("bind");
+        let addr = gateway.local_addr();
+        let shutdown = CancellationToken::new();
+        tokio::spawn(gateway.serve(shutdown.clone()));
+        Self {
+            addr,
+            key: key.key,
+            http: reqwest::Client::new(),
+            records,
+            health,
+            routes_store,
+            _shutdown: shutdown,
+        }
+    }
+
+    async fn post(&self, path: &str, body: Value) -> reqwest::Response {
+        self.post_with(path, body, &[]).await
+    }
+
+    async fn post_with(
+        &self,
+        path: &str,
+        body: Value,
+        headers: &[(&str, &str)],
+    ) -> reqwest::Response {
+        let mut req = self
+            .http
+            .post(format!("http://{}{path}", self.addr))
+            .bearer_auth(&self.key)
+            .json(&body);
+        for (k, v) in headers {
+            req = req.header(*k, *v);
+        }
+        req.send().await.expect("send")
+    }
+
+    /// Waits for the background pump to record the request.
+    async fn records(&self, n: usize) -> Vec<RequestRecord> {
+        for _ in 0..200 {
+            let r = self.records.0.lock().expect("lock").clone();
+            if r.len() >= n {
+                return r;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("expected {n} telemetry records");
+    }
+}
+
+fn spec(
+    provider: &'static str,
+    alias: &'static str,
+    pos: i64,
+    model: &'static str,
+    protocol: Protocol,
+    base: &str,
+) -> TargetSpec {
+    TargetSpec {
+        provider,
+        alias,
+        position: pos,
+        model,
+        protocol,
+        base: base.to_owned(),
+    }
+}
+
+fn sse_json(text: &str) -> Vec<(Option<String>, Value)> {
+    let mut p = SseParser::new();
+    let mut events = p.feed(text.as_bytes());
+    events.extend(p.finish());
+    events
+        .into_iter()
+        .filter(|e| e.data != "[DONE]")
+        .map(|e| (e.event, serde_json::from_str(&e.data).expect("event json")))
+        .collect()
+}
+
+// ---- tests ------------------------------------------------------------------------------------
+
+#[tokio::test]
+async fn chat_passthrough_stream_is_byte_faithful_and_hides_injected_usage() {
+    let (mock, base) = start_mock().await;
+    let upstream = chat_stream_text("Hello");
+    mock.push("/v1/chat/completions", Reply::Sse(upstream.clone()));
+    let h = Harness::new(vec![spec(
+        "acme",
+        "main",
+        0,
+        "up-model",
+        Protocol::Chat,
+        &base,
+    )])
+    .await;
+
+    let resp = h
+        .post("/v1/chat/completions", json!({"model": "acme/main/up-model", "stream": true, "messages": [{"role": "user", "content": "hi"}], "custom_field": 1}))
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/main/up-model");
+    let text = resp.text().await.expect("text");
+    let expected: String = upstream
+        .iter()
+        .filter(|e| !e.contains("\"usage\""))
+        .cloned()
+        .collect();
+    assert_eq!(
+        text, expected,
+        "bytes unchanged except the injected usage chunk"
+    );
+
+    let seen = mock.seen();
+    assert_eq!(seen[0].body["model"], "up-model");
+    assert_eq!(seen[0].body["stream_options"]["include_usage"], true);
+    assert_eq!(
+        seen[0].body["custom_field"], 1,
+        "unknown fields pass through"
+    );
+    assert_eq!(
+        seen[0].headers["authorization"],
+        "Bearer sk-upstream-acme-main"
+    );
+
+    let r = &h.records(1).await[0];
+    assert_eq!(r.status, "ok");
+    assert_eq!(r.mode, Some("passthrough"));
+    assert_eq!(r.usage.input_tokens, Some(11));
+    assert_eq!(r.usage_confidence, "EXACT");
+    assert!(r.ttft_ms.is_some());
+    assert!(r.estimated_cost_usd.is_some());
+    assert_eq!(r.client_id.as_deref(), Some("test-client"));
+}
+
+#[tokio::test]
+async fn chat_passthrough_keeps_usage_chunk_when_client_asked() {
+    let (mock, base) = start_mock().await;
+    mock.push("/v1/chat/completions", Reply::Sse(chat_stream_text("x")));
+    let h = Harness::new(vec![spec("acme", "main", 0, "m", Protocol::Chat, &base)]).await;
+    let text = h
+        .post("/v1/chat/completions", json!({"model": "acme/main/m", "stream": true, "stream_options": {"include_usage": true}, "messages": []}))
+        .await
+        .text()
+        .await
+        .expect("text");
+    assert!(text.contains("\"usage\""));
+}
+
+#[tokio::test]
+async fn non_stream_passthrough_returns_upstream_json() {
+    let (mock, base) = start_mock().await;
+    let body = json!({"id": "c1", "object": "chat.completion", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hey"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 1, "completion_tokens": 2}});
+    mock.push("/v1/chat/completions", Reply::Json(body.clone()));
+    let h = Harness::new(vec![spec("acme", "main", 0, "m", Protocol::Chat, &base)]).await;
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/main/m", "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.json::<Value>().await.expect("json"), body);
+    assert_eq!(h.records(1).await[0].usage.output_tokens, Some(2));
+}
+
+#[tokio::test]
+async fn anthropic_client_streams_through_chat_upstream() {
+    let (mock, base) = start_mock().await;
+    mock.push("/v1/chat/completions", Reply::Sse(chat_stream_tool()));
+    let h = Harness::new(vec![spec("cc", "main", 0, "kimi", Protocol::Chat, &base)]).await;
+
+    let resp = h
+        .post(
+            "/v1/messages",
+            json!({"model": "cc/main/kimi", "max_tokens": 100, "stream": true,
+                   "system": "be terse",
+                   "messages": [{"role": "user", "content": "weather in Paris?"}],
+                   "tools": [{"name": "weather", "input_schema": {"type": "object"}}]}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    let events = sse_json(&resp.text().await.expect("text"));
+    let names: Vec<&str> = events.iter().filter_map(|(n, _)| n.as_deref()).collect();
+    assert_eq!(names.first(), Some(&"message_start"));
+    assert_eq!(names.last(), Some(&"message_stop"));
+    let tool = events
+        .iter()
+        .find(|(_, v)| v["content_block"]["type"] == "tool_use")
+        .expect("tool_use block");
+    assert_eq!(tool.1["content_block"]["name"], "weather");
+    let delta = events
+        .iter()
+        .find(|(n, _)| n.as_deref() == Some("message_delta"))
+        .expect("delta");
+    assert_eq!(delta.1["delta"]["stop_reason"], "tool_use");
+    assert_eq!(delta.1["usage"]["output_tokens"], 9);
+
+    let upstream = &mock.seen()[0];
+    assert_eq!(upstream.path, "/v1/chat/completions");
+    assert_eq!(upstream.body["messages"][0]["role"], "system");
+    assert_eq!(upstream.body["tools"][0]["function"]["name"], "weather");
+    assert_eq!(upstream.body["max_tokens"], 100);
+    assert_eq!(h.records(1).await[0].mode, Some("converted"));
+}
+
+#[tokio::test]
+async fn chat_client_gets_aggregated_json_from_anthropic_upstream() {
+    let (mock, base) = start_mock().await;
+    mock.push("/v1/messages", Reply::Sse(anthropic_stream_text("Bonjour")));
+    let h = Harness::new(vec![spec(
+        "claude",
+        "main",
+        0,
+        "claude-up",
+        Protocol::Messages,
+        &base,
+    )])
+    .await;
+    let resp = h
+        .post("/v1/chat/completions", json!({"model": "claude/main/claude-up", "messages": [{"role": "user", "content": "hi"}]}))
+        .await;
+    assert_eq!(resp.status(), 200);
+    let v: Value = resp.json().await.expect("json");
+    assert_eq!(v["object"], "chat.completion");
+    assert_eq!(v["model"], "claude/main/claude-up");
+    assert_eq!(v["choices"][0]["message"]["content"], "Bonjour");
+    assert_eq!(v["usage"]["prompt_tokens"], 12);
+    assert_eq!(v["usage"]["completion_tokens"], 5);
+    let upstream = &mock.seen()[0];
+    assert_eq!(
+        upstream.body["stream"], true,
+        "conversion always streams upstream"
+    );
+    assert_eq!(upstream.headers["x-api-key"], "sk-upstream-claude-main");
+    assert!(
+        upstream.headers.get("authorization").is_none(),
+        "client key never forwarded"
+    );
+}
+
+#[tokio::test]
+async fn responses_client_through_chat_upstream() {
+    let (mock, base) = start_mock().await;
+    mock.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("Hi there")),
+    );
+    let h = Harness::new(vec![spec("acme", "main", 0, "m", Protocol::Chat, &base)]).await;
+    let text = h
+        .post(
+            "/v1/responses",
+            json!({"model": "acme/main/m", "input": "hello", "stream": true}),
+        )
+        .await
+        .text()
+        .await
+        .expect("text");
+    let events = sse_json(&text);
+    assert_eq!(events[0].1["type"], "response.created");
+    let done = events.last().expect("last");
+    assert_eq!(done.1["type"], "response.completed");
+    assert_eq!(
+        done.1["response"]["output"][0]["content"][0]["text"],
+        "Hi there"
+    );
+}
+
+#[tokio::test]
+async fn rate_limited_account_fails_over_to_next_account() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Status(429, r#"{"error":{"message":"Rate limit reached"}}"#.into()),
+    );
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from b")),
+    );
+    let h = Harness::new(vec![
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+    ])
+    .await;
+
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/b/m");
+    assert!(resp.text().await.expect("text").contains("from b"));
+    let r = &h.records(1).await[0];
+    assert_eq!(r.attempts, 2);
+    assert_eq!(r.account.as_deref(), Some("b"));
+    assert_eq!(
+        h.health.get("acme-a-m:chat").expect("health").state(),
+        HealthState::RateLimited
+    );
+
+    // The rate-limited account is skipped on the next request without being called.
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("again")),
+    );
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/b/m");
+    assert_eq!(mock_a.seen().len(), 1);
+}
+
+#[tokio::test]
+async fn quota_exhausted_exact_account_fails_over_within_provider() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Status(
+            402,
+            r#"{"error":{"message":"Insufficient balance"}}"#.into(),
+        ),
+    );
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Json(json!({"id": "x", "choices": []})),
+    );
+    let h = Harness::new(vec![
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+    ])
+    .await;
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/a/m", "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/b/m");
+    assert_eq!(
+        h.health.get("acme-a-m:chat").expect("h").state(),
+        HealthState::QuotaExhausted
+    );
+}
+
+#[tokio::test]
+async fn bad_request_is_returned_without_failover() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Status(
+            400,
+            r#"{"error":{"message":"messages must not be empty"}}"#.into(),
+        ),
+    );
+    let h = Harness::new(vec![
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+    ])
+    .await;
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 400);
+    let v: Value = resp.json().await.expect("json");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .expect("msg")
+            .contains("messages must not be empty")
+    );
+    assert!(mock_b.seen().is_empty());
+    assert_ne!(
+        h.health.get("acme-a-m:chat").expect("h").state(),
+        HealthState::Cooldown
+    );
+}
+
+#[tokio::test]
+async fn error_event_before_output_fails_over() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/messages",
+        Reply::Sse(vec![
+            "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n".into(),
+        ]),
+    );
+    mock_b.push("/v1/messages", Reply::Sse(anthropic_stream_text("ok")));
+    let h = Harness::new(vec![
+        spec("claude", "a", 0, "c", Protocol::Messages, &base_a),
+        spec("claude", "b", 1, "c", Protocol::Messages, &base_b),
+    ])
+    .await;
+    let resp = h
+        .post("/v1/messages", json!({"model": "claude/c", "max_tokens": 10, "stream": true, "messages": [{"role": "user", "content": "x"}]}))
+        .await;
+    assert_eq!(resp.headers()["x-loadout-route"], "claude/b/c");
+    let text = resp.text().await.expect("text");
+    assert!(
+        !text.contains("Overloaded"),
+        "pre-commit error never reaches the client"
+    );
+    assert!(text.contains("\"text\":\"ok\""));
+}
+
+#[tokio::test]
+async fn upstream_drop_after_commit_ends_stream_with_error_event() {
+    let (mock, base) = start_mock().await;
+    mock.push(
+        "/v1/chat/completions",
+        Reply::SseThenDrop(vec![
+            chat_chunk(json!({"role": "assistant"}), None),
+            chat_chunk(json!({"content": "partial"}), None),
+        ]),
+    );
+    let h = Harness::new(vec![spec("acme", "main", 0, "m", Protocol::Chat, &base)]).await;
+    let text = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/main/m", "stream": true, "messages": []}),
+        )
+        .await
+        .text()
+        .await
+        .expect("text");
+    assert!(text.contains("partial"));
+    assert!(
+        text.contains("\"error\""),
+        "client sees an error event: {text}"
+    );
+    assert!(text.trim_end().ends_with("data: [DONE]"));
+    let r = &h.records(1).await[0];
+    assert_eq!(r.status, "error");
+    assert_eq!(r.error_category, Some("upstream_interrupted"));
+}
+
+#[tokio::test]
+async fn no_failover_header_limits_to_one_attempt() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push("/v1/chat/completions", Reply::Status(503, "busy".into()));
+    let h = Harness::new(vec![
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+    ])
+    .await;
+    let resp = h
+        .post_with(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "messages": []}),
+            &[("x-loadout-no-failover", "true")],
+        )
+        .await;
+    assert_eq!(resp.status(), 502);
+    assert_eq!(
+        resp.json::<Value>().await.expect("json")["error"]["code"],
+        "upstream_error"
+    );
+    assert!(mock_b.seen().is_empty());
+}
+
+#[tokio::test]
+async fn stateful_responses_are_pinned_and_require_native_upstream() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_b.push(
+        "/v1/responses",
+        Reply::Sse(responses_stream_text("resp_first", "one")),
+    );
+    let h = Harness::new(vec![
+        spec("oa", "a", 0, "gpt", Protocol::Responses, &base_a),
+        spec("oa", "b", 1, "gpt", Protocol::Responses, &base_b),
+    ])
+    .await;
+    // Make account a unavailable so the first response is created on b.
+    h.health
+        .get("oa-a-gpt:responses")
+        .expect("h")
+        .record_failure(
+            loadout_provider_sdk::FailureKind::Server,
+            "down",
+            loadout_router::now_ms(),
+        );
+    let first = h
+        .post(
+            "/v1/responses",
+            json!({"model": "oa/gpt", "input": "a", "stream": true}),
+        )
+        .await;
+    assert_eq!(first.headers()["x-loadout-route"], "oa/b/gpt");
+    let _ = first.text().await;
+    assert_eq!(
+        h.routes_store
+            .0
+            .lock()
+            .expect("lock")
+            .get("resp_first")
+            .map(String::as_str),
+        Some("oa-b-gpt:responses")
+    );
+
+    // a is healthy again, but the follow-up must go to b where the state lives.
+    h.health.get("oa-a-gpt:responses").expect("h").reset();
+    mock_b.push(
+        "/v1/responses",
+        Reply::Sse(responses_stream_text("resp_second", "two")),
+    );
+    let second = h
+        .post("/v1/responses", json!({"model": "oa/gpt", "input": "b", "previous_response_id": "resp_first", "stream": true}))
+        .await;
+    assert_eq!(second.headers()["x-loadout-route"], "oa/b/gpt");
+    assert_eq!(mock_b.seen()[1].body["previous_response_id"], "resp_first");
+    assert!(mock_a.seen().is_empty());
+}
+
+#[tokio::test]
+async fn stateful_request_without_responses_upstream_is_rejected() {
+    let (_mock, base) = start_mock().await;
+    let h = Harness::new(vec![spec("acme", "main", 0, "m", Protocol::Chat, &base)]).await;
+    let resp = h
+        .post(
+            "/v1/responses",
+            json!({"model": "acme/main/m", "input": "x", "previous_response_id": "resp_1"}),
+        )
+        .await;
+    assert_eq!(resp.status(), 400);
+    assert_eq!(
+        resp.json::<Value>().await.expect("json")["error"]["code"],
+        "unsupported_capability"
+    );
+}
+
+#[tokio::test]
+async fn unknown_model_and_models_listing() {
+    let (_mock, base) = start_mock().await;
+    let h = Harness::new(vec![
+        spec("acme", "main", 0, "m1", Protocol::Chat, &base),
+        spec("acme", "main", 0, "m1", Protocol::Responses, &base),
+    ])
+    .await;
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "gpt-4o", "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 404);
+    let v: Value = resp.json().await.expect("json");
+    assert!(
+        v["error"]["message"]
+            .as_str()
+            .expect("m")
+            .contains("provider/account/model")
+    );
+
+    let list: Value = h
+        .http
+        .get(format!("http://{}/v1/models", h.addr))
+        .bearer_auth(&h.key)
+        .send()
+        .await
+        .expect("send")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(
+        list["data"].as_array().map(Vec::len),
+        Some(1),
+        "one name per account model"
+    );
+    assert_eq!(list["data"][0]["id"], "acme/main/m1");
+
+    let anthropic: Value = h
+        .http
+        .get(format!("http://{}/v1/models", h.addr))
+        .header("x-api-key", &h.key)
+        .header("anthropic-version", "2023-06-01")
+        .send()
+        .await
+        .expect("send")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(anthropic["data"][0]["type"], "model");
+}
+
+#[tokio::test]
+async fn anthropic_passthrough_forwards_beta_headers() {
+    let (mock, base) = start_mock().await;
+    mock.push("/v1/messages", Reply::Sse(anthropic_stream_text("x")));
+    let h = Harness::new(vec![spec(
+        "claude",
+        "main",
+        0,
+        "c",
+        Protocol::Messages,
+        &base,
+    )])
+    .await;
+    let _ = h
+        .post_with(
+            "/v1/messages",
+            json!({"model": "claude/main/c", "max_tokens": 5, "stream": true, "messages": [{"role": "user", "content": "x"}]}),
+            &[("anthropic-beta", "interleaved-thinking-2025-05-14"), ("anthropic-version", "2023-06-01"), ("x-custom", "no")],
+        )
+        .await
+        .text()
+        .await;
+    let seen = &mock.seen()[0];
+    assert_eq!(
+        seen.headers["anthropic-beta"],
+        "interleaved-thinking-2025-05-14"
+    );
+    assert!(
+        seen.headers.get("x-custom").is_none(),
+        "only allow-listed headers are forwarded"
+    );
+}

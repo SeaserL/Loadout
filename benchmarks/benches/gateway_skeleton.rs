@@ -8,7 +8,9 @@ use std::net::{SocketAddr, TcpStream};
 use std::sync::Arc;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use loadout_gateway::{ClientId, ClientKeyIndex, Gateway, GatewayConfig, generate_client_key};
+use loadout_gateway::{
+    ClientId, ClientKeyIndex, DataPlane, Gateway, GatewayConfig, generate_client_key,
+};
 use tokio_util::sync::CancellationToken;
 
 fn read_response(reader: &mut BufReader<TcpStream>) -> usize {
@@ -50,6 +52,7 @@ fn gateway_skeleton(c: &mut Criterion) {
                 ..GatewayConfig::default()
             },
             keys,
+            Arc::new(DataPlane::empty()),
         )
         .await
         .expect("bind");
