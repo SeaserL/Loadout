@@ -66,6 +66,9 @@ foreach ($f in $programs + $extras) {
     }
 }
 
+# Files extracted from a downloaded zip carry the "from the internet" mark.
+Get-ChildItem $InstallDir -File | Unblock-File
+
 # 3. Start Menu shortcut for the desktop app.
 $shortcut = Join-Path $ShortcutDir 'Loadout.lnk'
 $shell = New-Object -ComObject WScript.Shell
