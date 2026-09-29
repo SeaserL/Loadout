@@ -350,7 +350,12 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - Credential Manager：`CRED_TYPE_GENERIC`、`CRED_PERSIST_LOCAL_MACHINE`、UTF-8 blob、上限 2560 字节；读取后先清零 blob 再 `CredFree`。
   - **发现**：同一进程内多线程并发写 Credential Manager 会丢失删除（已删除条目在另一线程写入后重新出现）。复现：并行跑测试 20 次漏删 5 条，串行 0 条。修复：进程级锁串行化所有调用；新增回归测试 `concurrent_writes_do_not_resurrect_deletes`（去掉锁时 5/5 失败，加锁后并行 20 次 0 失败 0 残留）。已写入 ADR-004。
   - 测试：5 个单元测试 + 7 个 Credential Manager 集成测试（`loadout-test:` 前缀，drop guard 清理）。
-- [ ] Stage 2 — storage
+- [x] Stage 2 — storage（2026-09-29）
+  - `Database`（单连接 + Mutex，WAL / synchronous=NORMAL / foreign_keys / busy_timeout）、`with_conn` / `with_tx`、`SettingsRepo`、`ClientRepo`。
+  - Migration 0001（`settings`、`clients`，STRICT 表，`key_hash` 长度约束），up/down 往返测试。
+  - 数据库版本高于当前程序时拒绝打开（`SchemaTooNew`），不做降级猜测修复（Harness §21）。
+  - Client 撤销只置 `enabled=0` + `revoked_at`，保留行以便请求历史可追溯；名称在撤销后仍占用。
+  - 9 个测试。
 - [ ] Stage 3 — platform
 - [ ] Stage 4 — ipc
 - [ ] Stage 5 — gateway
