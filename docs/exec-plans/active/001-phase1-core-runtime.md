@@ -373,7 +373,14 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - 非 loopback 地址拒绝 bind；端口被占用返回 `AddrInUse`，不自动换端口。
   - **发现**：Windows 上连接已关闭的 loopback 端口约 2 秒才返回拒绝（SYN 重试）。因此"daemon 是否在运行"一律通过 IPC 判断，不做 TCP 探测。
   - 14 个测试。
-- [ ] Stage 6 — core + daemon
+- [x] Stage 6 — core + daemon（2026-09-29）
+  - 生命周期：单实例锁 → DB → settings → gateway bind → IPC bind → 服务 → 关闭；退出码：2 已在运行、3 端口占用、4 配置错误、1 其他。
+  - Settings 注册表（`gateway.port`、`gateway.allowed_origins`），只允许已注册 key，写入前校验；存储中的非法值回落到默认值并告警。日志级别改为 `--log` / `LOADOUT_LOG`（日志在打开数据库之前就要初始化，不适合放进数据库设置）。
+  - Supervisor：critical（gateway、IPC 任一退出/panic → 整个 daemon 关闭并报错）与 restartable（指数退避，供 Phase 3 起的控制面任务使用）。
+  - 日志：按天轮转、保留 14 个；`Redacting` writer 对每行日志屏蔽 `lo-…`、`sk-…`、`Bearer …` 形式的凭证（纵深防御）。
+  - `loadoutd.exe` 使用 Windows GUI 子系统（登录自启动时不弹控制台窗口），启动时尝试附加父控制台以显示 `--help` / 错误 / `--foreground` 日志。
+  - 无窗口进程收不到注销通知，注销时会被系统终止；SQLite WAL 保证一致性。Ctrl+C / Ctrl+Break 在附加控制台时触发优雅关闭。
+  - 18 个测试。
 - [ ] Stage 7 — cli
 - [ ] Stage 8 — 集成测试、benchmark、CI
 

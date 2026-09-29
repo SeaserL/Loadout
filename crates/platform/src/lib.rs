@@ -10,6 +10,7 @@
 compile_error!("Loadout v1 supports Windows only (ADR-001)");
 
 mod autostart;
+mod console;
 mod error;
 mod instance;
 mod paths;
@@ -17,6 +18,7 @@ mod sid;
 mod wide;
 
 pub use autostart::{Autostart, AutostartStatus};
+pub use console::attach_parent_console;
 pub use error::PlatformError;
 pub use instance::InstanceLock;
 pub use paths::default_data_dir;

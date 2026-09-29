@@ -593,13 +593,17 @@ dependencies = [
 name = "loadout-core"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "loadout-gateway",
  "loadout-ipc",
  "loadout-platform",
  "loadout-secrets",
  "loadout-storage",
+ "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -609,10 +613,11 @@ dependencies = [
 name = "loadout-daemon"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "loadout-core",
+ "loadout-platform",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
