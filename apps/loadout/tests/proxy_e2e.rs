@@ -4,9 +4,7 @@
 //! sync models from a mock upstream, call the gateway over HTTP in two protocols, and check
 //! telemetry, route status and credential cleanup.
 
-use std::io::Write;
 use std::net::SocketAddr;
-use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -17,7 +15,9 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use serde_json::{Value, json};
 
-const CLI: &str = env!("CARGO_BIN_EXE_loadout");
+mod common;
+
+use common::Daemon;
 const UPSTREAM_KEY: &str = "sk-e2e-upstream-key-0123456789";
 
 /// Mock OpenAI-compatible upstream on its own thread and runtime.
@@ -84,110 +84,11 @@ fn start_upstream() -> String {
     format!("http://{addr}/v1")
 }
 
-struct Daemon {
-    id: String,
-    pipe: String,
-    data: tempfile::TempDir,
-}
-
-impl Daemon {
-    fn prefix(&self) -> String {
-        format!("loadout-e2e-{}:", self.id)
-    }
-
-    fn cli(&self, args: &[&str], stdin: Option<&str>) -> Output {
-        let mut child = Command::new(CLI)
-            .arg("--pipe-name")
-            .arg(&self.pipe)
-            .args(args)
-            .stdin(if stdin.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn");
-        if let Some(input) = stdin {
-            child
-                .stdin
-                .take()
-                .expect("stdin")
-                .write_all(input.as_bytes())
-                .expect("write");
-        }
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            let _ = tx.send(child.wait_with_output());
-        });
-        rx.recv_timeout(Duration::from_secs(60))
-            .expect("cli finished")
-            .expect("output")
-    }
-
-    fn json(&self, args: &[&str], stdin: Option<&str>) -> Value {
-        let mut full = vec!["--json"];
-        full.extend_from_slice(args);
-        let out = self.cli(&full, stdin);
-        assert!(
-            out.status.success(),
-            "loadout {args:?}: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        serde_json::from_slice(&out.stdout).expect("json")
-    }
-
-    fn secrets(&self) -> Vec<String> {
-        let out = Command::new("cmdkey")
-            .arg("/list")
-            .output()
-            .expect("cmdkey");
-        String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .filter_map(|l| l.split("target=").nth(1))
-            .filter(|t| t.starts_with(&self.prefix()))
-            .map(|t| t.trim().to_owned())
-            .collect()
-    }
-}
-
-impl Drop for Daemon {
-    fn drop(&mut self) {
-        let _ = self.cli(&["daemon", "stop"], None);
-        for t in self.secrets() {
-            let _ = Command::new("cmdkey").arg(format!("/delete:{t}")).output();
-        }
-    }
-}
-
 #[test]
 fn configure_with_cli_and_proxy_through_the_daemon() {
     let base = start_upstream();
-    let id = uuid::Uuid::new_v4().to_string();
-    let d = Daemon {
-        pipe: format!(r"\\.\pipe\loadout-e2e-{id}"),
-        data: tempfile::tempdir().expect("tempdir"),
-        id,
-    };
-    let data_dir = d.data.path().to_str().expect("utf8").to_owned();
-    let prefix = d.prefix();
-    let status = d.json(
-        &[
-            "daemon",
-            "start",
-            "--data-dir",
-            &data_dir,
-            "--port",
-            "0",
-            "--instance-id",
-            &d.id,
-            "--secret-prefix",
-            &prefix,
-        ],
-        None,
-    );
-    let gateway = status["gateway"]["addr"].as_str().expect("addr").to_owned();
+    let d = Daemon::start(None);
+    let gateway = d.gateway.clone();
 
     // Configure through the CLI.
     d.json(

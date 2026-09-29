@@ -331,6 +331,19 @@ impl Dispatcher {
                 encode_result::<api::ModelRemove>(&api::Revoked { revoked })
             }
             api::RouteStatus::NAME => encode_result::<api::RouteStatus>(&c.route_status()),
+            api::DiscoveryScan::NAME => encode_result::<api::DiscoveryScan>(&c.scan().await?),
+            api::DiscoveryImport::NAME => {
+                let p = decode_params::<api::DiscoveryImport>(params)?;
+                let info = c.import(p.kind, p.alias).await?;
+                changed(s);
+                // Show usage right away instead of waiting for the next poll.
+                let control = c.clone();
+                let provider = info.provider.clone();
+                tokio::spawn(async move {
+                    let _ = control.usage_list(Some(provider), true).await;
+                });
+                encode_result::<api::DiscoveryImport>(&info)
+            }
             api::UsageList::NAME => {
                 let p = decode_params::<api::UsageList>(params)?;
                 encode_result::<api::UsageList>(&c.usage_list(p.provider, p.refresh).await?)

@@ -6,9 +6,12 @@
 //! [`ProviderModule`] and the descriptor.
 
 mod anthropic_compatible;
+mod claude_code;
+mod codex;
 mod commandcode;
 mod common;
 mod deepseek;
+mod gemini_cli;
 mod kimi_code;
 mod official;
 mod openai_compatible;
@@ -17,8 +20,11 @@ mod openrouter;
 mod registry;
 
 pub use anthropic_compatible::AnthropicCompatible;
+pub use claude_code::ClaudeCode;
+pub use codex::Codex;
 pub use commandcode::CommandCode;
 pub use deepseek::DeepSeek;
+pub use gemini_cli::GeminiCli;
 pub use kimi_code::KimiCode;
 pub use official::{Anthropic, Ollama, OpenAi};
 pub use openai_compatible::OpenAiCompatible;

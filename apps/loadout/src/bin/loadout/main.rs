@@ -10,6 +10,7 @@ mod daemon_cmd;
 mod model_cmd;
 mod output;
 mod provider_cmd;
+mod scan_cmd;
 mod status_cmd;
 mod usage_cmd;
 
@@ -66,6 +67,11 @@ enum Command {
     /// Inspect routing.
     #[command(subcommand)]
     Route(status_cmd::RouteCommand),
+    /// Find AI tools installed on this machine (Codex, Claude Code, Gemini CLI, Kimi Code…).
+    Scan {
+        #[command(subcommand)]
+        command: Option<scan_cmd::ScanCommand>,
+    },
     /// Quota, balance and plan of every account, plus what Loadout routed to it.
     Usage {
         /// Only this provider.
@@ -195,6 +201,7 @@ fn main() -> ExitCode {
             Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
             Command::Logs { limit } => status_cmd::logs(&ctx, limit).await,
             Command::Usage { provider, refresh } => usage_cmd::run(&ctx, provider, refresh).await,
+            Command::Scan { command } => scan_cmd::run(&ctx, command).await,
         }
     });
     match result {

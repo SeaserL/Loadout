@@ -65,6 +65,45 @@ impl HttpClient {
         }
     }
 
+    /// POST a JSON body, returning JSON (usage drivers; never on the request hot path).
+    pub async fn post_json(
+        &self,
+        url: &str,
+        headers: HeaderMap,
+        body: &Value,
+        timeout: Duration,
+    ) -> Result<Value, ProviderError> {
+        let response = self
+            .for_url(url)
+            .post(url)
+            .headers(headers)
+            .header("content-type", "application/json")
+            .body(body.to_string())
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| ProviderError::Upstream(UpstreamFailure::from_reqwest(&e)))?;
+        Self::json_response(response).await
+    }
+
+    async fn json_response(response: reqwest::Response) -> Result<Value, ProviderError> {
+        let status = response.status().as_u16();
+        let resp_headers = response.headers().clone();
+        let body = response
+            .text()
+            .await
+            .map_err(|e| ProviderError::Upstream(UpstreamFailure::from_reqwest(&e)))?;
+        if !(200..300).contains(&status) {
+            return Err(ProviderError::Upstream(classify(
+                status,
+                &resp_headers,
+                &body,
+            )));
+        }
+        serde_json::from_str(&body)
+            .map_err(|e| ProviderError::InvalidResponse(format!("expected JSON: {e}")))
+    }
+
     /// GET returning JSON, for catalog and usage drivers (never on the request hot path).
     pub async fn get_json(
         &self,

@@ -37,7 +37,7 @@ loadout-secrets = { path = "crates/secrets" }
 loadout-storage = { path = "crates/storage" }
 
 # Async / networking
-tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "net", "sync", "time", "signal", "io-util"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "net", "sync", "time", "signal", "io-util", "process", "fs"] }
 tokio-util = { version = "0.7", features = ["codec", "rt"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 bytes = "1.12"

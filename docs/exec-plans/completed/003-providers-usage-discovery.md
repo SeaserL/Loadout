@@ -1,6 +1,6 @@
 # ExecPlan 003: Built-in Providers, Usage Tracking and Local Agent Discovery
 
-- **Status**: In progress
+- **Status**: Completed
 - **Created**: 2026-09-29
 - **Phase**: Harness §26 Phase 3（Discovery、Usage model）+ Phase 4（OpenCode Go、Command Code、OpenRouter、generic）+ Phase 5（Codex、Claude Code、Kimi Code、Gemini CLI —— 按 ADR-009 只做发现与用量）
 
@@ -99,11 +99,11 @@ balances(account_id, currency, amount, included, topup, granted, observed_at, PR
 
 ## 9. Definition of Done
 
-- [ ] §1 全部功能；测试覆盖 §6
-- [ ] clippy / fmt / 全部测试通过
-- [ ] 每个 Provider 的 `docs/providers/<slug>.md`（ADR-005 §6）
-- [ ] THIRD_PARTY_NOTICES 记录借鉴来源（接口知识，无代码复制）
-- [ ] 本文件移入 `completed/`
+- [x] §1 全部功能；测试覆盖 §6
+- [x] clippy / fmt / 全部测试通过
+- [x] 每个 Provider 的 `docs/providers/<slug>.md`（ADR-005 §6）
+- [x] THIRD_PARTY_NOTICES 记录借鉴来源（接口知识，无代码复制）
+- [x] 本文件移入 `completed/`
 
 ## 10. Progress
 
@@ -114,11 +114,25 @@ balances(account_id, currency, amount, included, topup, granted, observed_at, PR
   - 额度驱动路由：报告耗尽（或低于 `routing.quota_reserve_percent`）→ 该账号所有 target 标记 `QUOTA_EXHAUSTED` 至最早 reset（无 reset 时 1 小时）；后续报告恢复时解除。
   - `usage.list`（可选先刷新）+ `account.set_plan`；CLI `loadout usage [--refresh]`、`loadout account plan --name --price --renews YYYY-MM-DD`。计划信息中用户填写的值优先于上游报告的值；续费日与额度 reset 分开展示。
   - 今日 / 本月消费按 UTC 划分周期（daemon 不依赖时区数据库），来源为 request_events。
-- [ ] Stage 2 — API providers
-- [ ] Stage 3 — subscription discovery + usage
-- [ ] Stage 4 — plans, e2e, docs
+- [x] Stage 2 — API providers（2026-09-29）
+  - 8 个 tier A 模块：`opencode-go`、`commandcode`、`kimi-code`、`openrouter`、`deepseek`、`openai`、`anthropic`、`ollama`；共用 `common.rs`（Bearer endpoint、OpenAI `/models` 解析、配额窗口构造）。
+  - `HttpClient` 区分代理 / 直连：loopback（Ollama、本地 mock）不走系统代理。
+  - 目录：OpenRouter 价格 × 1e6、模态与参数映射能力；OpenAI 只保留对话类模型族并使用 `max_completion_tokens`；Command Code 由 `supported_endpoints` 决定协议；OpenCode Go 按模型族映射。
+  - 每个用量解析器用真实形状的 fixture + MockUpstream 测试。
+- [x] Stage 3 — subscription discovery + usage（2026-09-29）
+  - `ProviderModule::discover(home)`；`find_executable` 支持 PATHEXT（npm 的 `codex.cmd`）。
+  - `codex`：官方 `codex app-server` JSON-RPC（后台 `CREATE_NO_WINDOW` 启动，首次为空时重试一次），失败则读取 `sessions/**/rollout-*.jsonl` 的最后 `rate_limits`（ESTIMATED）。Codex 的 `auth.json` 从不读取 token。
+  - `claude-code`、`gemini-cli`：凭据文件只读、按次读取；token 过期 → `AUTH_REQUIRED`（"run `claude` / `gemini` once"），不刷新。`kimi-code` 增加 CLI 登录的发现与用量。
+  - IPC `discovery.scan` / `discovery.import`（import 后立即刷新一次用量）；CLI `loadout scan`、`loadout scan import <kind> [--alias]`。
+  - daemon 的隐藏测试参数合并为 `TestIsolation`（`--instance-id`、`--secret-prefix`、`--home-dir`）；e2e 共享 harness 移到 `tests/common/`。
+  - `scan_e2e`：假 home + 过期凭据，断言输出中无 token、import 不产生路由与存储凭据、用量报告 AUTH_REQUIRED、计划信息保存。
+  - 教训：脚本化插入代码时 `.Replace` 在 rustfmt 改写后静默未匹配（kimi `discover` 丢失，被测试发现）。之后每次脚本插入都校验结果。
+- [x] Stage 4 — plans, e2e, docs（2026-09-29）
+  - `docs/providers/*.md`（13 份 + 索引，ADR-005 §6 字段），THIRD_PARTY_NOTICES 记录 CodexBar 与 Codex app-server 的接口知识来源。
+  - `account plan` 已在 Stage 1 完成；端到端覆盖见 `scan_e2e` 与 `proxy_e2e`。
 
 ## 11. Decisions
 
 - Command Code 用量无 API key 接口 → 估算（来自 request_events 的成本），置信度 `ESTIMATED`。
 - 订阅 CLI 的 token 过期时不刷新，报告 `AUTH_REQUIRED`（"运行一次官方 CLI"），避免与官方 CLI 的 token 轮换冲突（ADR-004 §2）。
+- §7 的逐账号 `usage_enabled` 不单独实现：订阅类账号没有路由，`loadout account disable <provider> <alias>` 即停止其用量轮询（poller 只处理启用的账号），`account remove` 彻底移除。

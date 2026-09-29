@@ -442,6 +442,41 @@ pub struct AccountPlanParams {
     pub renews_at_ms: Option<i64>,
 }
 
+// ---- discovery (Harness §12) --------------------------------------------------------------
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DiscoveredTool {
+    pub kind: String,
+    pub display_name: String,
+    pub installed: bool,
+    pub executable: Option<String>,
+    pub logged_in: bool,
+    pub auth: Option<String>,
+    /// Non-secret detail such as a plan name.
+    pub detail: Option<String>,
+    pub expired: bool,
+    pub config_path: Option<String>,
+    /// An account for this tool's login already exists.
+    pub imported: bool,
+    /// Loadout can route requests through this provider (false for subscriptions whose
+    /// credentials only allow usage reading, ADR-009).
+    pub inference: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DiscoveryImportParams {
+    pub kind: String,
+    pub alias: Option<String>,
+}
+
+method!(DiscoveryScan, "discovery.scan", (), Vec<DiscoveredTool>);
+method!(
+    DiscoveryImport,
+    "discovery.import",
+    DiscoveryImportParams,
+    AccountInfo
+);
+
 method!(UsageList, "usage.list", UsageListParams, Vec<AccountUsage>);
 method!(
     AccountSetPlan,

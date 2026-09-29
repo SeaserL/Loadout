@@ -6,8 +6,8 @@ use std::sync::Arc;
 use loadout_provider_sdk::ProviderModule;
 
 use crate::{
-    Anthropic, AnthropicCompatible, CommandCode, DeepSeek, KimiCode, Ollama, OpenAi,
-    OpenAiCompatible, OpenCodeGo, OpenRouter,
+    Anthropic, AnthropicCompatible, ClaudeCode, Codex, CommandCode, DeepSeek, GeminiCli, KimiCode,
+    Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter,
 };
 
 /// All compiled-in provider modules, keyed by `kind`.
@@ -43,6 +43,10 @@ impl Registry {
         r.register(Arc::new(OpenAi));
         r.register(Arc::new(Anthropic));
         r.register(Arc::new(Ollama));
+        // Subscriptions: discovery and usage only (ADR-009).
+        r.register(Arc::new(Codex));
+        r.register(Arc::new(ClaudeCode));
+        r.register(Arc::new(GeminiCli));
         r
     }
 

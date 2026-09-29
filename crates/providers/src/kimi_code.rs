@@ -179,6 +179,25 @@ impl ProviderModule for KimiCode {
         loadout_provider_sdk::validate_base_url(&base(config), false).map(|_| ())
     }
 
+    fn discover(&self, home: &Path) -> Option<loadout_provider_sdk::Discovered> {
+        let executable = loadout_provider_sdk::find_executable("kimi");
+        let path = credentials_path(home);
+        if executable.is_none() && !path.exists() {
+            return None;
+        }
+        let login = cli_token(home);
+        let expired = matches!(&login, Err(ProviderError::Upstream(f)) if f.kind == loadout_provider_sdk::FailureKind::Auth);
+        Some(loadout_provider_sdk::Discovered {
+            installed: executable.is_some(),
+            executable,
+            logged_in: login.is_ok() || expired,
+            auth: (login.is_ok() || expired).then(|| "oauth".to_owned()),
+            detail: None,
+            expired,
+            config_path: path.parent().map(Path::to_path_buf),
+        })
+    }
+
     fn endpoint(
         &self,
         config: &ProviderConfig,

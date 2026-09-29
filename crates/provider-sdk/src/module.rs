@@ -131,6 +131,13 @@ pub trait ProviderModule: Send + Sync + 'static {
         classify(status, headers, body)
     }
 
+    // ---- discovery driver ----
+
+    /// Inspects the local machine (Harness §12). Only called when the user runs a scan.
+    fn discover(&self, _home: &std::path::Path) -> Option<crate::Discovered> {
+        None
+    }
+
     // ---- catalog driver ----
 
     fn list_models<'a>(

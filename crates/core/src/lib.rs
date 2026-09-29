@@ -5,6 +5,7 @@
 
 mod control;
 mod daemon;
+mod discovery;
 mod dispatcher;
 mod error;
 pub mod logging;

@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 use std::time::Duration;
 
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use loadout_ipc::IpcError;
 use loadout_ipc::api::{self, DaemonStatus};
 
@@ -14,6 +14,17 @@ const START_TIMEOUT: Duration = Duration::from_secs(15);
 /// Gateway shutdown grace (30 s) plus margin.
 const STOP_TIMEOUT: Duration = Duration::from_secs(40);
 const POLL: Duration = Duration::from_millis(100);
+
+/// Hidden options that let tests run a daemon fully isolated from the real installation.
+#[derive(Debug, Args)]
+pub struct TestIsolation {
+    #[arg(long, hide = true)]
+    instance_id: Option<String>,
+    #[arg(long, hide = true)]
+    secret_prefix: Option<String>,
+    #[arg(long, hide = true)]
+    home_dir: Option<PathBuf>,
+}
 
 #[derive(Debug, Subcommand)]
 pub enum DaemonCommand {
@@ -25,10 +36,8 @@ pub enum DaemonCommand {
         /// Gateway port for this run (overrides the `gateway.port` setting).
         #[arg(long)]
         port: Option<u16>,
-        #[arg(long, hide = true)]
-        instance_id: Option<String>,
-        #[arg(long, hide = true)]
-        secret_prefix: Option<String>,
+        #[command(flatten)]
+        isolation: TestIsolation,
     },
     /// Stop the daemon gracefully.
     Stop,
@@ -41,9 +50,8 @@ pub async fn run(ctx: &Ctx, cmd: DaemonCommand) -> Result<(), Failure> {
         DaemonCommand::Start {
             data_dir,
             port,
-            instance_id,
-            secret_prefix,
-        } => start(ctx, data_dir, port, instance_id, secret_prefix).await,
+            isolation,
+        } => start(ctx, data_dir, port, isolation).await,
         DaemonCommand::Stop => stop(ctx).await,
         DaemonCommand::Status => status(ctx).await,
     }
@@ -68,8 +76,7 @@ async fn start(
     ctx: &Ctx,
     data_dir: Option<PathBuf>,
     port: Option<u16>,
-    instance_id: Option<String>,
-    secret_prefix: Option<String>,
+    isolation: TestIsolation,
 ) -> Result<(), Failure> {
     if let Ok(s) = fetch_status(ctx).await {
         if !ctx.json {
@@ -89,11 +96,14 @@ async fn start(
     if ctx.pipe_overridden {
         args.extend(["--pipe-name".into(), ctx.pipe_name.clone().into()]);
     }
-    if let Some(id) = instance_id {
+    if let Some(id) = isolation.instance_id {
         args.extend(["--instance-id".into(), id.into()]);
     }
-    if let Some(prefix) = secret_prefix {
+    if let Some(prefix) = isolation.secret_prefix {
         args.extend(["--secret-prefix".into(), prefix.into()]);
+    }
+    if let Some(home) = isolation.home_dir {
+        args.extend(["--home-dir".into(), home.into_os_string()]);
     }
     let arg_refs: Vec<&OsStr> = args.iter().map(OsString::as_os_str).collect();
     let child = loadout_platform::spawn_detached(&exe, &arg_refs)

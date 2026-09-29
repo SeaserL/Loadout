@@ -270,6 +270,8 @@ fn method_names_are_unique() {
         RequestsRecent::NAME,
         UsageList::NAME,
         AccountSetPlan::NAME,
+        DiscoveryScan::NAME,
+        DiscoveryImport::NAME,
     ];
     let unique: std::collections::HashSet<_> = names.iter().collect();
     assert_eq!(unique.len(), names.len());

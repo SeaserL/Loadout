@@ -9,6 +9,7 @@
 mod capability;
 mod catalog;
 mod descriptor;
+mod discovery;
 mod error;
 mod failure;
 mod http;
@@ -21,6 +22,7 @@ pub mod usage;
 pub use capability::Capabilities;
 pub use catalog::CatalogModel;
 pub use descriptor::{AuthMethod, Drivers, ProviderDescriptor, TransportSpec};
+pub use discovery::{Discovered, config_dir, find_executable};
 pub use error::ProviderError;
 pub use failure::{FailureKind, UpstreamFailure, classify, error_message};
 pub use http::{HttpClient, HttpConfig};
