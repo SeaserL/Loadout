@@ -114,7 +114,7 @@ enum Command {
     Stats {
         #[arg(long, value_enum, default_value_t = status_cmd::GroupBy::Model)]
         by: status_cmd::GroupBy,
-        /// Period in days (up to the 30 days of stored history).
+        /// Period in days (history is kept for 400 days).
         #[arg(long, default_value_t = 7)]
         days: u32,
     },

@@ -35,7 +35,7 @@ export function Logs() {
   return (
     <Page title="Request log">
       <div className="notice small">
-        Metadata only: prompts, responses and tool arguments are never stored. Entries older than 30 days are
+        Metadata only: prompts, responses and tool arguments are never stored. Entries older than 400 days are
         deleted automatically.
       </div>
       <div className="row wrap" style={{ marginBottom: 12 }}>

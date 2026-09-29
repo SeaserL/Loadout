@@ -25,10 +25,15 @@ pub struct Daemon {
 impl Daemon {
     /// Starts an isolated daemon; `home` replaces the user profile for CLI discovery.
     pub fn start(home: Option<&Path>) -> Self {
+        Self::start_in(tempfile::tempdir().expect("tempdir"), home)
+    }
+
+    /// Starts on a prepared data directory.
+    pub fn start_in(data: tempfile::TempDir, home: Option<&Path>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let mut d = Self {
             pipe: format!(r"\\.\pipe\loadout-e2e-{id}"),
-            data: tempfile::tempdir().expect("tempdir"),
+            data,
             gateway: String::new(),
             id,
         };

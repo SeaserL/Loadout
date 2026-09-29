@@ -102,6 +102,18 @@ export function App() {
             </Button>
           </div>
         )}
+        {running && status.data?.recovered_from && (
+          <div className="banner">
+            <div>
+              <strong>The database was damaged and has been replaced by an empty one.</strong>
+              <div className="small">
+                The damaged file was kept at <span className="mono">{status.data.recovered_from}</span>. Restore your
+                configuration under Settings → Backup → Import, using the newest file in{" "}
+                <span className="mono">{status.data.data_dir}\backups\auto</span>.
+              </div>
+            </div>
+          </div>
+        )}
         {running && status.data && (
           <>
             {page === "dashboard" && <Dashboard status={status.data} />}

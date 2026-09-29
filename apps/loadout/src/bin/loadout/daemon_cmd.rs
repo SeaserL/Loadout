@@ -69,6 +69,15 @@ fn print_status(ctx: &Ctx, s: &DaemonStatus) -> Result<(), Failure> {
     println!("  Gateway   http://{}/v1", s.gateway.addr);
     println!("  Started   {}", output::timestamp(s.started_at_ms));
     println!("  Data      {}", s.data_dir);
+    if let Some(moved) = &s.recovered_from {
+        println!();
+        println!("  WARNING: the database was damaged and replaced by an empty one.");
+        println!("  The damaged file was kept at {moved}.");
+        println!(
+            "  Restore the configuration with `loadout backup import <file>` using the newest file in {}\\backups\\auto.",
+            s.data_dir
+        );
+    }
     Ok(())
 }
 

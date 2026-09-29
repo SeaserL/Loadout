@@ -266,6 +266,56 @@ pub(crate) fn export(
     })
 }
 
+/// Automatic backups kept (ExecPlan 007 §2).
+const AUTO_KEEP: usize = 7;
+
+pub(crate) fn auto_dir(data_dir: &Path) -> PathBuf {
+    backups_dir(data_dir).join("auto")
+}
+
+/// Writes a daily configuration backup and keeps the newest [`AUTO_KEEP`]. An empty
+/// configuration (fresh install, or right after a database recovery) is not written, so it
+/// never pushes good backups out.
+pub(crate) fn auto_export(db: &Database, data_dir: &Path) -> Result<Option<String>, String> {
+    let empty = db.providers().list().map_err(|e| e.to_string())?.is_empty()
+        && db.clients().list().map_err(|e| e.to_string())?.is_empty();
+    if empty {
+        return Ok(None);
+    }
+    let dir = auto_dir(data_dir);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let name = format!(
+        "loadout-config-{}.json",
+        loadout_provider_sdk::time::utc_stamp(loadout_storage::now_ms())
+    );
+    let result = export(db, data_dir, dir.join(name).to_str().map(str::to_owned))?;
+    prune(&dir, AUTO_KEEP);
+    Ok(Some(result.path))
+}
+
+/// Deletes all but the newest `keep` automatic backups (names sort by time).
+fn prune(dir: &Path, keep: usize) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut files: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("loadout-config-") && n.ends_with(".json"))
+        })
+        .collect();
+    files.sort();
+    let excess = files.len().saturating_sub(keep);
+    for old in &files[..excess] {
+        if let Err(e) = std::fs::remove_file(old) {
+            tracing::warn!(file = %old.display(), error = %e, "could not delete old backup");
+        }
+    }
+}
+
 /// Copies the whole database (request history included; no secrets).
 pub(crate) fn backup_database(
     db: &Database,
@@ -475,6 +525,52 @@ pub(crate) fn import(db: &Database, path: &str) -> Result<ImportReport, String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auto_backups_skip_empty_configs_and_rotate() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = Database::open_in_memory().expect("db");
+        assert_eq!(
+            auto_export(&db, dir.path()).expect("auto"),
+            None,
+            "empty config"
+        );
+
+        db.providers()
+            .create(&NewProvider {
+                slug: "p",
+                kind: "openai-compatible",
+                display_name: "P",
+                base_url: Some("https://x.test/v1"),
+                config_json: "{}",
+            })
+            .expect("provider");
+        let auto = auto_dir(dir.path());
+        std::fs::create_dir_all(&auto).expect("mkdir");
+        for i in 0..9 {
+            std::fs::write(
+                auto.join(format!("loadout-config-2000010{i}-000000.json")),
+                "{}",
+            )
+            .expect("old");
+        }
+        std::fs::write(auto.join("keep-me.txt"), "x").expect("other");
+        let written = auto_export(&db, dir.path())
+            .expect("auto")
+            .expect("written");
+        let names: Vec<String> = std::fs::read_dir(&auto)
+            .expect("read")
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names.iter().filter(|n| n.ends_with(".json")).count(),
+            AUTO_KEEP
+        );
+        assert!(names.contains(&"keep-me.txt".to_owned()));
+        assert!(std::path::Path::new(&written).is_file(), "newest kept");
+        assert!(!names.contains(&"loadout-config-20000100-000000.json".to_owned()));
+    }
 
     #[test]
     fn hex_round_trip() {

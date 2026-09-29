@@ -108,7 +108,8 @@ pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
         key: PROBE_MAX_PRICE,
         default: "30",
-        description: "Skip automatic probes of models whose output price exceeds this (USD per                       million tokens; unknown prices are probed)",
+        description: "Skip automatic probes of models whose output price exceeds this (USD per \
+                      million tokens; unknown prices are probed)",
         restart_required: false,
         validate: validate_price,
     },

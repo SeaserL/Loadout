@@ -30,6 +30,8 @@ pub(crate) struct DaemonState {
     pub started_at_ms: i64,
     pub gateway_addr: SocketAddr,
     pub data_dir: PathBuf,
+    /// Where a damaged database was moved at startup (ExecPlan 007).
+    pub recovered_from: Option<String>,
 }
 
 impl DaemonState {
@@ -126,6 +128,7 @@ impl Handler for Dispatcher {
                     pid: std::process::id(),
                     started_at_ms: s.started_at_ms,
                     data_dir: s.data_dir.display().to_string(),
+                    recovered_from: s.recovered_from.clone(),
                     schema_version,
                     gateway: api::GatewayStatus {
                         addr: s.gateway_addr.to_string(),
@@ -507,6 +510,7 @@ mod tests {
             started_at_ms: 1,
             gateway_addr: SocketAddr::from(([127, 0, 0, 1], 8317)),
             data_dir: PathBuf::from("x"),
+            recovered_from: None,
         })
     }
 

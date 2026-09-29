@@ -66,6 +66,10 @@ pub struct DaemonStatus {
     pub data_dir: String,
     pub schema_version: usize,
     pub gateway: GatewayStatus,
+    /// Set when the database was damaged at startup and moved to this path; the
+    /// configuration can be restored from `<data dir>\backups\auto`.
+    #[serde(default)]
+    pub recovered_from: Option<String>,
 }
 
 method!(Status, "daemon.status", (), DaemonStatus);
@@ -690,7 +694,7 @@ method!(StatsSummary, "stats.summary", StatsParams, Vec<StatsEntry>);
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BackupPathParams {
-    /// Target file; default: `<data dir>ackups\…`.
+    /// Target file; default: `<data dir>\backups\…`.
     #[serde(default)]
     pub path: Option<String>,
 }

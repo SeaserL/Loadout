@@ -27,7 +27,29 @@ pub enum StorageError {
     Corrupt(String),
 }
 
+fn is_corrupt_code(e: &rusqlite::Error) -> bool {
+    matches!(
+        e,
+        rusqlite::Error::SqliteFailure(f, _)
+            if matches!(
+                f.code,
+                rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase
+            )
+    )
+}
+
 impl StorageError {
+    /// The database file is damaged or not a database at all.
+    pub fn is_corruption(&self) -> bool {
+        match self {
+            Self::Sqlite(e) => is_corrupt_code(e),
+            Self::Migration(rusqlite_migration::Error::RusqliteError { err, .. }) => {
+                is_corrupt_code(err)
+            }
+            _ => false,
+        }
+    }
+
     /// Maps a UNIQUE constraint violation to [`StorageError::Conflict`].
     pub(crate) fn from_insert(err: rusqlite::Error, what: impl Into<String>) -> Self {
         match &err {

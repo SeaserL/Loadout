@@ -36,7 +36,7 @@ export function Stats() {
       title="Statistics"
       actions={
         <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          {[1, 7, 30].map((d) => (
+          {[1, 7, 30, 90, 365].map((d) => (
             <option key={d} value={d}>
               last {d === 1 ? "24 hours" : `${d} days`}
             </option>
@@ -126,7 +126,7 @@ export function Stats() {
       </Card>
       <p className="small muted">
         Costs are estimated from model prices (Models page) and the token counts reported by upstreams.
-        Request history is kept for 30 days.
+        Request history is kept for 400 days.
       </p>
     </Page>
   );

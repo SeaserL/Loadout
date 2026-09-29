@@ -220,7 +220,8 @@ pub(crate) async fn handle(
             (
                 ErrorCategory::NoEligibleTarget,
                 format!(
-                    "{} has no routes yet: loadout/realtime and loadout/fast only contain                      measured routes (run `loadout bench`), pools need members",
+                    "{} has no routes yet: loadout/realtime and loadout/fast only contain \
+                     measured routes (run `loadout bench`), pools need members",
                     hints.model
                 ),
             )

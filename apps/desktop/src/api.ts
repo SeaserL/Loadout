@@ -46,6 +46,7 @@ export interface DaemonStatus {
   data_dir: string;
   schema_version: number;
   gateway: { addr: string; listening: boolean };
+  recovered_from?: string | null;
 }
 
 export interface ClientPolicy {

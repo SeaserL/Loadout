@@ -35,6 +35,7 @@ const DEFAULT_SECRET_PREFIX: &str = "loadout:";
 const REQUEST_RETENTION: Duration = Duration::from_secs(400 * 24 * 3600);
 const RESPONSE_ROUTE_RETENTION: Duration = Duration::from_secs(30 * 24 * 3600);
 const RETENTION_INTERVAL: Duration = Duration::from_secs(6 * 3600);
+const AUTO_BACKUP_INTERVAL: Duration = Duration::from_secs(24 * 3600);
 
 #[derive(Clone, Debug)]
 pub struct DaemonOptions {
@@ -62,11 +63,19 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     tracing::info!(version = VERSION, data_dir = %paths.root.display(), "loadoutd starting");
 
     let db_path = paths.database.clone();
-    let db = Arc::new(
-        tokio::task::spawn_blocking(move || Database::open(&db_path))
+    let (db, recovered_from) =
+        tokio::task::spawn_blocking(move || Database::open_or_recover(&db_path))
             .await
-            .map_err(|_| DaemonError::ServiceFailed("database open"))??,
-    );
+            .map_err(|_| DaemonError::ServiceFailed("database open"))??;
+    let db = Arc::new(db);
+    let recovered_from = recovered_from.map(|p| p.display().to_string());
+    if let Some(moved) = &recovered_from {
+        tracing::error!(
+            moved_to = %moved,
+            "the database was damaged; it was moved aside and a new one created. Restore the \
+            configuration with `loadout backup import` from the backups folder"
+        );
+    }
     let settings = {
         let db = db.clone();
         tokio::task::spawn_blocking(move || Resolved::load(&db))
@@ -182,6 +191,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         started_at_ms: now_ms(),
         gateway_addr,
         data_dir: paths.root.clone(),
+        recovered_from,
     });
     state
         .refresh_keys()
@@ -207,6 +217,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         ipc.serve(Arc::new(Dispatcher { state }), shutdown.clone()),
     );
     spawn_retention(db.clone(), shutdown.clone());
+    spawn_auto_backup(db.clone(), paths.root.clone(), shutdown.clone());
     spawn_signal_listener(shutdown.clone());
 
     tracing::info!(gateway = %gateway_addr, pipe = %pipe_name, "loadoutd ready");
@@ -259,6 +270,33 @@ fn spawn_retention(db: Arc<Database>, shutdown: CancellationToken) {
                 }
                 tokio::select! {
                     () = tokio::time::sleep(RETENTION_INTERVAL) => {}
+                    () = token.cancelled() => return Ok::<(), String>(()),
+                }
+            }
+        }
+    });
+}
+
+/// Daily configuration backup into `<data>\backups\auto` (ExecPlan 007 §2).
+fn spawn_auto_backup(db: Arc<Database>, data_dir: PathBuf, shutdown: CancellationToken) {
+    let token = shutdown.clone();
+    spawn_restartable("auto-backup", shutdown, Backoff::default(), move || {
+        let (db, dir, token) = (db.clone(), data_dir.clone(), token.clone());
+        async move {
+            loop {
+                let (db2, dir2) = (db.clone(), dir.clone());
+                match tokio::task::spawn_blocking(move || crate::backup::auto_export(&db2, &dir2))
+                    .await
+                    .map_err(|e| e.to_string())?
+                {
+                    Ok(Some(path)) => {
+                        tracing::info!(%path, "automatic configuration backup written")
+                    }
+                    Ok(None) => {}
+                    Err(e) => tracing::warn!(error = %e, "automatic configuration backup failed"),
+                }
+                tokio::select! {
+                    () = tokio::time::sleep(AUTO_BACKUP_INTERVAL) => {}
                     () = token.cancelled() => return Ok::<(), String>(()),
                 }
             }

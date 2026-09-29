@@ -45,6 +45,28 @@ impl Database {
         })
     }
 
+    /// Like [`Database::open`], but a damaged file is moved aside (with its WAL files) to
+    /// `<name>.corrupt-<unix ms>` and a new, empty database is created. Returns the path the
+    /// damaged file was moved to (ExecPlan 007 §2).
+    pub fn open_or_recover(path: &Path) -> Result<(Self, Option<PathBuf>), StorageError> {
+        match Self::open(path) {
+            Ok(db) => Ok((db, None)),
+            Err(e) if e.is_corruption() => {
+                let suffix = format!("corrupt-{}", now_ms());
+                let moved = path.with_extension(format!("db.{suffix}"));
+                std::fs::rename(path, &moved)?;
+                for ext in ["db-wal", "db-shm"] {
+                    let side = path.with_extension(ext);
+                    if side.exists() {
+                        std::fs::rename(&side, path.with_extension(format!("{ext}.{suffix}")))?;
+                    }
+                }
+                Ok((Self::open(path)?, Some(moved)))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     /// In-memory database for tests.
     pub fn open_in_memory() -> Result<Self, StorageError> {
         let mut conn = Connection::open_in_memory()?;
@@ -151,6 +173,24 @@ fn migrate(conn: &mut Connection) -> Result<(), StorageError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_damaged_file_is_moved_aside() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("loadout.db");
+        std::fs::write(&path, vec![0x5a; 8192]).expect("write garbage");
+        std::fs::write(path.with_extension("db-wal"), b"junk").expect("write wal");
+
+        let (db, moved) = Database::open_or_recover(&path).expect("recover");
+        let moved = moved.expect("moved aside");
+        assert!(moved.to_string_lossy().contains("loadout.db.corrupt-"));
+        assert_eq!(std::fs::read(&moved).expect("kept").len(), 8192);
+        assert_eq!(db.schema_version().expect("version"), LATEST_VERSION);
+        drop(db);
+
+        let (_, again) = Database::open_or_recover(&path).expect("reopen");
+        assert!(again.is_none(), "a healthy database is opened normally");
+    }
 
     #[test]
     fn file_database_uses_wal_and_latest_schema() {
