@@ -626,6 +626,7 @@ name = "loadout-platform"
 version = "0.1.0"
 dependencies = [
  "thiserror",
+ "uuid",
  "windows-sys",
 ]
 
