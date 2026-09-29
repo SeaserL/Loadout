@@ -366,7 +366,13 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - `api` 模块定义全部方法的类型化参数/结果，daemon、CLI、未来 Tauri 后端共用；`ClientCreated` 的 Debug 输出隐藏 key。
   - 事件：`events.subscribe` 后推送（broadcast，慢订阅者丢弃并记录日志）。
   - 16 个测试（含 16 并发客户端 × 25 请求、版本不一致、未握手请求、关闭时断开连接）。
-- [ ] Stage 5 — gateway
+- [x] Stage 5 — gateway（2026-09-29）
+  - Client key：`lo-` + 64 hex（32 字节随机），显示前缀 `lo-xxxxxxxx`，SHA-256 哈希；`ClientKeyIndex`（ArcSwap）替换即时生效。
+  - 中间件：request-id → trace → Host 校验（421）→ Origin 校验（403）→ client key（401）→ body 上限；未认证请求访问未知路径也返回 401，不泄露路由信息。
+  - 错误体按调用方协议渲染（`/v1/messages` → Anthropic 格式，其余 → OpenAI 格式），错误分类沿用 glossary §8 并加入 gateway 本地分类。
+  - 非 loopback 地址拒绝 bind；端口被占用返回 `AddrInUse`，不自动换端口。
+  - **发现**：Windows 上连接已关闭的 loopback 端口约 2 秒才返回拒绝（SYN 重试）。因此"daemon 是否在运行"一律通过 IPC 判断，不做 TCP 探测。
+  - 14 个测试。
 - [ ] Stage 6 — core + daemon
 - [ ] Stage 7 — cli
 - [ ] Stage 8 — 集成测试、benchmark、CI
