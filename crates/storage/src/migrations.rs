@@ -6,8 +6,16 @@
 
 use rusqlite_migration::{M, Migrations};
 
-const MIGRATIONS: &[M<'static>] = &[M::up(include_str!("../migrations/0001_init/up.sql"))
-    .down(include_str!("../migrations/0001_init/down.sql"))];
+const MIGRATIONS: &[M<'static>] = &[
+    M::up(include_str!("../migrations/0001_init/up.sql"))
+        .down(include_str!("../migrations/0001_init/down.sql")),
+    M::up(include_str!(
+        "../migrations/0002_accounts_models_telemetry/up.sql"
+    ))
+    .down(include_str!(
+        "../migrations/0002_accounts_models_telemetry/down.sql"
+    )),
+];
 
 /// Schema version after applying every migration.
 pub const LATEST_VERSION: usize = MIGRATIONS.len();

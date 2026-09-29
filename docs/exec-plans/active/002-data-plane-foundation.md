@@ -224,7 +224,12 @@ loadout model list | remove | set-price
   - 脱敏函数从 core 移到 `secrets::redact`，上游错误信息同样经过脱敏（上游可能回显部分 key）。
   - reqwest 默认 TLS（rustls + aws-lc-rs）在本机构建通过，无需改用 ring。
   - 17 个测试。
-- [ ] Stage 3 — storage 0002 + telemetry writer
+- [x] Stage 3 — storage 0002 + telemetry writer（2026-09-29）
+  - Migration 0002：providers / accounts / credentials / models / account_models / request_events / response_routes；v1 → v2 升级保留数据有测试。
+  - 目录同步语义：新模型插入；已有 catalog 模型刷新元数据，但保留用户的启用状态与已设置的价格；上游不再提供的 catalog 模型置为禁用（不删除）；手动添加的模型不受影响。
+  - 删除 Provider / 账号时级联删除，并返回需要从 Credential Manager 清除的 secret_ref。
+  - Telemetry：有界 `sync_channel`（默认 10,000）+ 独立线程与独立 SQLite 连接，批量事务写入（≤512 条或 200 ms）；队列满时丢弃并计数，`send` 永不阻塞（测试：1 万条写入 4 容量队列 < 2 s）。Responses 路由映射也经此线程写入。
+  - 18 个测试。
 - [ ] Stage 4 — router
 - [ ] Stage 5 — gateway proxy
 - [ ] Stage 6 — IPC + CLI

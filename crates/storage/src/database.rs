@@ -196,6 +196,28 @@ mod tests {
     }
 
     #[test]
+    fn upgrades_a_version_1_database_keeping_data() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("loadout.db");
+        {
+            let mut conn = Connection::open(&path).expect("raw open");
+            migrations().to_version(&mut conn, 1).expect("v1");
+            conn.execute(
+                "INSERT INTO clients (id, name, key_prefix, key_hash, created_at)
+                 VALUES ('c1', 'old client', 'lo-12345678', ?1, 1)",
+                [vec![7u8; 32]],
+            )
+            .expect("insert");
+        }
+        let db = Database::open(&path).expect("upgrade");
+        assert_eq!(db.schema_version().expect("version"), LATEST_VERSION);
+        let clients = db.clients().list().expect("list");
+        assert_eq!(clients.len(), 1);
+        assert_eq!(clients[0].name, "old client");
+        assert!(db.providers().list().expect("providers").is_empty());
+    }
+
+    #[test]
     fn transaction_rolls_back_on_error() {
         let db = Database::open_in_memory().expect("open");
         let result: Result<(), StorageError> = db.with_tx(|tx| {

@@ -1,0 +1,275 @@
+// SPDX-License-Identifier: Apache-2.0
+
+use rusqlite::{Row, params};
+use uuid::Uuid;
+
+use crate::{Database, StorageError, now_ms};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountModel {
+    pub id: String,
+    pub account_id: String,
+    pub upstream_model_id: String,
+    pub model_id: Option<String>,
+    /// JSON array of protocol names (`["chat"]`).
+    pub protocols_json: String,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub capabilities_json: String,
+    pub input_price: Option<f64>,
+    pub output_price: Option<f64>,
+    pub cache_read_price: Option<f64>,
+    pub cache_write_price: Option<f64>,
+    pub enabled: bool,
+    /// `catalog` (synced from upstream) or `manual`.
+    pub source: String,
+}
+
+/// Model data from a catalog sync or manual entry.
+#[derive(Clone, Debug, Default)]
+pub struct ModelInput {
+    pub upstream_model_id: String,
+    pub protocols_json: String,
+    pub context_window: Option<i64>,
+    pub max_output_tokens: Option<i64>,
+    pub capabilities_json: String,
+    pub input_price: Option<f64>,
+    pub output_price: Option<f64>,
+    pub cache_read_price: Option<f64>,
+    pub cache_write_price: Option<f64>,
+}
+
+/// Result of a catalog sync.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SyncCounts {
+    pub added: usize,
+    pub updated: usize,
+    /// Catalog models no longer offered upstream (disabled, not deleted).
+    pub disabled: usize,
+}
+
+#[derive(Debug)]
+pub struct AccountModelRepo<'a> {
+    db: &'a Database,
+}
+
+pub(crate) const COLUMNS: &str = "id, account_id, upstream_model_id, model_id, protocols_json, \
+     context_window, max_output_tokens, capabilities_json, input_price, output_price, \
+     cache_read_price, cache_write_price, enabled, source";
+
+pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Result<AccountModel> {
+    Ok(AccountModel {
+        id: row.get(offset)?,
+        account_id: row.get(offset + 1)?,
+        upstream_model_id: row.get(offset + 2)?,
+        model_id: row.get(offset + 3)?,
+        protocols_json: row.get(offset + 4)?,
+        context_window: row.get(offset + 5)?,
+        max_output_tokens: row.get(offset + 6)?,
+        capabilities_json: row.get(offset + 7)?,
+        input_price: row.get(offset + 8)?,
+        output_price: row.get(offset + 9)?,
+        cache_read_price: row.get(offset + 10)?,
+        cache_write_price: row.get(offset + 11)?,
+        enabled: row.get::<_, i64>(offset + 12)? == 1,
+        source: row.get(offset + 13)?,
+    })
+}
+
+impl<'a> AccountModelRepo<'a> {
+    pub(crate) fn new(db: &'a Database) -> Self {
+        Self { db }
+    }
+
+    /// Applies a full catalog listing for an account:
+    /// - new models are inserted (enabled);
+    /// - existing catalog models get fresh metadata, but the user's `enabled` flag and any
+    ///   prices already set are kept;
+    /// - catalog models missing from the listing are disabled;
+    /// - manually added models are never touched.
+    pub fn sync_catalog(
+        &self,
+        account_id: &str,
+        models: &[ModelInput],
+    ) -> Result<SyncCounts, StorageError> {
+        self.db.with_tx(|tx| {
+            let now = now_ms();
+            let mut counts = SyncCounts::default();
+            for m in models {
+                let updated = tx.execute(
+                    "UPDATE account_models SET
+                        protocols_json = ?3, context_window = ?4, max_output_tokens = ?5,
+                        capabilities_json = ?6,
+                        input_price = COALESCE(input_price, ?7),
+                        output_price = COALESCE(output_price, ?8),
+                        cache_read_price = COALESCE(cache_read_price, ?9),
+                        cache_write_price = COALESCE(cache_write_price, ?10),
+                        updated_at = ?11
+                     WHERE account_id = ?1 AND upstream_model_id = ?2 AND source = 'catalog'",
+                    params![
+                        account_id,
+                        m.upstream_model_id,
+                        m.protocols_json,
+                        m.context_window,
+                        m.max_output_tokens,
+                        m.capabilities_json,
+                        m.input_price,
+                        m.output_price,
+                        m.cache_read_price,
+                        m.cache_write_price,
+                        now
+                    ],
+                )?;
+                if updated > 0 {
+                    counts.updated += 1;
+                    continue;
+                }
+                let inserted = tx.execute(
+                    "INSERT OR IGNORE INTO account_models (id, account_id, upstream_model_id,
+                        protocols_json, context_window, max_output_tokens, capabilities_json,
+                        input_price, output_price, cache_read_price, cache_write_price,
+                        enabled, source, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 'catalog', ?12, ?12)",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        account_id,
+                        m.upstream_model_id,
+                        m.protocols_json,
+                        m.context_window,
+                        m.max_output_tokens,
+                        m.capabilities_json,
+                        m.input_price,
+                        m.output_price,
+                        m.cache_read_price,
+                        m.cache_write_price,
+                        now
+                    ],
+                )?;
+                counts.added += inserted;
+            }
+            let ids: Vec<&str> = models
+                .iter()
+                .map(|m| m.upstream_model_id.as_str())
+                .collect();
+            let listed =
+                serde_json::to_string(&ids).map_err(|e| StorageError::Corrupt(e.to_string()))?;
+            counts.disabled = tx.execute(
+                "UPDATE account_models SET enabled = 0, updated_at = ?3
+                 WHERE account_id = ?1 AND source = 'catalog' AND enabled = 1
+                   AND upstream_model_id NOT IN (SELECT value FROM json_each(?2))",
+                params![account_id, listed, now],
+            )?;
+            Ok(counts)
+        })
+    }
+
+    pub fn add_manual(
+        &self,
+        account_id: &str,
+        m: &ModelInput,
+    ) -> Result<AccountModel, StorageError> {
+        let id = Uuid::new_v4().to_string();
+        let now = now_ms();
+        self.db.with_conn(|c| {
+            c.execute(
+                "INSERT INTO account_models (id, account_id, upstream_model_id, protocols_json,
+                    context_window, max_output_tokens, capabilities_json, input_price, output_price,
+                    cache_read_price, cache_write_price, enabled, source, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 'manual', ?12, ?12)",
+                params![
+                    id,
+                    account_id,
+                    m.upstream_model_id,
+                    m.protocols_json,
+                    m.context_window,
+                    m.max_output_tokens,
+                    m.capabilities_json,
+                    m.input_price,
+                    m.output_price,
+                    m.cache_read_price,
+                    m.cache_write_price,
+                    now
+                ],
+            )
+            .map_err(|e| {
+                StorageError::from_insert(e, format!("model '{}'", m.upstream_model_id))
+            })?;
+            Ok(())
+        })?;
+        self.get(&id)?
+            .ok_or_else(|| StorageError::NotFound("model just inserted".into()))
+    }
+
+    pub fn get(&self, id: &str) -> Result<Option<AccountModel>, StorageError> {
+        use rusqlite::OptionalExtension;
+        self.db.with_conn(|c| {
+            Ok(c.query_row(
+                &format!("SELECT {COLUMNS} FROM account_models WHERE id = ?1"),
+                params![id],
+                |r| map_account_model(r, 0),
+            )
+            .optional()?)
+        })
+    }
+
+    pub fn list(&self, account_id: &str) -> Result<Vec<AccountModel>, StorageError> {
+        self.db.with_conn(|c| {
+            let mut stmt = c.prepare(&format!(
+                "SELECT {COLUMNS} FROM account_models WHERE account_id = ?1 ORDER BY upstream_model_id"
+            ))?;
+            let rows = stmt.query_map(params![account_id], |r| map_account_model(r, 0))?;
+            Ok(rows.collect::<Result<_, _>>()?)
+        })
+    }
+
+    pub fn find(
+        &self,
+        account_id: &str,
+        upstream_model_id: &str,
+    ) -> Result<Option<AccountModel>, StorageError> {
+        use rusqlite::OptionalExtension;
+        self.db.with_conn(|c| {
+            Ok(c.query_row(
+                &format!(
+                    "SELECT {COLUMNS} FROM account_models WHERE account_id = ?1 AND upstream_model_id = ?2"
+                ),
+                params![account_id, upstream_model_id],
+                |r| map_account_model(r, 0),
+            )
+            .optional()?)
+        })
+    }
+
+    pub fn set_enabled(&self, id: &str, enabled: bool) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE account_models SET enabled = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, i64::from(enabled), now_ms()],
+            )? > 0)
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_prices(
+        &self,
+        id: &str,
+        input: Option<f64>,
+        output: Option<f64>,
+        cache_read: Option<f64>,
+        cache_write: Option<f64>,
+    ) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE account_models SET input_price = ?2, output_price = ?3,
+                    cache_read_price = ?4, cache_write_price = ?5, updated_at = ?6 WHERE id = ?1",
+                params![id, input, output, cache_read, cache_write, now_ms()],
+            )? > 0)
+        })
+    }
+
+    pub fn delete(&self, id: &str) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute("DELETE FROM account_models WHERE id = ?1", params![id])? > 0)
+        })
+    }
+}
