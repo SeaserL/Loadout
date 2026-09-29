@@ -5,12 +5,13 @@ import { api } from "../api";
 import { Badge, Card, Empty, ErrorText, Page } from "../components";
 import { ms, num, time, usd } from "../format";
 import { usePoll } from "../hooks";
+import { type MessageKey, t, tv } from "../i18n";
 
-const PERIODS = [
-  { label: "any time", hours: 0 },
-  { label: "last hour", hours: 1 },
-  { label: "last 24 h", hours: 24 },
-  { label: "last 7 days", hours: 168 },
+const PERIODS: { label: MessageKey; hours: number }[] = [
+  { label: "logs.anyTime", hours: 0 },
+  { label: "logs.lastHour", hours: 1 },
+  { label: "logs.last24h", hours: 24 },
+  { label: "logs.last7d", hours: 168 },
 ];
 
 export function Logs() {
@@ -33,15 +34,12 @@ export function Logs() {
     [limit, client, search, errorsOnly, hours],
   );
   return (
-    <Page title="Request log">
-      <div className="notice small">
-        Metadata only: prompts, responses and tool arguments are never stored. Entries older than 400 days are
-        deleted automatically.
-      </div>
+    <Page title={t("logs.title")}>
+      <div className="notice small">{t("logs.privacy")}</div>
       <div className="row wrap" style={{ marginBottom: 12 }}>
-        <input placeholder="Model or route contains…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input placeholder={t("logs.search")} value={search} onChange={(e) => setSearch(e.target.value)} />
         <select value={client} onChange={(e) => setClient(e.target.value)}>
-          <option value="">all clients</option>
+          <option value="">{t("logs.allClients")}</option>
           {(clients.data ?? []).map((c) => (
             <option key={c.id} value={c.name}>
               {c.name}
@@ -51,39 +49,39 @@ export function Logs() {
         <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
           {PERIODS.map((p) => (
             <option key={p.hours} value={p.hours}>
-              {p.label}
+              {t(p.label)}
             </option>
           ))}
         </select>
         <label className="row small">
           <input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} />
-          failed only
+          {t("logs.failedOnly")}
         </label>
         <div className="spacer" />
         <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
           {[50, 100, 500, 1000].map((n) => (
             <option key={n} value={n}>
-              up to {n}
+              {t("logs.upTo", { n })}
             </option>
           ))}
         </select>
       </div>
       <ErrorText error={recent.error?.message} />
       <Card>
-        {(recent.data ?? []).length === 0 && !recent.loading && <Empty>No matching requests.</Empty>}
+        {(recent.data ?? []).length === 0 && !recent.loading && <Empty>{t("logs.empty")}</Empty>}
         {(recent.data ?? []).length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Client</th>
-                <th>Model → route</th>
-                <th>Protocol</th>
-                <th>Status</th>
-                <th className="num">Tokens in / out</th>
+                <th>{t("logs.time")}</th>
+                <th>{t("logs.client")}</th>
+                <th>{t("logs.modelRoute")}</th>
+                <th>{t("logs.protocol")}</th>
+                <th>{t("logs.status")}</th>
+                <th className="num">{t("logs.tokens")}</th>
                 <th className="num">TTFT</th>
-                <th className="num">Total</th>
-                <th className="num">Cost</th>
+                <th className="num">{t("logs.total")}</th>
+                <th className="num">{t("logs.cost")}</th>
               </tr>
             </thead>
             <tbody>
@@ -97,14 +95,14 @@ export function Logs() {
                   </td>
                   <td className="small">
                     {r.protocol_in}→{r.protocol_out ?? "-"}
-                    {r.mode === "converted" && <span className="muted"> (converted)</span>}
+                    {r.mode === "converted" && <span className="muted"> {t("logs.converted")}</span>}
                   </td>
                   <td>
                     <Badge tone={r.status === "ok" ? "ok" : r.status === "client_closed" ? "warn" : "bad"}>
-                      {r.status}
+                      {tv("status", r.status)}
                       {r.error_category ? ` · ${r.error_category}` : ""}
                     </Badge>
-                    {r.attempts > 1 && <span className="small muted"> {r.attempts} tries</span>}
+                    {r.attempts > 1 && <span className="small muted"> {t("logs.tries", { n: r.attempts })}</span>}
                   </td>
                   <td className="num">
                     {num(r.input_tokens)} / {num(r.output_tokens)}

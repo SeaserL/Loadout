@@ -11,6 +11,7 @@ import {
 import { Badge, Button, Card, Empty, ErrorText, Field, Meter, Modal, Page } from "../components";
 import { ago, date, num, until, usd } from "../format";
 import { useAction, usePoll } from "../hooks";
+import { t, tv } from "../i18n";
 
 type Dialog =
   | { kind: "add" }
@@ -42,18 +43,18 @@ export function Accounts() {
 
   return (
     <Page
-      title="Accounts & usage"
+      title={t("acc.title")}
       actions={
         <>
           <Button
             disabled={action.busy}
             onClick={() => void action.run(async () => api.usage(true).then(() => usage.reload()))}
           >
-            Refresh usage
+            {t("acc.refresh")}
           </Button>
-          <Button onClick={() => setDialog({ kind: "scan" })}>Scan this PC</Button>
+          <Button onClick={() => setDialog({ kind: "scan" })}>{t("acc.scan")}</Button>
           <Button kind="primary" onClick={() => setDialog({ kind: "add" })}>
-            Add account
+            {t("acc.add")}
           </Button>
         </>
       }
@@ -61,10 +62,7 @@ export function Accounts() {
       <ErrorText error={action.error ?? providers.error?.message ?? accounts.error?.message} />
       {(providers.data ?? []).length === 0 && !providers.loading && (
         <Card>
-          <Empty>
-            No providers yet. Add an API account, or scan this PC for Codex, Claude Code, Gemini CLI and
-            Kimi Code logins.
-          </Empty>
+          <Empty>{t("acc.empty")}</Empty>
         </Card>
       )}
       {(providers.data ?? []).map((p) => (
@@ -74,7 +72,12 @@ export function Accounts() {
           accounts={byProvider.get(p.slug) ?? []}
           usageOf={usageOf}
           busy={action.busy}
-          onAction={(f) => void action.run(async () => { await f(); await reloadAll(); })}
+          onAction={(f) =>
+            void action.run(async () => {
+              await f();
+              await reloadAll();
+            })
+          }
           onDialog={setDialog}
         />
       ))}
@@ -123,17 +126,17 @@ function ProviderCard(props: {
           kind="danger"
           disabled={props.busy}
           onClick={() => {
-            if (confirm(`Remove ${p.slug} with all its accounts, keys and models?`)) {
+            if (confirm(t("acc.confirmRemoveProvider", { slug: p.slug }))) {
               props.onAction(() => api.removeProvider(p.slug));
             }
           }}
         >
-          Remove provider
+          {t("acc.removeProvider")}
         </Button>
       }
     >
       {p.base_url && <div className="small muted mono">{p.base_url}</div>}
-      {props.accounts.length === 0 && <Empty>No accounts.</Empty>}
+      {props.accounts.length === 0 && <Empty>{t("acc.noAccounts")}</Empty>}
       {props.accounts.map((a) => (
         <AccountRow key={a.alias} account={a} usage={props.usageOf(a)} {...props} />
       ))}
@@ -151,53 +154,50 @@ function AccountRow(props: {
   const a = props.account;
   const u = props.usage;
   const subscription = a.account_type === "subscription";
+  const name = `${a.provider}/${a.alias}`;
   return (
     <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, marginTop: 12 }}>
       <div className="row wrap">
-        <strong>
-          {a.provider}/{a.alias}
-        </strong>
+        <strong>{name}</strong>
         {a.display_name && <span className="muted">{a.display_name}</span>}
-        <Badge tone={a.enabled ? "ok" : "muted"}>{a.enabled ? "enabled" : "disabled"}</Badge>
-        <Badge tone="info">{a.account_type}</Badge>
+        <Badge tone={a.enabled ? "ok" : "muted"}>{a.enabled ? t("common.enabled") : t("common.disabled")}</Badge>
+        <Badge tone="info">{tv("accountType", a.account_type)}</Badge>
         {subscription ? (
-          <Badge title="Subscription logins are used for usage display only (ADR-009)">usage only</Badge>
+          <Badge title={t("acc.usageOnlyHint")}>{t("acc.usageOnly")}</Badge>
         ) : (
-          <span className="small muted">
-            {a.enabled_models}/{a.models} models routed
-          </span>
+          <span className="small muted">{t("acc.modelsRouted", { on: a.enabled_models, all: a.models })}</span>
         )}
         {u?.account_label && <span className="small muted">{u.account_label}</span>}
         <div className="spacer" />
         {!subscription && (
           <Button disabled={props.busy} onClick={() => props.onAction(() => api.syncModels(a.provider, a.alias))}>
-            Sync models
+            {t("acc.sync")}
           </Button>
         )}
         {!subscription && (
           <Button disabled={props.busy} onClick={() => props.onDialog({ kind: "key", account: a })}>
-            {a.has_key ? "Change key" : "Set key"}
+            {a.has_key ? t("acc.changeKey") : t("acc.setKey")}
           </Button>
         )}
         <Button disabled={props.busy} onClick={() => props.onDialog({ kind: "plan", account: a, usage: u })}>
-          Plan
+          {t("acc.plan")}
         </Button>
         <Button
           disabled={props.busy}
           onClick={() => props.onAction(() => api.setAccountEnabled(a.provider, a.alias, !a.enabled))}
         >
-          {a.enabled ? "Disable" : "Enable"}
+          {a.enabled ? t("common.disable") : t("common.enable")}
         </Button>
         <Button
           kind="danger"
           disabled={props.busy}
           onClick={() => {
-            if (confirm(`Remove ${a.provider}/${a.alias}? Its key is deleted from Windows Credential Manager.`)) {
+            if (confirm(t("acc.confirmRemove", { name }))) {
               props.onAction(() => api.removeAccount(a.provider, a.alias));
             }
           }}
         >
-          Remove
+          {t("common.remove")}
         </Button>
       </div>
       {u && <UsageDetail usage={u} />}
@@ -207,6 +207,7 @@ function AccountRow(props: {
 
 function UsageDetail(props: { usage: AccountUsage }) {
   const u = props.usage;
+  const price = u.plan?.price_usd_monthly;
   return (
     <div style={{ marginTop: 10 }}>
       {u.error && <div className="error small">{u.error}</div>}
@@ -223,41 +224,41 @@ function UsageDetail(props: { usage: AccountUsage }) {
               )}
             </div>
             <Meter remaining={w.remaining_percent} />
-            <div className="small muted">resets {until(w.resets_at_ms)}</div>
+            <div className="small muted">{t("common.resets", { when: until(w.resets_at_ms) })}</div>
           </div>
         ))}
         {u.balances.map((b) => (
           <div key={b.currency}>
-            <div className="small">Balance</div>
+            <div className="small">{t("acc.balance")}</div>
             <div style={{ fontSize: 18, fontWeight: 600 }}>
               {b.currency} {b.amount.toFixed(2)}
             </div>
             {(b.granted != null || b.topup != null) && (
               <div className="small muted">
-                {b.topup != null && `top-up ${b.topup.toFixed(2)} `}
-                {b.granted != null && `granted ${b.granted.toFixed(2)}`}
+                {b.topup != null && `${t("acc.topup", { n: b.topup.toFixed(2) })} `}
+                {b.granted != null && t("acc.granted", { n: b.granted.toFixed(2) })}
               </div>
             )}
           </div>
         ))}
       </div>
       <div className="row wrap small muted" style={{ marginTop: 8, gap: 16 }}>
-        {u.plan?.name && <span>Plan: {u.plan.name}</span>}
-        {u.plan?.price_usd_monthly != null && <span>{usd(u.plan.price_usd_monthly)}/month</span>}
-        {u.plan?.renews_at_ms != null && <span>renews {date(u.plan.renews_at_ms)}</span>}
-        <span>
-          Loadout today: {u.spend_today.requests} req · {usd(u.spend_today.cost_usd)}
-        </span>
-        <span>
-          this month: {u.spend_month.requests} req · {usd(u.spend_month.cost_usd)}
-        </span>
-        {u.plan?.price_usd_monthly != null && u.plan.price_usd_monthly > 0 && u.spend_month.cost_usd > 0 && (
-          <span title="Equivalent API value of this month's requests ÷ subscription price">
-            value captured {(u.spend_month.cost_usd / u.plan.price_usd_monthly).toFixed(2)}×
-          </span>
+        {u.plan?.name && <span>{t("acc.planName", { name: u.plan.name })}</span>}
+        {price != null && <span>{t("acc.perMonth", { price: usd(price) })}</span>}
+        {u.plan?.renews_at_ms != null && <span>{t("acc.renews", { date: date(u.plan.renews_at_ms) })}</span>}
+        <span>{t("acc.today", { n: u.spend_today.requests, cost: usd(u.spend_today.cost_usd) })}</span>
+        <span>{t("acc.month", { n: u.spend_month.requests, cost: usd(u.spend_month.cost_usd) })}</span>
+        {price != null && price > 0 && u.spend_month.cost_usd > 0 && (
+          <span title={t("acc.valueHint")}>{t("acc.value", { x: (u.spend_month.cost_usd / price).toFixed(2) })}</span>
         )}
         <span>
-          {u.supported ? `usage ${u.source ?? ""} ${u.confidence ?? ""} · ${ago(u.fetched_at_ms)}` : "usage estimated from Loadout's own requests"}
+          {u.supported
+            ? t("acc.usageFrom", {
+                source: u.source ?? "",
+                confidence: u.confidence ?? "",
+                when: ago(u.fetched_at_ms),
+              })
+            : t("acc.usageEstimated")}
         </span>
       </div>
     </div>
@@ -282,8 +283,8 @@ function AddAccountDialog(props: { providers: ProviderInfo[]; onClose: () => voi
 
   const submit = () =>
     void action.run(async () => {
-      if (!selected) throw new Error("Choose a provider type.");
-      if (!effectiveSlug) throw new Error("Enter a short name for this provider.");
+      if (!selected) throw new Error(t("acc.errKind"));
+      if (!effectiveSlug) throw new Error(t("acc.errSlug"));
       if (!exists) {
         await api.addProvider({
           slug: effectiveSlug,
@@ -302,17 +303,17 @@ function AddAccountDialog(props: { providers: ProviderInfo[]; onClose: () => voi
       setKey("");
       props.onDone();
       if (added.sync_error) {
-        setResult(`Account added, but the model list could not be fetched: ${added.sync_error}`);
+        setResult(t("acc.syncFailed", { error: added.sync_error }));
       } else {
         props.onClose();
       }
     });
 
   return (
-    <Modal title="Add an API account" onClose={props.onClose}>
-      <Field label="Provider type">
+    <Modal title={t("acc.addTitle")} onClose={props.onClose}>
+      <Field label={t("acc.kind")}>
         <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">Choose…</option>
+          <option value="">{t("acc.choose")}</option>
           {inferenceKinds.map((k) => (
             <option key={k.kind} value={k.kind}>
               {k.display_name}
@@ -321,32 +322,29 @@ function AddAccountDialog(props: { providers: ProviderInfo[]; onClose: () => voi
         </select>
       </Field>
       {selected && !selected.fixed_slug && (
-        <Field label="Provider name" hint="Used in model names, e.g. my-llm/main/model-id. Lowercase letters, digits, dashes.">
+        <Field label={t("acc.slug")} hint={t("acc.slugHint")}>
           <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} placeholder="my-llm" />
         </Field>
       )}
       {needsUrl && (
-        <Field label="Base URL" hint="Including the version path, e.g. https://api.example.com/v1">
+        <Field label={t("acc.baseUrl")} hint={t("acc.baseUrlHint")}>
           <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://" />
         </Field>
       )}
-      <Field label="Account name" hint="Distinguishes several accounts of one provider, e.g. main, work.">
+      <Field label={t("acc.alias")} hint={t("acc.aliasHint")}>
         <input value={alias} onChange={(e) => setAlias(e.target.value.toLowerCase())} />
       </Field>
-      <Field
-        label={selected?.auth === "optional_api_key" ? "API key (optional)" : "API key"}
-        hint="Stored in Windows Credential Manager; never in Loadout's database or logs."
-      >
+      <Field label={selected?.auth === "optional_api_key" ? t("acc.keyOptional") : t("acc.key")} hint={t("acc.keyHint")}>
         <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
       </Field>
       <ErrorText error={action.error} />
       {result && <div className="notice small">{result}</div>}
       <div className="row">
         <div className="spacer" />
-        <Button onClick={props.onClose}>{result ? "Close" : "Cancel"}</Button>
+        <Button onClick={props.onClose}>{result ? t("common.close") : t("common.cancel")}</Button>
         {!result && (
           <Button kind="primary" disabled={action.busy} onClick={submit}>
-            {action.busy ? "Adding…" : "Add"}
+            {action.busy ? t("acc.adding") : t("common.add")}
           </Button>
         )}
       </div>
@@ -358,58 +356,55 @@ function ScanDialog(props: { onClose: () => void; onDone: () => void }) {
   const tools = usePoll(api.scan, 0);
   const action = useAction();
   return (
-    <Modal title="AI tools on this PC" onClose={props.onClose} wide>
-      <p className="small muted">
-        Loadout only reads whether these tools are installed and signed in. Importing a subscription login
-        shows its quota; requests are never sent with subscription credentials.
-      </p>
+    <Modal title={t("acc.scanTitle")} onClose={props.onClose} wide>
+      <p className="small muted">{t("acc.scanIntro")}</p>
       <ErrorText error={action.error ?? tools.error?.message} />
-      {tools.loading && <Empty>Scanning…</Empty>}
+      {tools.loading && <Empty>{t("acc.scanning")}</Empty>}
       <table>
         <thead>
           <tr>
-            <th>Tool</th>
-            <th>Installed</th>
-            <th>Signed in</th>
-            <th>Use</th>
+            <th>{t("acc.tool")}</th>
+            <th>{t("acc.installed")}</th>
+            <th>{t("acc.signedIn")}</th>
+            <th>{t("acc.use")}</th>
             <th />
           </tr>
         </thead>
         <tbody>
-          {(tools.data ?? []).map((t) => (
-            <tr key={t.kind}>
+          {(tools.data ?? []).map((tool) => (
+            <tr key={tool.kind}>
               <td>
-                {t.display_name}
-                {t.detail && <div className="small muted">{t.detail}</div>}
+                {tool.display_name}
+                {tool.detail && <div className="small muted">{tool.detail}</div>}
               </td>
-              <td>{t.installed ? <Badge tone="ok">yes</Badge> : <Badge>no</Badge>}</td>
+              <td>{tool.installed ? <Badge tone="ok">{t("common.yes")}</Badge> : <Badge>{t("common.no")}</Badge>}</td>
               <td>
-                {t.logged_in ? (
-                  t.expired ? (
-                    <Badge tone="warn">expired</Badge>
+                {tool.logged_in ? (
+                  tool.expired ? (
+                    <Badge tone="warn">{t("acc.expired")}</Badge>
                   ) : (
-                    <Badge tone="ok">{t.auth ?? "yes"}</Badge>
+                    <Badge tone="ok">{tool.auth ?? t("common.yes")}</Badge>
                   )
                 ) : (
-                  <Badge>no</Badge>
+                  <Badge>{t("common.no")}</Badge>
                 )}
               </td>
-              <td className="small">{t.inference ? "requests + usage" : "usage only"}</td>
+              <td className="small">{tool.inference ? t("acc.requestsAndUsage") : t("acc.usageOnly")}</td>
               <td className="num">
-                {t.imported ? (
-                  <Badge tone="info">imported</Badge>
+                {tool.imported ? (
+                  <Badge tone="info">{t("acc.imported")}</Badge>
                 ) : (
                   <Button
-                    disabled={!t.logged_in || action.busy}
+                    disabled={!tool.logged_in || action.busy}
                     onClick={() =>
                       void action.run(async () => {
-                        await api.importTool(t.kind, null);
+                        await api.importTool(tool.kind, null);
                         await tools.reload();
                         props.onDone();
                       })
                     }
                   >
-                    Import
+                    {t("acc.import")}
                   </Button>
                 )}
               </td>
@@ -426,14 +421,14 @@ function KeyDialog(props: { account: AccountInfo; onClose: () => void; onDone: (
   const [key, setKey] = useState("");
   const a = props.account;
   return (
-    <Modal title={`API key for ${a.provider}/${a.alias}`} onClose={props.onClose}>
-      <Field label="New API key" hint="Replaces the stored key and clears any authentication error.">
+    <Modal title={t("acc.keyTitle", { name: `${a.provider}/${a.alias}` })} onClose={props.onClose}>
+      <Field label={t("acc.newKey")} hint={t("acc.newKeyHint")}>
         <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
       </Field>
       <ErrorText error={action.error} />
       <div className="row">
         <div className="spacer" />
-        <Button onClick={props.onClose}>Cancel</Button>
+        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
         <Button
           kind="primary"
           disabled={action.busy || !key.trim()}
@@ -446,7 +441,7 @@ function KeyDialog(props: { account: AccountInfo; onClose: () => void; onDone: (
             })
           }
         >
-          Save
+          {t("common.save")}
         </Button>
       </div>
     </Modal>
@@ -463,31 +458,28 @@ function PlanDialog(props: { account: AccountInfo; usage?: AccountUsage; onClose
   );
   const a = props.account;
   return (
-    <Modal title={`Plan of ${a.provider}/${a.alias}`} onClose={props.onClose}>
-      <p className="small muted">
-        For renewal reminders and the subscription value shown on this page. The renewal date is separate
-        from quota resets.
-      </p>
-      <Field label="Plan name">
+    <Modal title={t("acc.planTitle", { name: `${a.provider}/${a.alias}` })} onClose={props.onClose}>
+      <p className="small muted">{t("acc.planIntro")}</p>
+      <Field label={t("acc.planNameField")}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Pro" />
       </Field>
-      <Field label="Price (USD per month)">
+      <Field label={t("acc.price")}>
         <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" />
       </Field>
-      <Field label="Next renewal">
+      <Field label={t("acc.nextRenewal")}>
         <input type="date" value={renews} onChange={(e) => setRenews(e.target.value)} />
       </Field>
       <ErrorText error={action.error} />
       <div className="row">
         <div className="spacer" />
-        <Button onClick={props.onClose}>Cancel</Button>
+        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
         <Button
           kind="primary"
           disabled={action.busy}
           onClick={() =>
             void action.run(async () => {
               const p = price.trim() ? Number(price) : null;
-              if (p != null && (!Number.isFinite(p) || p < 0)) throw new Error("Enter a valid price.");
+              if (p != null && (!Number.isFinite(p) || p < 0)) throw new Error(t("acc.errPrice"));
               await api.setPlan({
                 provider: a.provider,
                 alias: a.alias,
@@ -500,7 +492,7 @@ function PlanDialog(props: { account: AccountInfo; usage?: AccountUsage; onClose
             })
           }
         >
-          Save
+          {t("common.save")}
         </Button>
       </div>
     </Modal>

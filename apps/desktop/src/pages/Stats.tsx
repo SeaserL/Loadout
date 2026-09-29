@@ -5,13 +5,14 @@ import { api } from "../api";
 import { Card, Empty, ErrorText, Page } from "../components";
 import { ms, num, usd } from "../format";
 import { usePoll } from "../hooks";
+import { type MessageKey, t } from "../i18n";
 
-const GROUPS = [
-  { id: "model", label: "Model" },
-  { id: "route", label: "Route" },
-  { id: "provider", label: "Provider" },
-  { id: "client", label: "Client" },
-  { id: "day", label: "Day (UTC)" },
+const GROUPS: { id: string; label: MessageKey }[] = [
+  { id: "model", label: "stats.group.model" },
+  { id: "route", label: "stats.group.route" },
+  { id: "provider", label: "stats.group.provider" },
+  { id: "client", label: "stats.group.client" },
+  { id: "day", label: "stats.group.day" },
 ];
 
 export function Stats() {
@@ -20,25 +21,26 @@ export function Stats() {
   const stats = usePoll(() => api.stats(Date.now() - days * 86400000, group), 10000, [group, days]);
   const rows = stats.data ?? [];
   const total = rows.reduce(
-    (t, r) => ({
-      requests: t.requests + r.requests,
-      errors: t.errors + r.errors,
-      input: t.input + r.input_tokens,
-      output: t.output + r.output_tokens,
-      cost: t.cost + r.cost_usd,
+    (sum, r) => ({
+      requests: sum.requests + r.requests,
+      errors: sum.errors + r.errors,
+      input: sum.input + r.input_tokens,
+      output: sum.output + r.output_tokens,
+      cost: sum.cost + r.cost_usd,
     }),
     { requests: 0, errors: 0, input: 0, output: 0, cost: 0 },
   );
   const maxRequests = Math.max(1, ...rows.map((r) => r.requests));
+  const groupLabel = GROUPS.find((g) => g.id === group)?.label ?? "stats.group.model";
 
   return (
     <Page
-      title="Statistics"
+      title={t("stats.title")}
       actions={
         <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
           {[1, 7, 30, 90, 365].map((d) => (
             <option key={d} value={d}>
-              last {d === 1 ? "24 hours" : `${d} days`}
+              {d === 1 ? t("stats.last24h") : t("stats.lastDays", { n: d })}
             </option>
           ))}
         </select>
@@ -47,13 +49,13 @@ export function Stats() {
       <div className="grid cols-4">
         <Card>
           <div className="stat">
-            <div className="label">Requests</div>
+            <div className="label">{t("stats.requests")}</div>
             <div className="value">{num(total.requests)}</div>
           </div>
         </Card>
         <Card>
           <div className="stat">
-            <div className="label">Failed</div>
+            <div className="label">{t("stats.failed")}</div>
             <div className="value">
               {num(total.errors)}
               {total.requests > 0 && (
@@ -64,7 +66,7 @@ export function Stats() {
         </Card>
         <Card>
           <div className="stat">
-            <div className="label">Tokens in / out</div>
+            <div className="label">{t("stats.tokens")}</div>
             <div className="value">
               {num(total.input)} / {num(total.output)}
             </div>
@@ -72,7 +74,7 @@ export function Stats() {
         </Card>
         <Card>
           <div className="stat">
-            <div className="label">Estimated cost</div>
+            <div className="label">{t("stats.cost")}</div>
             <div className="value">{usd(total.cost)}</div>
           </div>
         </Card>
@@ -80,25 +82,25 @@ export function Stats() {
       <div className="tabs">
         {GROUPS.map((g) => (
           <button key={g.id} className={group === g.id ? "active" : ""} onClick={() => setGroup(g.id)}>
-            By {g.label.replace(/^./, (c) => c.toLowerCase())}
+            {t("stats.by", { group: t(g.label) })}
           </button>
         ))}
       </div>
       <ErrorText error={stats.error?.message} />
       <Card>
-        {rows.length === 0 && !stats.loading && <Empty>No requests in this period.</Empty>}
+        {rows.length === 0 && !stats.loading && <Empty>{t("stats.empty")}</Empty>}
         {rows.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>{GROUPS.find((g) => g.id === group)?.label}</th>
+                <th>{t(groupLabel)}</th>
                 <th style={{ width: "22%" }} />
-                <th className="num">Requests</th>
-                <th className="num">Failed</th>
-                <th className="num">Tokens in / out</th>
-                <th className="num">Cost</th>
-                <th className="num">Avg TTFT</th>
-                <th className="num">Avg tok/s</th>
+                <th className="num">{t("stats.requests")}</th>
+                <th className="num">{t("stats.failed")}</th>
+                <th className="num">{t("stats.tokens")}</th>
+                <th className="num">{t("stats.costCol")}</th>
+                <th className="num">{t("stats.avgTtft")}</th>
+                <th className="num">{t("stats.avgTps")}</th>
               </tr>
             </thead>
             <tbody>
@@ -124,10 +126,7 @@ export function Stats() {
           </table>
         )}
       </Card>
-      <p className="small muted">
-        Costs are estimated from model prices (Models page) and the token counts reported by upstreams.
-        Request history is kept for 400 days.
-      </p>
+      <p className="small muted">{t("stats.note")}</p>
     </Page>
   );
 }

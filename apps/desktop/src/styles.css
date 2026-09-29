@@ -519,3 +519,16 @@ ol.routes li {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
+.lang-select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sidebar-text);
+  border-color: rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.lang-select option {
+  color: #1c2230;
+}

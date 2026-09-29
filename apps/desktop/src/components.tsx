@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type ReactNode, useEffect } from "react";
+import { LANGS, type Lang, t, useLang } from "./i18n";
 
 export function Page(props: { title: string; actions?: ReactNode; children: ReactNode }) {
   return (
@@ -108,7 +109,7 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
       <div className={`modal ${props.wide ? "wide" : ""}`} onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{props.title}</h2>
-          <button className="close" onClick={props.onClose} aria-label="Close">
+          <button className="close" onClick={props.onClose} aria-label={t("common.close")}>
             ×
           </button>
         </div>
@@ -134,13 +135,31 @@ export function Meter(props: { remaining: number | null; label?: string }) {
   const used = Math.max(0, Math.min(100, 100 - props.remaining));
   const tone = props.remaining < 10 ? "bad" : props.remaining < 30 ? "warn" : "ok";
   return (
-    <div className="meter" title={`${props.remaining.toFixed(0)}% left`}>
+    <div className="meter" title={t("common.left", { n: props.remaining.toFixed(0) })}>
       <div className={`meter-fill ${tone}`} style={{ width: `${used}%` }} />
-      <span className="meter-label">{props.label ?? `${props.remaining.toFixed(0)}% left`}</span>
+      <span className="meter-label">{props.label ?? t("common.left", { n: props.remaining.toFixed(0) })}</span>
     </div>
   );
 }
 
 export function copy(text: string) {
   void navigator.clipboard?.writeText(text);
+}
+
+export function LanguageSelect(props: { compact?: boolean }) {
+  const { lang, setLang } = useLang();
+  return (
+    <select
+      value={lang}
+      onChange={(e) => setLang(e.target.value as Lang)}
+      aria-label={t("shell.language")}
+      className={props.compact ? "lang-select" : undefined}
+    >
+      {LANGS.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.label}
+        </option>
+      ))}
+    </select>
+  );
 }

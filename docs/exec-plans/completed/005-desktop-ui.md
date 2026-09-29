@@ -104,6 +104,11 @@ apps/desktop/
   - Rust：白名单与错误映射测试；`tsc --noEmit` 严格模式通过。
   - 冒烟：隔离 daemon（临时数据目录、专用 pipe、测试凭据前缀）+ `LOADOUT_PIPE_NAME` 启动 `loadout-app`，逐页截图核对；测速失败信息、Pool、设置均正常；结束后清理凭据与数据。
 
+- [x] 追加（2026-09-30，v0.1.1）：界面语言切换，默认简体中文。
+  - `src/i18n.tsx`：简体中文 / English 词典（键与英文基准同构，TypeScript 保证两种语言键完全一致）、`t` / `tr`（占位符可为 React 元素）、状态 / 档位等枚举值翻译、daemon 设置项的中文说明；选择保存在 WebView 本地存储（显示偏好，不属于配置）。
+  - 托盘菜单默认中文，前端启动及切换时调用 `set_tray_language` 同步。
+  - daemon 返回的错误信息仍为英文。
+
 ## 10. Decisions
 
 - 桌面可执行文件名 `loadout-app.exe`（§3.1）。

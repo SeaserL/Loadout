@@ -5,13 +5,16 @@ import { api, type ModelInfo } from "../api";
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, Page, copy, tierTone } from "../components";
 import { num, tierLabel } from "../format";
 import { useAction, usePoll } from "../hooks";
+import { t } from "../i18n";
 
-const TIERS = [
-  { value: "auto", label: "Measured" },
-  { value: "ultra-fast", label: "Ultra fast (pinned)" },
-  { value: "fast", label: "Fast (pinned)" },
-  { value: "normal", label: "Normal (pinned)" },
-];
+function tierOptions() {
+  return [
+    { value: "auto", label: t("models.tierMeasured") },
+    { value: "ultra-fast", label: t("models.tierPinned", { tier: tierLabel("ULTRA_FAST") }) },
+    { value: "fast", label: t("models.tierPinned", { tier: tierLabel("FAST") }) },
+    { value: "normal", label: t("models.tierPinned", { tier: tierLabel("NORMAL") }) },
+  ];
+}
 
 function tierValue(m: ModelInfo): string {
   switch (m.tier_override) {
@@ -50,35 +53,34 @@ export function Models() {
       await f();
       await Promise.all([models.reload(), routes.reload()]);
     });
+  const options = tierOptions();
 
   return (
     <Page
-      title="Models"
+      title={t("models.title")}
       actions={
         <>
-          <input placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input placeholder={t("common.filter")} value={filter} onChange={(e) => setFilter(e.target.value)} />
           <label className="row small">
             <input type="checkbox" checked={showDisabled} onChange={(e) => setShowDisabled(e.target.checked)} />
-            show disabled
+            {t("common.showDisabled")}
           </label>
-          <Button onClick={() => setAdding(true)}>Add model manually</Button>
+          <Button onClick={() => setAdding(true)}>{t("models.addManual")}</Button>
         </>
       }
     >
       <ErrorText error={action.error ?? models.error?.message} />
       <Card>
-        {list.length === 0 && !models.loading && (
-          <Empty>No models. Sync an account's models under Accounts, or add one manually.</Empty>
-        )}
+        {list.length === 0 && !models.loading && <Empty>{t("models.empty")}</Empty>}
         {list.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Name (use this as "model")</th>
-                <th>Protocols</th>
-                <th className="num">Context</th>
-                <th className="num">Price in / out ($/M)</th>
-                <th>Tier</th>
+                <th>{t("models.name")}</th>
+                <th>{t("models.protocols")}</th>
+                <th className="num">{t("models.context")}</th>
+                <th className="num">{t("models.price")}</th>
+                <th>{t("models.tier")}</th>
                 <th />
               </tr>
             </thead>
@@ -88,10 +90,10 @@ export function Models() {
                 return (
                   <tr key={m.name} style={{ opacity: m.enabled ? 1 : 0.55 }}>
                     <td>
-                      <button className="btn link mono" title="Copy" onClick={() => copy(m.name)}>
+                      <button className="btn link mono" title={t("models.copy")} onClick={() => copy(m.name)}>
                         {m.name}
                       </button>
-                      {m.source === "manual" && <span className="small muted"> manual</span>}
+                      {m.source === "manual" && <span className="small muted"> {t("models.manual")}</span>}
                     </td>
                     <td className="small">{m.protocols.join(", ")}</td>
                     <td className="num">{num(m.context_window)}</td>
@@ -110,9 +112,9 @@ export function Models() {
                             run(() => api.setModelTier(m.name, e.target.value === "auto" ? null : e.target.value))
                           }
                         >
-                          {TIERS.map((t) => (
-                            <option key={t.value} value={t.value}>
-                              {t.label}
+                          {options.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
                             </option>
                           ))}
                         </select>
@@ -121,11 +123,11 @@ export function Models() {
                     <td className="num">
                       <div className="row" style={{ justifyContent: "flex-end" }}>
                         <Button disabled={action.busy} onClick={() => run(() => api.setModelEnabled(m.name, !m.enabled))}>
-                          {m.enabled ? "Disable" : "Enable"}
+                          {m.enabled ? t("common.disable") : t("common.enable")}
                         </Button>
                         {m.source === "manual" && (
                           <Button kind="danger" disabled={action.busy} onClick={() => run(() => api.removeModel(m.name))}>
-                            Remove
+                            {t("common.remove")}
                           </Button>
                         )}
                       </div>
@@ -140,7 +142,9 @@ export function Models() {
       {price && <PriceDialog model={price} onClose={() => setPrice(undefined)} onDone={() => void models.reload()} />}
       {adding && (
         <AddModelDialog
-          accounts={(accounts.data ?? []).filter((a) => a.account_type !== "subscription").map((a) => `${a.provider}/${a.alias}`)}
+          accounts={(accounts.data ?? [])
+            .filter((a) => a.account_type !== "subscription")
+            .map((a) => `${a.provider}/${a.alias}`)}
           onClose={() => setAdding(false)}
           onDone={() => void models.reload()}
         />
@@ -156,22 +160,22 @@ function PriceDialog(props: { model: ModelInfo; onClose: () => void; onDone: () 
   const parse = (v: string) => {
     if (!v.trim()) return null;
     const n = Number(v);
-    if (!Number.isFinite(n) || n < 0) throw new Error("Prices must be non-negative numbers.");
+    if (!Number.isFinite(n) || n < 0) throw new Error(t("models.errPrice"));
     return n;
   };
   return (
-    <Modal title={`Prices of ${props.model.name}`} onClose={props.onClose}>
-      <p className="small muted">USD per million tokens, used for cost statistics.</p>
-      <Field label="Input">
+    <Modal title={t("models.priceTitle", { name: props.model.name })} onClose={props.onClose}>
+      <p className="small muted">{t("models.priceIntro")}</p>
+      <Field label={t("models.input")}>
         <input value={input} onChange={(e) => setInput(e.target.value)} inputMode="decimal" />
       </Field>
-      <Field label="Output">
+      <Field label={t("models.output")}>
         <input value={output} onChange={(e) => setOutput(e.target.value)} inputMode="decimal" />
       </Field>
       <ErrorText error={action.error} />
       <div className="row">
         <div className="spacer" />
-        <Button onClick={props.onClose}>Cancel</Button>
+        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
         <Button
           kind="primary"
           disabled={action.busy}
@@ -183,7 +187,7 @@ function PriceDialog(props: { model: ModelInfo; onClose: () => void; onDone: () 
             })
           }
         >
-          Save
+          {t("common.save")}
         </Button>
       </div>
     </Modal>
@@ -199,18 +203,18 @@ function AddModelDialog(props: { accounts: string[]; onClose: () => void; onDone
   const toggle = (p: string) =>
     setProtocols((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
   return (
-    <Modal title="Add a model manually" onClose={props.onClose}>
-      <Field label="Account">
+    <Modal title={t("models.addTitle")} onClose={props.onClose}>
+      <Field label={t("models.account")}>
         <select value={account} onChange={(e) => setAccount(e.target.value)}>
           {props.accounts.map((a) => (
             <option key={a}>{a}</option>
           ))}
         </select>
       </Field>
-      <Field label="Upstream model id">
+      <Field label={t("models.upstreamId")}>
         <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model-id" />
       </Field>
-      <Field label="Protocols the upstream serves it with">
+      <Field label={t("models.serves")}>
         <div className="row">
           {["chat", "responses", "messages"].map((p) => (
             <label key={p} className="row small">
@@ -220,13 +224,13 @@ function AddModelDialog(props: { accounts: string[]; onClose: () => void; onDone
           ))}
         </div>
       </Field>
-      <Field label="Context window (tokens, optional)">
+      <Field label={t("models.contextOptional")}>
         <input value={context} onChange={(e) => setContext(e.target.value)} inputMode="numeric" />
       </Field>
       <ErrorText error={action.error} />
       <div className="row">
         <div className="spacer" />
-        <Button onClick={props.onClose}>Cancel</Button>
+        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
         <Button
           kind="primary"
           disabled={action.busy || !account || !model.trim()}
@@ -245,7 +249,7 @@ function AddModelDialog(props: { accounts: string[]; onClose: () => void; onDone
             })
           }
         >
-          Add
+          {t("common.add")}
         </Button>
       </div>
     </Modal>

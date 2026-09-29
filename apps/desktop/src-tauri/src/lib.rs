@@ -74,17 +74,51 @@ fn show_main(app: &AppHandle) {
     }
 }
 
+/// Tray menu labels per UI language (the web UI picks the language; Chinese by default).
+fn tray_labels(lang: &str) -> [&'static str; 4] {
+    match lang {
+        "en" => [
+            "Open Loadout",
+            "Start gateway",
+            "Stop gateway",
+            "Quit (the gateway keeps running)",
+        ],
+        _ => [
+            "打开 Loadout",
+            "启动网关",
+            "停止网关",
+            "退出（网关继续运行）",
+        ],
+    }
+}
+
+/// Tray menu items whose text follows the UI language.
+struct TrayItems([MenuItem<tauri::Wry>; 4]);
+
+/// Called by the web UI at startup and whenever the user switches language.
+#[tauri::command]
+fn set_tray_language(items: State<'_, TrayItems>, lang: String) -> Result<(), UiError> {
+    for (item, label) in items.0.iter().zip(tray_labels(&lang)) {
+        item.set_text(label).map_err(|e| UiError {
+            code: "tray".into(),
+            message: e.to_string(),
+        })?;
+    }
+    Ok(())
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open Loadout", true, None::<&str>)?;
-    let start = MenuItem::with_id(app, "start", "Start gateway", true, None::<&str>)?;
-    let stop = MenuItem::with_id(app, "stop", "Stop gateway", true, None::<&str>)?;
-    let quit = MenuItem::with_id(
-        app,
-        "quit",
-        "Quit (the gateway keeps running)",
-        true,
-        None::<&str>,
-    )?;
+    let [open_label, start_label, stop_label, quit_label] = tray_labels("zh-CN");
+    let open = MenuItem::with_id(app, "open", open_label, true, None::<&str>)?;
+    let start = MenuItem::with_id(app, "start", start_label, true, None::<&str>)?;
+    let stop = MenuItem::with_id(app, "stop", stop_label, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", quit_label, true, None::<&str>)?;
+    app.manage(TrayItems([
+        open.clone(),
+        start.clone(),
+        stop.clone(),
+        quit.clone(),
+    ]));
     let menu = Menu::with_items(
         app,
         &[
@@ -159,7 +193,8 @@ pub fn run() {
             daemon_start,
             daemon_stop,
             autostart_get,
-            autostart_set
+            autostart_set,
+            set_tray_language
         ])
         .setup(|app| {
             build_tray(app.handle())?;

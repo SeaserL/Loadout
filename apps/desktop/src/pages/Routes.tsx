@@ -5,6 +5,13 @@ import { api, type BenchResult, type PoolInfo, type TargetStatus } from "../api"
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, Page, stateTone, tierTone } from "../components";
 import { ago, ms, tierLabel, time } from "../format";
 import { useAction, usePoll } from "../hooks";
+import { t, tr, tv } from "../i18n";
+
+function orderingLabel(ordering: string | null): string {
+  if (ordering === "latency") return t("routes.ordering.latency");
+  if (ordering === "manual") return t("routes.ordering.manual");
+  return ordering ?? "";
+}
 
 export function Routes() {
   const [tab, setTab] = useState<"virtual" | "health">("virtual");
@@ -29,30 +36,31 @@ export function Routes() {
 
   return (
     <Page
-      title="Routes"
+      title={t("routes.title")}
       actions={
         <>
           <Button disabled={action.busy} onClick={() => measure([])}>
-            {action.busy ? "Measuring…" : "Measure unmeasured routes"}
+            {action.busy ? t("routes.measuring") : t("routes.measureAll")}
           </Button>
           <Button kind="primary" onClick={() => setEditing("new")}>
-            New pool
+            {t("routes.newPool")}
           </Button>
         </>
       }
     >
       <div className="notice small">
-        Clients choose a route by the <span className="mono">model</span> name. <span className="mono">loadout/realtime</span>{" "}
-        uses only ultra-fast routes, <span className="mono">loadout/fast</span> ultra-fast and fast ones,{" "}
-        <span className="mono">loadout/default</span> everything (fastest first). The first available route in a list
-        serves the request; the next ones take over when it fails or runs out of quota.
+        {tr("routes.intro", {
+          realtime: <span className="mono">loadout/realtime</span>,
+          fast: <span className="mono">loadout/fast</span>,
+          default: <span className="mono">loadout/default</span>,
+        })}
       </div>
       <div className="tabs">
         <button className={tab === "virtual" ? "active" : ""} onClick={() => setTab("virtual")}>
-          Virtual models & pools
+          {t("routes.tabVirtual")}
         </button>
         <button className={tab === "health" ? "active" : ""} onClick={() => setTab("health")}>
-          Route health & latency
+          {t("routes.tabHealth")}
         </button>
       </div>
       <ErrorText error={action.error ?? virtuals.error?.message ?? routes.error?.message} />
@@ -67,19 +75,19 @@ export function Routes() {
                 title={<span className="mono">{v.name}</span>}
                 actions={
                   <>
-                    <Badge tone="info">{v.kind === "pool" ? `pool · ${v.ordering}` : "built-in"}</Badge>
+                    <Badge tone="info">
+                      {v.kind === "pool" ? t("routes.pool", { ordering: orderingLabel(v.ordering) }) : t("routes.builtin")}
+                    </Badge>
                     <Button disabled={action.busy || v.routes.length === 0} onClick={() => measure([v.name])}>
-                      Measure
+                      {t("routes.measure")}
                     </Button>
-                    {pool && <Button onClick={() => setEditing(pool)}>Edit</Button>}
+                    {pool && <Button onClick={() => setEditing(pool)}>{t("common.edit")}</Button>}
                   </>
                 }
               >
                 {v.routes.length === 0 ? (
                   <Empty>
-                    {v.name === "loadout/realtime" || v.name === "loadout/fast"
-                      ? "No measured route is fast enough yet. Measure routes or send some requests."
-                      : "No routes."}
+                    {v.name === "loadout/realtime" || v.name === "loadout/fast" ? t("routes.noFastYet") : t("routes.none")}
                   </Empty>
                 ) : (
                   <ol className="routes">
@@ -92,7 +100,7 @@ export function Routes() {
                             <div className="spacer" />
                             {s && <Badge tone={tierTone(s.tier)}>{tierLabel(s.tier)}</Badge>}
                             {s && s.state !== "HEALTHY" && s.state !== "UNKNOWN" && (
-                              <Badge tone={stateTone(s.state)}>{s.state}</Badge>
+                              <Badge tone={stateTone(s.state)}>{tv("state", s.state)}</Badge>
                             )}
                             <span className="small muted" style={{ minWidth: 90, textAlign: "right" }}>
                               {s?.ttft_p50_ms != null ? `${ms(s.ttft_p50_ms)}` : ""}
@@ -112,21 +120,21 @@ export function Routes() {
 
       {tab === "health" && (
         <Card>
-          {(routes.data ?? []).length === 0 && <Empty>No routes.</Empty>}
+          {(routes.data ?? []).length === 0 && <Empty>{t("routes.none")}</Empty>}
           {(routes.data ?? []).length > 0 && (
             <table>
               <thead>
                 <tr>
-                  <th>Route</th>
-                  <th>Protocol</th>
-                  <th>State</th>
-                  <th>Tier</th>
-                  <th className="num">TTFT p50 / p90</th>
+                  <th>{t("routes.route")}</th>
+                  <th>{t("routes.protocol")}</th>
+                  <th>{t("routes.state")}</th>
+                  <th>{t("models.tier")}</th>
+                  <th className="num">{t("routes.ttft")}</th>
                   <th className="num">tok/s</th>
-                  <th className="num">Samples</th>
-                  <th className="num">OK / fail</th>
-                  <th>Last measured</th>
-                  <th>Last error</th>
+                  <th className="num">{t("routes.samples")}</th>
+                  <th className="num">{t("routes.okFail")}</th>
+                  <th>{t("routes.lastMeasured")}</th>
+                  <th>{t("routes.lastError")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,14 +143,17 @@ export function Routes() {
                     <td className="mono">{r.name}</td>
                     <td className="small">{r.protocol}</td>
                     <td>
-                      <Badge tone={stateTone(r.state)} title={r.unavailable_until_ms ? `until ${time(r.unavailable_until_ms)}` : undefined}>
-                        {r.state}
+                      <Badge
+                        tone={stateTone(r.state)}
+                        title={r.unavailable_until_ms ? t("routes.until", { time: time(r.unavailable_until_ms) }) : undefined}
+                      >
+                        {tv("state", r.state)}
                       </Badge>
                     </td>
                     <td>
                       <Badge tone={tierTone(r.tier)}>
                         {tierLabel(r.tier)}
-                        {r.tier_pinned ? " (pinned)" : ""}
+                        {r.tier_pinned ? ` (${t("tier.pinned")})` : ""}
                       </Badge>
                     </td>
                     <td className="num">
@@ -180,18 +191,18 @@ export function Routes() {
 
 function BenchDialog(props: { results: BenchResult[]; onClose: () => void }) {
   return (
-    <Modal title="Latency measurement" onClose={props.onClose} wide>
+    <Modal title={t("routes.benchTitle")} onClose={props.onClose} wide>
       {props.results.length === 0 ? (
-        <Empty>Nothing to measure: every route already has latency data.</Empty>
+        <Empty>{t("routes.benchNothing")}</Empty>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>Route</th>
-              <th>Result</th>
+              <th>{t("routes.route")}</th>
+              <th>{t("routes.result")}</th>
               <th className="num">TTFT</th>
-              <th className="num">Total</th>
-              <th>Tier now</th>
+              <th className="num">{t("routes.total")}</th>
+              <th>{t("routes.tierNow")}</th>
             </tr>
           </thead>
           <tbody>
@@ -200,10 +211,10 @@ function BenchDialog(props: { results: BenchResult[]; onClose: () => void }) {
                 <td className="mono">{r.name}</td>
                 <td>
                   {r.ok ? (
-                    <Badge tone="ok">ok</Badge>
+                    <Badge tone="ok">{tv("status", "ok")}</Badge>
                   ) : (
                     <>
-                      <Badge tone="bad">failed</Badge>
+                      <Badge tone="bad">{t("routes.failed")}</Badge>
                       <div className="small muted">{r.error}</div>
                     </>
                   )}
@@ -218,10 +229,7 @@ function BenchDialog(props: { results: BenchResult[]; onClose: () => void }) {
           </tbody>
         </table>
       )}
-      <p className="small muted">
-        A tier needs at least 3 measurements; real requests count too. Each measurement is a tiny request
-        (“Reply with exactly: OK”, at most 16 output tokens).
-      </p>
+      <p className="small muted">{t("routes.benchNote")}</p>
     </Modal>
   );
 }
@@ -243,8 +251,12 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
     });
 
   return (
-    <Modal title={props.pool ? `Edit loadout/${props.pool.name}` : "New pool"} onClose={props.onClose} wide>
-      <Field label="Name" hint="Clients use it as loadout/<name>.">
+    <Modal
+      title={props.pool ? t("routes.editPool", { name: props.pool.name }) : t("routes.newPool")}
+      onClose={props.onClose}
+      wide
+    >
+      <Field label={t("common.name")} hint={t("routes.poolNameHint")}>
         <input
           value={name}
           disabled={!!props.pool}
@@ -252,13 +264,13 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
           placeholder="my-models"
         />
       </Field>
-      <Field label="Order">
+      <Field label={t("routes.order")}>
         <select value={ordering} onChange={(e) => setOrdering(e.target.value)}>
-          <option value="manual">As listed below</option>
-          <option value="latency">Fastest first (tier, then speed)</option>
+          <option value="manual">{t("routes.orderManual")}</option>
+          <option value="latency">{t("routes.orderLatency")}</option>
         </select>
       </Field>
-      <Field label="Models">
+      <Field label={t("routes.models")}>
         <ol className="routes">
           {members.map((m, i) => (
             <li key={m}>
@@ -272,7 +284,7 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
                   ↓
                 </Button>
                 <Button kind="danger" onClick={() => setMembers((cur) => cur.filter((x) => x !== m))}>
-                  Remove
+                  {t("common.remove")}
                 </Button>
               </div>
             </li>
@@ -280,7 +292,7 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
         </ol>
         <div className="row" style={{ marginTop: 8 }}>
           <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ flex: 1 }}>
-            <option value="">Add a model…</option>
+            <option value="">{t("routes.addModel")}</option>
             {available.map((r) => (
               <option key={r}>{r}</option>
             ))}
@@ -292,7 +304,7 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
               setPick("");
             }}
           >
-            Add
+            {t("common.add")}
           </Button>
         </div>
       </Field>
@@ -310,11 +322,11 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
               })
             }
           >
-            Delete pool
+            {t("routes.deletePool")}
           </Button>
         )}
         <div className="spacer" />
-        <Button onClick={props.onClose}>Cancel</Button>
+        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
         <Button
           kind="primary"
           disabled={action.busy || !name || members.length === 0}
@@ -326,7 +338,7 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
             })
           }
         >
-          Save
+          {t("common.save")}
         </Button>
       </div>
     </Modal>

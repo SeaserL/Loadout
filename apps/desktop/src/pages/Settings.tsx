@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { api, type DaemonStatus, type Setting } from "../api";
-import { Badge, Button, Card, ErrorText, Page } from "../components";
+import { Badge, Button, Card, ErrorText, LanguageSelect, Page } from "../components";
 import { time } from "../format";
 import { useAction, usePoll } from "../hooks";
+import { settingDescription, t } from "../i18n";
 
 export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Promise<void> }) {
   const settings = usePoll(api.settings, 0);
@@ -13,31 +14,29 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
   const s = props.status;
 
   return (
-    <Page title="Settings">
+    <Page title={t("settings.title")}>
       <ErrorText error={action.error ?? settings.error?.message} />
-      <Card title="Gateway">
+      <Card title={t("settings.gateway")}>
         <table>
           <tbody>
             <tr>
-              <td className="muted">Address</td>
+              <td className="muted">{t("settings.address")}</td>
               <td className="mono">http://{s.gateway.addr}/v1</td>
             </tr>
             <tr>
-              <td className="muted">Version</td>
-              <td>
-                {s.version} (schema {s.schema_version}, pid {s.pid})
-              </td>
+              <td className="muted">{t("settings.version")}</td>
+              <td>{t("settings.versionValue", { version: s.version, schema: s.schema_version, pid: s.pid })}</td>
             </tr>
             <tr>
-              <td className="muted">Running since</td>
+              <td className="muted">{t("settings.since")}</td>
               <td>{time(s.started_at_ms)}</td>
             </tr>
             <tr>
-              <td className="muted">Data folder</td>
+              <td className="muted">{t("settings.dataDir")}</td>
               <td className="mono">{s.data_dir}</td>
             </tr>
             <tr>
-              <td className="muted">Start at sign-in</td>
+              <td className="muted">{t("settings.autostart")}</td>
               <td>
                 <label className="row">
                   <input
@@ -51,7 +50,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
                       })
                     }
                   />
-                  Start the gateway when I sign in to Windows
+                  {t("settings.autostartLabel")}
                 </label>
               </td>
             </tr>
@@ -63,7 +62,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
             kind="danger"
             disabled={action.busy}
             onClick={() => {
-              if (confirm("Stop the gateway? Apps using Loadout lose access until it is started again.")) {
+              if (confirm(t("settings.confirmStop"))) {
                 void action.run(async () => {
                   await api.stopDaemon();
                   await props.onDaemonChange();
@@ -71,17 +70,23 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
               }
             }}
           >
-            Stop gateway
+            {t("settings.stop")}
           </Button>
         </div>
       </Card>
+      <Card title={t("settings.appearance")}>
+        <div className="row">
+          <span className="muted">{t("settings.language")}</span>
+          <LanguageSelect />
+        </div>
+      </Card>
       <BackupCard />
-      <Card title="Options">
+      <Card title={t("settings.options")}>
         <table>
           <thead>
             <tr>
-              <th>Setting</th>
-              <th>Value</th>
+              <th>{t("settings.setting")}</th>
+              <th>{t("settings.value")}</th>
               <th />
             </tr>
           </thead>
@@ -126,8 +131,8 @@ function SettingRow(props: {
     <tr>
       <td style={{ maxWidth: 420 }}>
         <div className="mono">{s.key}</div>
-        <div className="small muted">{s.description}</div>
-        {s.restart_required && <Badge tone="warn">applies after restarting the gateway</Badge>}
+        <div className="small muted">{settingDescription(s.key, s.description)}</div>
+        {s.restart_required && <Badge tone="warn">{t("settings.restart")}</Badge>}
       </td>
       <td>
         {boolean ? (
@@ -139,8 +144,8 @@ function SettingRow(props: {
             }}
             disabled={props.busy}
           >
-            <option value="true">on</option>
-            <option value="false">off</option>
+            <option value="true">{t("settings.on")}</option>
+            <option value="false">{t("settings.off")}</option>
           </select>
         ) : (
           <input value={value} onChange={(e) => setValue(e.target.value)} style={{ width: 220 }} />
@@ -150,7 +155,7 @@ function SettingRow(props: {
         <div className="row" style={{ justifyContent: "flex-end" }}>
           {!boolean && (
             <Button kind="primary" disabled={!changed || props.busy} onClick={() => props.onSave(value)}>
-              Save
+              {t("common.save")}
             </Button>
           )}
           {!s.is_default && (
@@ -161,7 +166,7 @@ function SettingRow(props: {
                 props.onReset();
               }}
             >
-              Default
+              {t("settings.default")}
             </Button>
           )}
         </div>
@@ -175,17 +180,14 @@ function BackupCard() {
   const [path, setPath] = useState("");
   const [message, setMessage] = useState<string>();
   return (
-    <Card title="Backup">
-      <p className="small muted">
-        The configuration export contains providers, accounts, models, pools, client keys (as hashes, so existing
-        keys keep working) and settings — never API keys. After importing on another PC, enter each API key again.
-      </p>
+    <Card title={t("settings.backup")}>
+      <p className="small muted">{t("settings.backupIntro")}</p>
       <div className="row wrap">
         <input
           style={{ flex: 1, minWidth: 320 }}
           value={path}
           onChange={(e) => setPath(e.target.value)}
-          placeholder="File path (optional for export; default: the data folder's backups)"
+          placeholder={t("settings.pathPlaceholder")}
         />
         <Button
           disabled={action.busy}
@@ -193,12 +195,19 @@ function BackupCard() {
             void action.run(async () => {
               const r = await api.exportConfig(path.trim() || null);
               setMessage(
-                `Exported ${r.providers} providers, ${r.accounts} accounts, ${r.models} models, ${r.pools} pools, ${r.clients} client keys to ${r.path}`,
+                t("settings.exported", {
+                  providers: r.providers,
+                  accounts: r.accounts,
+                  models: r.models,
+                  pools: r.pools,
+                  clients: r.clients,
+                  path: r.path,
+                }),
               );
             })
           }
         >
-          Export configuration
+          {t("settings.export")}
         </Button>
         <Button
           disabled={action.busy || !path.trim()}
@@ -206,31 +215,44 @@ function BackupCard() {
             void action.run(async () => {
               const r = await api.importConfig(path.trim());
               const keys = r.accounts_needing_keys.length
-                ? ` Enter the API key again for: ${r.accounts_needing_keys.join(", ")}.`
+                ? t("settings.needKeys", { accounts: r.accounts_needing_keys.join(", ") })
                 : "";
-              const skipped = r.skipped.length ? ` Skipped: ${r.skipped.join(", ")}.` : "";
+              const skipped = r.skipped.length ? t("settings.skipped", { items: r.skipped.join(", ") }) : "";
               setMessage(
-                `Imported ${r.providers} providers, ${r.accounts} accounts, ${r.models} models, ${r.pools} pools, ${r.clients} client keys, ${r.settings} settings.${keys}${skipped}`,
+                t("settings.imported", {
+                  providers: r.providers,
+                  accounts: r.accounts,
+                  models: r.models,
+                  pools: r.pools,
+                  clients: r.clients,
+                  settings: r.settings,
+                }) +
+                  keys +
+                  skipped,
               );
             })
           }
         >
-          Import
+          {t("settings.import")}
         </Button>
         <Button
           disabled={action.busy}
           onClick={() =>
             void action.run(async () => {
               const r = await api.backupDatabase(path.trim() || null);
-              setMessage(`Database copied to ${r.path}`);
+              setMessage(t("settings.dbCopied", { path: r.path }));
             })
           }
         >
-          Copy database
+          {t("settings.copyDb")}
         </Button>
       </div>
       <ErrorText error={action.error} />
-      {message && <div className="notice small" style={{ marginTop: 10 }}>{message}</div>}
+      {message && (
+        <div className="notice small" style={{ marginTop: 10 }}>
+          {message}
+        </div>
+      )}
     </Card>
   );
 }

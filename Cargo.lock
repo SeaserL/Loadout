@@ -2536,7 +2536,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "loadout"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-benchmarks"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "bytes",
@@ -2580,7 +2580,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "futures-util",
@@ -2607,7 +2607,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "loadout-ipc",
  "loadout-platform",
@@ -2621,7 +2621,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arc-swap",
  "axum",
@@ -2647,7 +2647,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-ipc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "futures-util",
@@ -2664,7 +2664,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-platform"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "thiserror 2.0.21",
  "uuid",
@@ -2673,7 +2673,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes",
  "serde",
@@ -2683,7 +2683,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-provider-sdk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "futures-util",
@@ -2700,7 +2700,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-providers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "loadout-protocol",
@@ -2716,7 +2716,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-router"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arc-swap",
  "loadout-protocol",
@@ -2727,7 +2727,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-secrets"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "secrecy",
  "thiserror 2.0.21",
@@ -2737,7 +2737,7 @@ dependencies = [
 
 [[package]]
 name = "loadout-storage"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rusqlite",
  "rusqlite_migration",

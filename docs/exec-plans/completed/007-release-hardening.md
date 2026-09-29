@@ -46,7 +46,7 @@
 
 - [x] Stage 1 — recovery（2026-09-29）
   - `Database::open_or_recover`：`SQLITE_CORRUPT` / `SQLITE_NOTADB`（含 migration 中）→ 连同 WAL / SHM 改名为 `*.corrupt-<unix ms>`，新建空库；`daemon.status.recovered_from`；CLI 状态与 UI 横幅给出恢复步骤。
-  - 每日自动配置备份到 `<data>ackupsuto`，保留 7 份；空配置不写，避免恢复后把好的备份轮转掉。
+  - 每日自动配置备份到 `<data>\backups\auto`，保留 7 份；空配置不写，避免恢复后把好的备份轮转掉。
   - 修正：UI 中请求历史保留期写成了 30 天，实际按 ADR-008 为 400 天。
   - 教训：经 Bash heredoc 传给 Python 的反斜杠被吃掉一层，生成了退格字符、字符串续行变成空格；已全部修复并记入 memory，此后含反斜杠的编辑一律用 Edit 工具或 `chr(92)`。
 - [x] Stage 2 — packaging（2026-09-29）

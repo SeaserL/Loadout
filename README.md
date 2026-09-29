@@ -10,7 +10,7 @@ Loadout 是一个运行在你自己 Windows 电脑上的 **个人 AI 控制面�
 - 订阅与 API 的 **用量 / 余额 / 续费 / 订阅价值** 一览（Codex、Claude Code、Gemini CLI 只读用量，不用于转发请求）
 - 请求日志只存元数据（不存提示词与回复），统计、按 client 限额、配置备份与恢复
 
-状态：**v0.1.0**，首个完整版本，等待系统测试。
+状态：**v0.1.1**，首个完整版本，系统测试中。
 
 ---
 
@@ -18,7 +18,7 @@ Loadout 是一个运行在你自己 Windows 电脑上的 **个人 AI 控制面�
 
 ### 从发布包安装（推荐）
 
-1. 解压 `Loadout-0.1.0-windows-x64.zip`。
+1. 解压 `Loadout-0.1.1-windows-x64.zip`。
 2. 双击 `install.cmd`（或 `powershell -ExecutionPolicy Bypass -File install.ps1`）。可选参数：
    - `-AddToPath`：在新终端里可以直接使用 `loadout` 命令
    - `-Autostart`：登录 Windows 时自动启动网关
@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File scripts\package.ps1   # 生成 dist\Loa
 3. 应用里设置：Base URL `http://127.0.0.1:8317/v1`，API key 为上面的 client key，模型名见下文。
 4. **Routes → Measure unmeasured routes**：测一次延迟，`loadout/realtime` 与 `loadout/fast` 才会有可用路由（真实请求也会持续计入）。
 
-关闭窗口只是隐藏到托盘，网关继续运行；托盘菜单可以启动 / 停止网关或退出桌面端。
+关闭窗口只是隐藏到托盘，网关继续运行；托盘菜单可以启动 / 停止网关或退出桌面端。界面默认简体中文，可在侧栏底部或 设置 → 外观 切换为 English（托盘菜单同步切换）。
 
 ### 命令行
 

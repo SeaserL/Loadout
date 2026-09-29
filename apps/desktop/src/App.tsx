@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
-import { Button, ErrorText } from "./components";
+import { Button, ErrorText, LanguageSelect } from "./components";
 import { useAction, usePoll } from "./hooks";
+import { type MessageKey, t, tr, useLang } from "./i18n";
 import { Dashboard } from "./pages/Dashboard";
 import { Accounts } from "./pages/Accounts";
 import { Models } from "./pages/Models";
@@ -14,26 +15,26 @@ import { Logs } from "./pages/Logs";
 import { Stats } from "./pages/Stats";
 import { Settings } from "./pages/Settings";
 
-const PAGES = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "accounts", label: "Accounts & usage" },
-  { id: "models", label: "Models" },
-  { id: "routes", label: "Routes" },
-  { id: "clients", label: "Client keys" },
-  { id: "stats", label: "Statistics" },
-  { id: "logs", label: "Request log" },
-  { id: "settings", label: "Settings" },
-] as const;
+const PAGES: { id: string; label: MessageKey }[] = [
+  { id: "dashboard", label: "nav.dashboard" },
+  { id: "accounts", label: "nav.accounts" },
+  { id: "models", label: "nav.models" },
+  { id: "routes", label: "nav.routes" },
+  { id: "clients", label: "nav.clients" },
+  { id: "stats", label: "nav.stats" },
+  { id: "logs", label: "nav.logs" },
+  { id: "settings", label: "nav.settings" },
+];
 
-type PageId = (typeof PAGES)[number]["id"];
-
-function currentPage(): PageId {
+function currentPage(): string {
   const id = window.location.hash.replace(/^#\/?/, "");
-  return (PAGES.find((p) => p.id === id)?.id ?? "dashboard") as PageId;
+  return PAGES.find((p) => p.id === id)?.id ?? "dashboard";
 }
 
 export function App() {
-  const [page, setPage] = useState<PageId>(currentPage);
+  // Re-render everything when the language changes.
+  useLang();
+  const [page, setPage] = useState(currentPage);
   const status = usePoll(api.status, 3000);
   const reloadStatus = status.reload;
   const start = useAction();
@@ -61,31 +62,28 @@ export function App() {
         <nav className="nav">
           {PAGES.map((p) => (
             <a key={p.id} href={`#/${p.id}`} className={p.id === page ? "active" : ""}>
-              {p.label}
+              {t(p.label)}
             </a>
           ))}
         </nav>
         <div className="footer">
           <div>
             <span className={`dot ${running ? "ok" : "bad"}`} />
-            {running ? "Gateway running" : status.loading ? "Connecting…" : "Gateway stopped"}
+            {running ? t("shell.running") : status.loading ? t("shell.connecting") : t("shell.stopped")}
           </div>
-          {status.data && (
-            <div className="mono small">http://{status.data.gateway.addr}/v1</div>
-          )}
+          {status.data && <div className="mono small">http://{status.data.gateway.addr}/v1</div>}
           {status.data && <div className="small">v{status.data.version}</div>}
+          <div style={{ marginTop: 8 }}>
+            <LanguageSelect compact />
+          </div>
         </div>
       </aside>
       <main>
         {!running && !status.loading && (
           <div className="banner">
             <div>
-              <strong>The Loadout gateway is not running.</strong>
-              <div className="small muted">
-                {notRunning
-                  ? "Start it to manage accounts and serve requests. It keeps running when this window closes."
-                  : status.error?.message}
-              </div>
+              <strong>{t("shell.notRunning")}</strong>
+              <div className="small muted">{notRunning ? t("shell.notRunningHint") : status.error?.message}</div>
               <ErrorText error={start.error} />
             </div>
             <Button
@@ -98,18 +96,19 @@ export function App() {
                 })
               }
             >
-              {start.busy ? "Starting…" : "Start gateway"}
+              {start.busy ? t("shell.starting") : t("shell.start")}
             </Button>
           </div>
         )}
         {running && status.data?.recovered_from && (
           <div className="banner">
             <div>
-              <strong>The database was damaged and has been replaced by an empty one.</strong>
+              <strong>{t("shell.recovered")}</strong>
               <div className="small">
-                The damaged file was kept at <span className="mono">{status.data.recovered_from}</span>. Restore your
-                configuration under Settings → Backup → Import, using the newest file in{" "}
-                <span className="mono">{status.data.data_dir}\backups\auto</span>.
+                {tr("shell.recoveredHint", {
+                  file: <span className="mono">{status.data.recovered_from}</span>,
+                  dir: <span className="mono">{status.data.data_dir}\backups\auto</span>,
+                })}
               </div>
             </div>
           </div>
