@@ -13,6 +13,7 @@ Loadout 会接触 API key、client key，以及（只读的）官方 CLI 登录�
 
 - 每个 secret 存为一条 Generic Credential，Target Name：`loadout:<secret_ref>`，`secret_ref` 为随机 UUID。
 - 访问通过 `secrets` crate 中的 `SecretStore` trait，v1 只有 Windows 实现。
+- 同一进程内对 Credential Manager 的所有调用必须串行化（进程级锁）。实测并发写入会导致删除丢失：已删除的条目被另一线程的并发写入"复活"（ExecPlan 001 Stage 1）。
 - Credential Manager 单条 blob 上限约 2.5 KB。API key 远小于此；如果未来需要存储更大的 secret，使用 DPAPI（`CryptProtectData`，当前用户范围）加密文件，`secret_ref` 指向该文件，仍不进入 SQLite。
 
 ### 2. External-managed 凭证 → 不复制

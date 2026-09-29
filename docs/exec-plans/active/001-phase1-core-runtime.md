@@ -345,7 +345,11 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - 141 个第三方包许可证已扫描：全部为 MIT / Apache-2.0 / BSD / Zlib / Unicode-3.0 / Unlicense 等宽松协议；唯一含 LGPL 的包为多选一（`MIT OR Apache-2.0 OR LGPL-2.1-or-later`），按 MIT/Apache 使用。
   - `cargo build`、`cargo test`、`cargo clippy --all-targets -- -D warnings`、`cargo fmt --check` 全部通过。
   - `windows-sys` 的 feature 按 stage 逐步补充。
-- [ ] Stage 1 — secrets
+- [x] Stage 1 — secrets（2026-09-29）
+  - `Secret`（Debug 输出 `Secret([REDACTED])`，无 Display/Clone/Serialize，drop 时清零）、`SecretRef`（UUID）、`SecretStore` trait、`InMemorySecretStore`（供其他 crate 测试）、`CredentialManagerStore`（Windows）。
+  - Credential Manager：`CRED_TYPE_GENERIC`、`CRED_PERSIST_LOCAL_MACHINE`、UTF-8 blob、上限 2560 字节；读取后先清零 blob 再 `CredFree`。
+  - **发现**：同一进程内多线程并发写 Credential Manager 会丢失删除（已删除条目在另一线程写入后重新出现）。复现：并行跑测试 20 次漏删 5 条，串行 0 条。修复：进程级锁串行化所有调用；新增回归测试 `concurrent_writes_do_not_resurrect_deletes`（去掉锁时 5/5 失败，加锁后并行 20 次 0 失败 0 残留）。已写入 ADR-004。
+  - 测试：5 个单元测试 + 7 个 Credential Manager 集成测试（`loadout-test:` 前缀，drop guard 清理）。
 - [ ] Stage 2 — storage
 - [ ] Stage 3 — platform
 - [ ] Stage 4 — ipc
