@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use loadout_provider_sdk::ProviderModule;
 
-use crate::{AnthropicCompatible, OpenAiCompatible};
+use crate::{
+    Anthropic, AnthropicCompatible, CommandCode, DeepSeek, KimiCode, Ollama, OpenAi,
+    OpenAiCompatible, OpenCodeGo, OpenRouter,
+};
 
 /// All compiled-in provider modules, keyed by `kind`.
 #[derive(Clone)]
@@ -32,6 +35,14 @@ impl Registry {
         };
         r.register(Arc::new(OpenAiCompatible));
         r.register(Arc::new(AnthropicCompatible));
+        r.register(Arc::new(OpenCodeGo));
+        r.register(Arc::new(CommandCode));
+        r.register(Arc::new(KimiCode));
+        r.register(Arc::new(OpenRouter));
+        r.register(Arc::new(DeepSeek));
+        r.register(Arc::new(OpenAi));
+        r.register(Arc::new(Anthropic));
+        r.register(Arc::new(Ollama));
         r
     }
 
@@ -65,6 +76,23 @@ mod tests {
         assert!(r.get("openai-compatible").is_some());
         assert!(r.get("anthropic-compatible").is_some());
         assert!(r.get("nope").is_none());
+        assert_eq!(
+            r.by_fixed_slug("opencode-go").map(|m| m.descriptor().kind),
+            Some("opencode-go")
+        );
+        let mut slugs = std::collections::HashSet::new();
+        for m in r.modules() {
+            if let Some(s) = m.descriptor().fixed_slug {
+                assert!(slugs.insert(s), "duplicate fixed slug {s}");
+            }
+            for t in m.descriptor().transports {
+                assert!(
+                    t.trust.allowed_for_inference(),
+                    "{} transport must be tier A (ADR-009)",
+                    m.descriptor().kind
+                );
+            }
+        }
         for m in r.modules() {
             let d = m.descriptor();
             assert!(

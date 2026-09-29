@@ -13,6 +13,7 @@ mod error;
 mod failure;
 mod http;
 mod module;
+pub mod time;
 mod trust;
 mod url;
 pub mod usage;

@@ -12,13 +12,15 @@ pub enum ProviderCommand {
     Kinds,
     /// Add a provider.
     ///
-    /// Example: loadout provider add deepseek --kind openai-compatible --base-url https://api.deepseek.com/v1
+    /// Built-in: `loadout provider add opencode-go` (also commandcode, kimi-code, openrouter,
+    /// deepseek, openai, anthropic, ollama). Any other endpoint:
+    /// `loadout provider add my-llm --kind openai-compatible --base-url https://…/v1`
     Add {
         /// Short name used in model names, e.g. `deepseek` in `deepseek/main/deepseek-chat`.
         slug: String,
-        /// Provider type (see `loadout provider kinds`).
+        /// Provider type (see `loadout provider kinds`); defaults to the slug for built-ins.
         #[arg(long)]
-        kind: String,
+        kind: Option<String>,
         /// API base URL including the version path, e.g. https://api.example.com/v1
         #[arg(long)]
         base_url: Option<String>,
@@ -86,6 +88,7 @@ pub async fn run(ctx: &Ctx, cmd: ProviderCommand) -> Result<(), Failure> {
             allow_insecure_http,
             name,
         } => {
+            let kind = kind.unwrap_or_else(|| slug.clone());
             let info = ipc
                 .call::<api::ProviderAdd>(&ProviderAddParams {
                     slug,
