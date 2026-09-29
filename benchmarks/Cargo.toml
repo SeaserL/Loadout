@@ -1,0 +1,39 @@
+[package]
+name = "loadout-benchmarks"
+description = "Criterion benchmarks for Loadout hot paths (Harness §20)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+bench = false
+
+[dependencies]
+
+[dev-dependencies]
+axum.workspace = true
+criterion.workspace = true
+loadout-gateway.workspace = true
+loadout-ipc.workspace = true
+loadout-platform.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+uuid.workspace = true
+
+[[bench]]
+name = "client_auth"
+harness = false
+
+[[bench]]
+name = "gateway_skeleton"
+harness = false
+
+[[bench]]
+name = "ipc_roundtrip"
+harness = false
+
+[lints]
+workspace = true

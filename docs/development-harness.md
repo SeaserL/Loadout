@@ -231,11 +231,14 @@ structured logs
 ├─ package.json
 │
 ├─ apps/
-│  └─ desktop/
+│  ├─ loadout/        bins: loadoutd（daemon）+ loadout（CLI），同包以便 e2e 测试
+│  └─ desktop/        Tauri 应用（Phase 8）
 │
 ├─ crates/
 │  ├─ core/
 │  ├─ gateway/
+│  ├─ ipc/            daemon / CLI / 桌面端共用的 IPC 协议（ADR-002）
+│  ├─ platform/       Windows 平台服务（ADR-001）
 │  ├─ router/
 │  ├─ provider-sdk/
 │  ├─ providers/

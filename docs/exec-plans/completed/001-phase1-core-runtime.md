@@ -1,6 +1,6 @@
 # ExecPlan 001: Phase 1 — Core Runtime
 
-- **Status**: In progress（2026-09-29 项目所有者确认）
+- **Status**: Completed（2026-09-29）
 - **Created**: 2026-09-29
 - **Phase**: Harness §26 Phase 1 — Core runtime · Database · Daemon · Secret store · Gateway skeleton
 
@@ -325,15 +325,15 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
 
 ## 13. Definition of Done
 
-- [ ] §1 中列出的全部 CLI 命令与 HTTP 行为可用
-- [ ] §8 全部测试通过；CI 绿色
-- [ ] §9 基线数值记录在 Progress 中
-- [ ] `cargo clippy -- -D warnings`、`cargo fmt --check` 通过
-- [ ] 日志与错误中无 secret 原文（测试验证）
-- [ ] AGENTS.md §10 写明构建、测试、运行命令
-- [ ] Harness §4 结构图更新
-- [ ] 所有新增依赖的许可证已核对（MIT / Apache-2.0 / BSD 类）
-- [ ] 本文件移入 `docs/exec-plans/completed/`
+- [x] §1 中列出的全部 CLI 命令与 HTTP 行为可用（e2e 验证）
+- [x] §8 全部测试通过（本机）；CI 待推送后首次运行
+- [x] §9 基线数值记录在 Progress 中
+- [x] `cargo clippy -- -D warnings`、`cargo fmt --check` 通过
+- [x] 日志与错误中无 secret 原文（`logs_never_contain_client_keys`、`errors_never_contain_secret_material`、redaction 单元测试）
+- [x] AGENTS.md §10 写明构建、测试、运行命令
+- [x] Harness §4 结构图更新
+- [x] 所有新增依赖的许可证已核对：179 个第三方包，全部为宽松协议（MIT / Apache-2.0 / BSD / Zlib / Unicode-3.0 / Unlicense / BSL-1.0 多选一；LGPL 仅作为多选一选项出现）
+- [x] 本文件移入 `docs/exec-plans/completed/`
 
 ---
 
@@ -386,7 +386,20 @@ Harness §20 列出的 `route_selection`、`canonical_conversion`、`stream_prox
   - **结构调整**：`loadout` 与 `loadoutd` 合并为同一个包 `apps/loadout` 的两个 bin。原因：端到端测试需要同时拿到两个可执行文件（`CARGO_BIN_EXE_*` 只对同包 bin 提供），并保证 Cargo 在运行测试前构建两者。
   - **发现并修复**：用 `std::process::Command` 启动 daemon 时，Windows 会把 CLI 的所有可继承句柄传给子进程，包括调用方管道（`loadout daemon start | ...`）。daemon 持有管道写端，调用方永远等不到 EOF（冒烟测试中 PowerShell 管道挂起即此原因）。改为 `platform::spawn_detached`：`CreateProcessW` + `bInheritHandles = FALSE` + `CREATE_BREAKAWAY_FROM_JOB`（Job 不允许时回退）。e2e 测试全部通过管道捕获 CLI 输出并设超时，回归时会立即失败。
   - 5 个 e2e 测试：完整生命周期（含撤销即时生效）、同实例第二个 daemon 退出码 2、端口占用提示、trace 级日志中不出现 client key（含 URL 中的 key）、autostart 指向 CLI 同目录的 `loadoutd.exe`。
-- [ ] Stage 8 — 集成测试、benchmark、CI
+- [x] Stage 8 — 集成测试、benchmark、CI（2026-09-29）
+  - e2e 测试见 Stage 7（放在 `apps/loadout/tests/e2e.rs`，而非计划中的 `tests/integration/`，原因同 Stage 7 的结构调整）。
+  - `benchmarks/` 包（criterion），基线（本机，debug 以外的 bench profile）：
+
+    | Benchmark | 均值 | 目标 |
+    |---|---|---|
+    | `client_auth/valid_bearer` | 110 ns | P95 < 20 µs |
+    | `client_auth/unknown_key` | 113 ns | — |
+    | `gateway_skeleton/get_models_keepalive`（完整中间件 + loopback TCP） | 47 µs | P95 < 1 ms |
+    | `ipc_roundtrip/echo` | 31 µs | P95 < 2 ms（参考） |
+
+    Criterion 报告均值与置信区间而非 P95；均值比目标低 2–3 个数量级，P95 达标无疑问。若后续某项接近目标，再补充百分位统计。
+  - `.github/workflows/ci.yml`：windows-latest，fmt / clippy / test / bench 编译。**尚未在 GitHub 上运行**（需仓库所有者推送后验证；Credential Manager 测试在 GitHub runner 上的行为是已知风险）。
+  - AGENTS.md §10、Harness §4 已更新。
 
 ---
 

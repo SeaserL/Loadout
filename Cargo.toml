@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "apps/loadout",
+    "benchmarks",
     "crates/core",
     "crates/gateway",
     "crates/ipc",

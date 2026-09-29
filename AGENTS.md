@@ -118,11 +118,43 @@ docs/exec-plans/active/NNN-title.md
 
 ## 10. Build & Run
 
-> 尚未初始化代码。Phase 1 完成后在此补充构建、测试、运行命令。
+### 开发环境（Windows）
 
-Windows 开发环境要求（Phase 1 前安装）：
-
-- Rust stable（MSVC toolchain，经 rustup）
-- Visual Studio 2022 Build Tools（"Desktop development with C++" 工作负载）
-- Node.js LTS
+- Rust：由 `rust-toolchain.toml` 固定版本（MSVC toolchain，经 rustup 自动安装）
+- Visual Studio Build Tools 2019+（"Desktop development with C++" 工作负载）
+- Node.js LTS（Phase 8 桌面端）
 - WebView2 Runtime（Windows 10/11 通常已预装）
+
+### 常用命令
+
+```text
+cargo build --workspace                          构建全部（含 loadout.exe / loadoutd.exe）
+cargo test --workspace                           全部测试（含真实 Named Pipe / Credential Manager / e2e）
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all
+cargo bench -p loadout-benchmarks                性能基准（Harness §20）
+```
+
+### 运行
+
+```text
+target\debug\loadout.exe daemon start            启动 daemon（数据在 %LOCALAPPDATA%\Loadout）
+target\debug\loadout.exe client create <name>    创建 client key
+target\debug\loadout.exe daemon status
+target\debug\loadout.exe daemon stop
+target\debug\loadoutd.exe --foreground           前台运行，日志输出到终端
+```
+
+### 测试隔离约定
+
+测试绝不能触碰用户真实安装。凡是启动 daemon 或写系统状态的测试必须使用：
+
+- 临时数据目录（`--data-dir`）、端口 `0`；
+- 唯一的 pipe 名（`--pipe-name \\.\pipe\loadout-<test>-<uuid>`）和实例 id（`--instance-id`）；
+- Credential Manager 前缀 `loadout-test:`，Run 注册表值名 `Loadout-Test-*` / `Loadout-E2E-*`，并在 drop 时清理。
+
+### 平台注意事项
+
+- 判断 daemon 是否运行一律通过 IPC；Windows 上连接已关闭的 loopback 端口约需 2 秒才失败。
+- 启动后台进程必须用 `loadout_platform::spawn_detached`，不要用 `std::process::Command`（会泄漏调用方句柄，见 ExecPlan 001 Stage 7）。
+- Credential Manager 调用必须串行（见 ADR-004）。
