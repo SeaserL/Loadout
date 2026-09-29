@@ -44,6 +44,10 @@ pub enum ErrorCategory {
     ModelNotFound,
     TransportUnavailable,
     NoEligibleTarget,
+    /// The client key's policy does not allow the model (ExecPlan 006).
+    ModelNotAllowed,
+    /// The client key's own rate / daily limit (ExecPlan 006).
+    ClientLimit,
     Internal,
 }
 
@@ -66,6 +70,8 @@ impl ErrorCategory {
             Self::ModelNotFound => "model_not_found",
             Self::TransportUnavailable => "transport_unavailable",
             Self::NoEligibleTarget => "no_eligible_target",
+            Self::ModelNotAllowed => "model_not_allowed",
+            Self::ClientLimit => "client_limit",
             Self::Internal => "internal_error",
         }
     }
@@ -74,12 +80,12 @@ impl ErrorCategory {
         match self {
             Self::InvalidRequest | Self::UnsupportedCapability => StatusCode::BAD_REQUEST,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::ForbiddenOrigin => StatusCode::FORBIDDEN,
+            Self::ForbiddenOrigin | Self::ModelNotAllowed => StatusCode::FORBIDDEN,
             Self::MisdirectedRequest => StatusCode::MISDIRECTED_REQUEST,
             Self::NotFound | Self::ModelNotFound => StatusCode::NOT_FOUND,
             Self::NotImplemented => StatusCode::NOT_IMPLEMENTED,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
-            Self::RateLimit | Self::Quota => StatusCode::TOO_MANY_REQUESTS,
+            Self::RateLimit | Self::Quota | Self::ClientLimit => StatusCode::TOO_MANY_REQUESTS,
             Self::UpstreamTimeout => StatusCode::GATEWAY_TIMEOUT,
             Self::Auth | Self::Upstream5xx => StatusCode::BAD_GATEWAY,
             Self::TransportUnavailable | Self::NoEligibleTarget => StatusCode::SERVICE_UNAVAILABLE,

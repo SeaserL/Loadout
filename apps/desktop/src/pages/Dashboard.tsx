@@ -21,7 +21,7 @@ export function Dashboard(props: { status: DaemonStatus }) {
   const usage = usePoll(() => api.usage(false), 10000);
   const virtuals = usePoll(api.virtuals, 5000);
   const routes = usePoll(api.routeStatus, 5000);
-  const recent = usePoll(() => api.recent(200), 5000);
+  const recent = usePoll(() => api.recent({ limit: 500, status: "error", since_ms: Date.now() - 86400000 }), 5000);
   const t = totals(usage.data);
   const gateway = `http://${props.status.gateway.addr}/v1`;
   const errorsToday = (recent.data ?? []).filter(

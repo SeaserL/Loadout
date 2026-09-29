@@ -42,6 +42,8 @@ pub struct Client {
     pub enabled: bool,
     pub created_at: i64,
     pub revoked_at: Option<i64>,
+    /// JSON object of the client's policy (ExecPlan 006); `{}` when none.
+    pub policy_json: String,
 }
 
 #[derive(Debug)]
@@ -56,7 +58,7 @@ pub struct ClientRepo<'a> {
     db: &'a Database,
 }
 
-const COLUMNS: &str = "id, name, key_prefix, enabled, created_at, revoked_at";
+const COLUMNS: &str = "id, name, key_prefix, enabled, created_at, revoked_at, policy_json";
 
 impl<'a> ClientRepo<'a> {
     pub(crate) fn new(db: &'a Database) -> Self {
@@ -71,6 +73,7 @@ impl<'a> ClientRepo<'a> {
             enabled: true,
             created_at: now_ms(),
             revoked_at: None,
+            policy_json: "{}".to_owned(),
         };
         self.db.with_conn(|c| {
             c.execute(
@@ -123,6 +126,62 @@ impl<'a> ClientRepo<'a> {
         })
     }
 
+    pub fn set_policy(&self, name: &str, policy_json: &str) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE clients SET policy_json = ?2 WHERE name = ?1",
+                params![name, policy_json],
+            )? == 1)
+        })
+    }
+
+    /// The stored key hash (for configuration export; the hash cannot be reversed).
+    pub fn key_hash(&self, name: &str) -> Result<Option<[u8; 32]>, StorageError> {
+        self.db.with_conn(|c| {
+            let hash: Option<Vec<u8>> = c
+                .query_row(
+                    "SELECT key_hash FROM clients WHERE name = ?1",
+                    params![name],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            hash.map(|h| {
+                h.try_into()
+                    .map_err(|_| StorageError::Corrupt("client key_hash length".into()))
+            })
+            .transpose()
+        })
+    }
+
+    /// Restores a revocation (configuration import).
+    pub fn set_revoked(&self, name: &str, revoked_at: i64) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE clients SET enabled = 0, revoked_at = ?2 WHERE name = ?1",
+                params![name, revoked_at],
+            )? == 1)
+        })
+    }
+
+    /// Tokens and estimated cost per client id since `since_ms` (restores the in-memory
+    /// daily counters after a restart).
+    pub fn usage_since(&self, since_ms: i64) -> Result<Vec<(String, u64, f64)>, StorageError> {
+        self.db.with_conn(|c| {
+            let mut stmt = c.prepare(
+                "SELECT client_id,
+                        COALESCE(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0),
+                        COALESCE(SUM(estimated_cost_usd), 0.0)
+                   FROM request_events
+                  WHERE ts >= ?1 AND client_id IS NOT NULL
+                  GROUP BY client_id",
+            )?;
+            let rows = stmt.query_map(params![since_ms], |r| {
+                Ok((r.get(0)?, r.get::<_, i64>(1)?.max(0) as u64, r.get(2)?))
+            })?;
+            Ok(rows.collect::<Result<_, _>>()?)
+        })
+    }
+
     /// `(key_hash, client_id)` for every enabled client; used to build the in-memory
     /// authentication index so the gateway never queries SQLite per request.
     pub fn active_key_hashes(&self) -> Result<Vec<([u8; 32], ClientId)>, StorageError> {
@@ -150,6 +209,7 @@ fn map_client(row: &Row<'_>) -> rusqlite::Result<Client> {
         enabled: row.get::<_, i64>(3)? == 1,
         created_at: row.get(4)?,
         revoked_at: row.get(5)?,
+        policy_json: row.get(6)?,
     })
 }
 
@@ -195,6 +255,16 @@ mod tests {
 
         let active = repo.active_key_hashes().expect("hashes");
         assert_eq!(active, vec![([2; 32], b.id)]);
+
+        assert!(
+            repo.set_policy("opencode", r#"{"requests_per_minute":5}"#)
+                .expect("policy")
+        );
+        assert!(!repo.set_policy("missing", "{}").expect("policy"));
+        let b = repo.get_by_name("opencode").expect("get").expect("exists");
+        assert_eq!(b.policy_json, r#"{"requests_per_minute":5}"#);
+        assert_eq!(repo.key_hash("opencode").expect("hash"), Some([2; 32]));
+        assert!(repo.usage_since(0).expect("usage").is_empty());
     }
 
     #[test]

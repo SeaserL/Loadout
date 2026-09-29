@@ -38,6 +38,8 @@ pub(crate) struct ControlPlane {
     pub latency: Arc<LatencyBook>,
     /// Last automatic probe per account model (ms).
     pub last_probe: std::sync::Mutex<HashMap<String, i64>>,
+    /// Client policies and usage counters shared with the gateway (ExecPlan 006).
+    pub policies: Arc<loadout_gateway::ClientPolicies>,
     version: AtomicU64,
     rebuild: tokio::sync::Mutex<()>,
 }
@@ -120,6 +122,7 @@ impl ControlPlane {
             home,
             latency: Arc::default(),
             last_probe: std::sync::Mutex::default(),
+            policies: Arc::default(),
             version: AtomicU64::new(0),
             rebuild: tokio::sync::Mutex::new(()),
         }
@@ -904,15 +907,45 @@ impl ControlPlane {
             .collect()
     }
 
-    pub async fn recent_requests(&self, limit: usize) -> Result<Vec<RequestSummary>, ErrorBody> {
+    /// Filtered request log; client ids are shown as client names.
+    pub async fn recent_requests(
+        &self,
+        p: loadout_ipc::api::RecentParams,
+    ) -> Result<Vec<RequestSummary>, ErrorBody> {
         let db = self.db.clone();
-        let limit = limit.clamp(1, 1000);
-        let rows = blocking(move || db.recent_requests(limit).map_err(storage)).await?;
+        let (rows, names) = blocking(move || {
+            let clients = db.clients().list().map_err(storage)?;
+            let client_id = match &p.client {
+                Some(name) => Some(
+                    clients
+                        .iter()
+                        .find(|c| &c.name == name)
+                        .map(|c| c.id.to_string())
+                        .ok_or_else(|| ErrorBody::not_found(format!("client {name} not found")))?,
+                ),
+                None => None,
+            };
+            let rows = db
+                .find_requests(&loadout_storage::RequestFilter {
+                    limit: p.limit.clamp(1, 1000),
+                    client_id,
+                    search: p.search,
+                    status: p.status,
+                    since_ms: p.since_ms,
+                })
+                .map_err(storage)?;
+            let names: HashMap<String, String> = clients
+                .into_iter()
+                .map(|c| (c.id.to_string(), c.name))
+                .collect();
+            Ok((rows, names))
+        })
+        .await?;
         Ok(rows
             .into_iter()
             .map(|e| RequestSummary {
                 ts_ms: e.ts,
-                client: e.client_id,
+                client: e.client_id.map(|id| names.get(&id).cloned().unwrap_or(id)),
                 requested_model: e.requested_model,
                 route: match (&e.provider, &e.account, &e.upstream_model) {
                     (Some(p), Some(a), Some(m)) => Some(format!("{p}/{a}/{m}")),
@@ -930,6 +963,47 @@ impl ControlPlane {
                 ttft_ms: e.ttft_ms,
                 duration_ms: e.duration_ms,
                 cost_usd: e.estimated_cost_usd,
+            })
+            .collect())
+    }
+
+    /// `stats.summary`: aggregates grouped by model / route / provider / client / day.
+    pub async fn stats(
+        &self,
+        since_ms: i64,
+        group_by: String,
+    ) -> Result<Vec<loadout_ipc::api::StatsEntry>, ErrorBody> {
+        let group = loadout_storage::StatsGroup::parse(&group_by).ok_or_else(|| {
+            ErrorBody::invalid_params("group_by must be model, route, provider, client or day")
+        })?;
+        let db = self.db.clone();
+        let (rows, names) = blocking(move || {
+            let rows = db.request_stats(since_ms, group).map_err(storage)?;
+            let names: HashMap<String, String> = db
+                .clients()
+                .list()
+                .map_err(storage)?
+                .into_iter()
+                .map(|c| (c.id.to_string(), c.name))
+                .collect();
+            Ok((rows, names))
+        })
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| loadout_ipc::api::StatsEntry {
+                key: if group == loadout_storage::StatsGroup::Client {
+                    names.get(&r.key).cloned().unwrap_or(r.key)
+                } else {
+                    r.key
+                },
+                requests: r.requests,
+                errors: r.errors,
+                input_tokens: r.input_tokens,
+                output_tokens: r.output_tokens,
+                cost_usd: r.cost_usd,
+                avg_ttft_ms: r.avg_ttft_ms,
+                avg_tps: r.avg_tps,
             })
             .collect())
     }

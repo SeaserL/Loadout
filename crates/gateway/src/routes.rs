@@ -20,9 +20,17 @@ pub(crate) struct AppState {
 
 /// `GET /v1/models`: OpenAI shape by default, Anthropic shape when the client sends
 /// `anthropic-version` (Anthropic SDKs do).
-pub(crate) async fn list_models(State(app): State<AppState>, headers: HeaderMap) -> Response {
+pub(crate) async fn list_models(
+    State(app): State<AppState>,
+    Extension(client): Extension<ClientId>,
+    headers: HeaderMap,
+) -> Response {
     let table = app.plane.routes.load();
-    let names = table.model_names();
+    let mut names = table.model_names();
+    // Only what this client key may use (ADR-010 §4).
+    if let Some(policy) = app.plane.policies.get(&client) {
+        names.retain(|n| policy.allows(n));
+    }
     if headers.contains_key("anthropic-version") {
         let data: Vec<_> = names
             .iter()

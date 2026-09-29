@@ -35,7 +35,7 @@ use serde_json::Value;
 use tokio::time::timeout_at;
 
 use crate::plane::DataPlane;
-use crate::{ApiError, ApiFlavor, ClientId, ErrorCategory};
+use crate::{ApiError, ApiFlavor, ClientId, ErrorCategory, PolicyViolation};
 use meter::{Meter, RecordCtx};
 use render::Renderer;
 
@@ -144,11 +144,31 @@ pub(crate) async fn handle(
             );
         }
     };
-    let hints = match hints::extract(ingress, &json, bytes.len()) {
+    let mut hints = match hints::extract(ingress, &json, bytes.len()) {
         Ok(h) => h,
         Err(e) => return error_response(flavor, ErrorCategory::InvalidRequest, e.to_string()),
     };
+    // Client policy (ExecPlan 006): default model, allowed models, limits.
+    let policy = plane.policies.get(&client);
+    let effective = plane
+        .policies
+        .effective_model(policy.as_deref(), &hints.model)
+        .to_owned();
+    hints.model = effective;
     let ctx = RecordCtx::new(&client, ingress, &hints, ts_ms, started);
+    if let Err(violation) = plane
+        .policies
+        .admit(&client, policy.as_deref(), &hints.model, ts_ms)
+    {
+        let category = match violation {
+            PolicyViolation::ModelNotAllowed(_) => ErrorCategory::ModelNotAllowed,
+            _ => ErrorCategory::ClientLimit,
+        };
+        plane
+            .telemetry
+            .record(ctx.failure(None, 0, category.code(), category.status().as_u16()));
+        return error_response(flavor, category, violation.to_string());
+    }
 
     let table = plane.routes.load();
     let resolution = match table.resolve(&hints.model) {

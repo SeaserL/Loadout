@@ -95,6 +95,18 @@ impl Database {
         })
     }
 
+    /// Writes a consistent copy of the whole database to `path`, which must not exist
+    /// (`VACUUM INTO`). The database holds no secrets (ADR-004).
+    pub fn backup_to(&self, path: &Path) -> Result<(), StorageError> {
+        let target = path
+            .to_str()
+            .ok_or_else(|| StorageError::Corrupt("backup path is not valid UTF-8".into()))?;
+        self.with_conn(|c| {
+            c.execute("VACUUM INTO ?1", [target])?;
+            Ok(())
+        })
+    }
+
     pub fn journal_mode(&self) -> Result<String, StorageError> {
         let conn = self.lock();
         Ok(conn.query_row("PRAGMA journal_mode", [], |row| row.get(0))?)

@@ -58,6 +58,8 @@ impl TelemetrySink for StorageTelemetry {
 #[derive(Debug)]
 pub(crate) struct LatencyTap<S> {
     pub latency: Arc<LatencyBook>,
+    /// Client usage counters for policy limits (ExecPlan 006).
+    pub policies: Arc<loadout_gateway::ClientPolicies>,
     pub inner: S,
 }
 
@@ -73,6 +75,11 @@ impl<S: TelemetrySink> TelemetrySink for LatencyTap<S> {
             )
         {
             self.latency.record(account_model_key(target), sample);
+        }
+        if let Some(client) = &r.client_id {
+            let tokens = r.usage.input_tokens.unwrap_or(0) + r.usage.output_tokens.unwrap_or(0);
+            self.policies
+                .record(client, tokens, r.estimated_cost_usd.unwrap_or(0.0), r.ts_ms);
         }
         self.inner.record(r);
     }

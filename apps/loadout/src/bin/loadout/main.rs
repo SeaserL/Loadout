@@ -4,6 +4,7 @@
 
 mod account_cmd;
 mod autostart_cmd;
+mod backup_cmd;
 mod client_cmd;
 mod config_cmd;
 mod daemon_cmd;
@@ -68,6 +69,9 @@ enum Command {
     /// Inspect routing.
     #[command(subcommand)]
     Route(status_cmd::RouteCommand),
+    /// Export / import the configuration, or copy the database.
+    #[command(subcommand)]
+    Backup(backup_cmd::BackupCommand),
     /// Manage pools: your own ordered model lists, used as `loadout/<name>`.
     #[command(subcommand)]
     Pool(pool_cmd::PoolCommand),
@@ -93,6 +97,26 @@ enum Command {
     Logs {
         #[arg(long, default_value_t = 30)]
         limit: usize,
+        /// Only this client (name).
+        #[arg(long)]
+        client: Option<String>,
+        /// Only requests whose model or route contains this text.
+        #[arg(long)]
+        search: Option<String>,
+        /// Only failed requests.
+        #[arg(long)]
+        errors: bool,
+        /// Only the last N hours.
+        #[arg(long)]
+        hours: Option<u32>,
+    },
+    /// Requests, tokens, cost and latency grouped by model, route, provider, client or day.
+    Stats {
+        #[arg(long, value_enum, default_value_t = status_cmd::GroupBy::Model)]
+        by: status_cmd::GroupBy,
+        /// Period in days (up to the 30 days of stored history).
+        #[arg(long, default_value_t = 7)]
+        days: u32,
     },
 }
 
@@ -209,8 +233,25 @@ fn main() -> ExitCode {
             Command::Model(cmd) => model_cmd::run(&ctx, cmd).await,
             Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
             Command::Pool(cmd) => pool_cmd::run(&ctx, cmd).await,
+            Command::Backup(cmd) => backup_cmd::run(&ctx, cmd).await,
             Command::Bench { names } => status_cmd::bench(&ctx, names).await,
-            Command::Logs { limit } => status_cmd::logs(&ctx, limit).await,
+            Command::Logs {
+                limit,
+                client,
+                search,
+                errors,
+                hours,
+            } => {
+                let filter = loadout_ipc::api::RecentParams {
+                    limit,
+                    client,
+                    search,
+                    status: errors.then(|| "error".to_owned()),
+                    since_ms: hours.map(|h| output::now_ms() - i64::from(h) * 3_600_000),
+                };
+                status_cmd::logs(&ctx, filter).await
+            }
+            Command::Stats { by, days } => status_cmd::stats(&ctx, by, days).await,
             Command::Usage { provider, refresh } => usage_cmd::run(&ctx, provider, refresh).await,
             Command::Scan { command } => scan_cmd::run(&ctx, command).await,
         }

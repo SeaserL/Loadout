@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from "react";
-import { api, type ClientCreated } from "../api";
+import { api, type ClientCreated, type ClientInfo, type ClientPolicy } from "../api";
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, Page, copy } from "../components";
-import { time } from "../format";
+import { num, time, usd } from "../format";
+
+function describe(p: ClientPolicy): string {
+  const parts: string[] = [];
+  if (p.default_model) parts.push(`default ${p.default_model}`);
+  if (p.allowed_models?.length) parts.push(`only ${p.allowed_models.join(", ")}`);
+  if (p.daily_token_limit != null) parts.push(`${num(p.daily_token_limit)} tokens/day`);
+  if (p.daily_cost_limit_usd != null) parts.push(`${usd(p.daily_cost_limit_usd)}/day`);
+  if (p.requests_per_minute != null) parts.push(`${p.requests_per_minute}/min`);
+  return parts.length ? parts.join(" · ") : "no restrictions";
+}
 import { useAction, usePoll } from "../hooks";
 
 export function Clients(props: { gateway: string }) {
@@ -11,6 +21,7 @@ export function Clients(props: { gateway: string }) {
   const action = useAction();
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<ClientCreated>();
+  const [policyOf, setPolicyOf] = useState<ClientInfo>();
   const base = `http://${props.gateway}/v1`;
 
   return (
@@ -37,6 +48,8 @@ export function Clients(props: { gateway: string }) {
                 <th>Key</th>
                 <th>Created</th>
                 <th>Status</th>
+                <th>Today</th>
+                <th>Policy</th>
                 <th />
               </tr>
             </thead>
@@ -49,7 +62,16 @@ export function Clients(props: { gateway: string }) {
                   <td>
                     {c.revoked_at_ms ? <Badge tone="bad">revoked {time(c.revoked_at_ms)}</Badge> : <Badge tone="ok">active</Badge>}
                   </td>
+                  <td className="small">
+                    {num(c.tokens_today)} tok · {usd(c.cost_today_usd)}
+                  </td>
+                  <td className="small">{describe(c.policy)}</td>
                   <td className="num">
+                    {!c.revoked_at_ms && (
+                      <Button disabled={action.busy} onClick={() => setPolicyOf(c)}>
+                        Policy
+                      </Button>
+                    )}{" "}
                     {!c.revoked_at_ms && (
                       <Button
                         kind="danger"
@@ -84,6 +106,9 @@ export function Clients(props: { gateway: string }) {
         />
       )}
       {created && <KeyShown created={created} base={base} onClose={() => setCreated(undefined)} />}
+      {policyOf && (
+        <PolicyDialog client={policyOf} onClose={() => setPolicyOf(undefined)} onDone={() => void clients.reload()} />
+      )}
     </Page>
   );
 }
@@ -143,6 +168,76 @@ function KeyShown(props: { created: ClientCreated; base: string; onClose: () => 
       <div className="row" style={{ marginTop: 12 }}>
         <div className="spacer" />
         <Button onClick={props.onClose}>Done</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function PolicyDialog(props: { client: ClientInfo; onClose: () => void; onDone: () => void }) {
+  const p = props.client.policy;
+  const action = useAction();
+  const [defaultModel, setDefaultModel] = useState(p.default_model ?? "");
+  const [allowed, setAllowed] = useState((p.allowed_models ?? []).join("\n"));
+  const [tokens, setTokens] = useState(p.daily_token_limit?.toString() ?? "");
+  const [cost, setCost] = useState(p.daily_cost_limit_usd?.toString() ?? "");
+  const [rpm, setRpm] = useState(p.requests_per_minute?.toString() ?? "");
+  const number = (v: string, integer: boolean) => {
+    if (!v.trim()) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0 || (integer && !Number.isInteger(n))) {
+      throw new Error("Limits must be positive numbers (leave empty for no limit).");
+    }
+    return n;
+  };
+  return (
+    <Modal title={`Policy of ${props.client.name}`} onClose={props.onClose}>
+      <Field
+        label="Default model"
+        hint="Used when the app sends a model name Loadout does not know (for apps that cannot change it). E.g. loadout/default."
+      >
+        <input value={defaultModel} onChange={(e) => setDefaultModel(e.target.value)} placeholder="loadout/default" />
+      </Field>
+      <Field label="Allowed models" hint="One per line; end with * for a prefix, e.g. loadout/* . Empty allows all.">
+        <textarea rows={3} value={allowed} onChange={(e) => setAllowed(e.target.value)} />
+      </Field>
+      <div className="grid cols-3" style={{ gap: 10 }}>
+        <Field label="Tokens per day">
+          <input value={tokens} onChange={(e) => setTokens(e.target.value)} inputMode="numeric" />
+        </Field>
+        <Field label="Cost per day (USD)">
+          <input value={cost} onChange={(e) => setCost(e.target.value)} inputMode="decimal" />
+        </Field>
+        <Field label="Requests per minute">
+          <input value={rpm} onChange={(e) => setRpm(e.target.value)} inputMode="numeric" />
+        </Field>
+      </div>
+      <p className="small muted">Daily limits reset at 00:00 UTC. Requests over a limit get HTTP 429.</p>
+      <ErrorText error={action.error} />
+      <div className="row">
+        <div className="spacer" />
+        <Button onClick={props.onClose}>Cancel</Button>
+        <Button
+          kind="primary"
+          disabled={action.busy}
+          onClick={() =>
+            void action.run(async () => {
+              await api.setClientPolicy(props.client.name, {
+                default_model: defaultModel.trim() || null,
+                allowed_models: allowed
+                  .split(/[\n,]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+                daily_token_limit: number(tokens, true),
+                daily_cost_limit_usd: number(cost, false),
+                requests_per_minute: number(rpm, true),
+              });
+              props.onDone();
+              props.onClose();
+            })
+          }
+        >
+          Save
+        </Button>
       </div>
     </Modal>
   );

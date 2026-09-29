@@ -16,6 +16,7 @@ mod request_events;
 mod response_routes;
 mod routing;
 mod settings;
+mod stats;
 pub mod telemetry;
 mod usage;
 
@@ -30,6 +31,7 @@ pub use providers::{NewProvider, Provider, ProviderRepo};
 pub use request_events::RequestEvent;
 pub use routing::RoutableModel;
 pub use settings::SettingsRepo;
+pub use stats::{RequestFilter, StatsGroup, StatsRow};
 pub use usage::{BalanceRow, Spend, UsageRecord, WindowRow};
 
 impl Database {

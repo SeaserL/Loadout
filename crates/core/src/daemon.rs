@@ -111,6 +111,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         http,
         telemetry: Arc::new(LatencyTap {
             latency: control.latency.clone(),
+            policies: control.policies.clone(),
             inner: StorageTelemetry {
                 sender: telemetry.clone(),
             },
@@ -122,6 +123,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             ..UpstreamLimits::default()
         },
         sessions: Arc::default(),
+        policies: control.policies.clone(),
     });
     drop(telemetry);
 
@@ -185,6 +187,18 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         .refresh_keys()
         .await
         .map_err(|e| DaemonError::Config(format!("loading client keys: {}", e.message)))?;
+    {
+        let (db, policies) = (db.clone(), state.control.policies.clone());
+        match tokio::task::spawn_blocking(move || {
+            crate::clients::seed_usage(&policies, &db, now_ms())
+        })
+        .await
+        {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => tracing::warn!(error = %e, "could not restore client usage counters"),
+            Err(_) => tracing::warn!("client usage restore task failed"),
+        }
+    }
 
     let gateway_task = spawn_critical("gateway", shutdown.clone(), gateway.serve(shutdown.clone()));
     let ipc_task = spawn_critical(

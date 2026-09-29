@@ -11,6 +11,7 @@ import { Models } from "./pages/Models";
 import { Routes } from "./pages/Routes";
 import { Clients } from "./pages/Clients";
 import { Logs } from "./pages/Logs";
+import { Stats } from "./pages/Stats";
 import { Settings } from "./pages/Settings";
 
 const PAGES = [
@@ -19,6 +20,7 @@ const PAGES = [
   { id: "models", label: "Models" },
   { id: "routes", label: "Routes" },
   { id: "clients", label: "Client keys" },
+  { id: "stats", label: "Statistics" },
   { id: "logs", label: "Request log" },
   { id: "settings", label: "Settings" },
 ] as const;
@@ -107,6 +109,7 @@ export function App() {
             {page === "models" && <Models />}
             {page === "routes" && <Routes />}
             {page === "clients" && <Clients gateway={status.data.gateway.addr} />}
+            {page === "stats" && <Stats />}
             {page === "logs" && <Logs />}
             {page === "settings" && <Settings status={status.data} onDaemonChange={status.reload} />}
           </>

@@ -38,12 +38,12 @@ pub struct RequestEvent {
     pub usage_confidence: Option<String>,
 }
 
-const COLUMNS: &str = "ts, client_id, requested_model, route_target, provider, account, \
+pub(crate) const COLUMNS: &str = "ts, client_id, requested_model, route_target, provider, account, \
      upstream_model, protocol_in, protocol_out, mode, stream, status, error_category, \
      http_status, attempts, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, \
      reasoning_tokens, ttft_ms, duration_ms, output_tps, estimated_cost_usd, usage_confidence";
 
-fn map_event(r: &Row<'_>) -> rusqlite::Result<RequestEvent> {
+pub(crate) fn map_event(r: &Row<'_>) -> rusqlite::Result<RequestEvent> {
     Ok(RequestEvent {
         ts: r.get(0)?,
         client_id: r.get(1)?,

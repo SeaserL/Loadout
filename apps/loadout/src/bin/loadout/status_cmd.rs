@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::Subcommand;
-use loadout_ipc::api::{self, BenchParams, RecentParams};
+use clap::{Subcommand, ValueEnum};
+use loadout_ipc::api::{self, BenchParams, RecentParams, StatsParams};
 
 use crate::{Ctx, Failure, output};
 
@@ -134,11 +134,76 @@ pub async fn bench(ctx: &Ctx, names: Vec<String>) -> Result<(), Failure> {
     Ok(())
 }
 
-pub async fn logs(ctx: &Ctx, limit: usize) -> Result<(), Failure> {
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum GroupBy {
+    Model,
+    Route,
+    Provider,
+    Client,
+    /// UTC calendar day.
+    Day,
+}
+
+impl GroupBy {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Model => "model",
+            Self::Route => "route",
+            Self::Provider => "provider",
+            Self::Client => "client",
+            Self::Day => "day",
+        }
+    }
+}
+
+pub async fn stats(ctx: &Ctx, by: GroupBy, days: u32) -> Result<(), Failure> {
     let mut ipc = ctx.connect().await?;
-    let list = ipc
-        .call::<api::RequestsRecent>(&RecentParams { limit })
+    let rows = ipc
+        .call::<api::StatsSummary>(&StatsParams {
+            since_ms: output::now_ms() - i64::from(days.max(1)) * 86_400_000,
+            group_by: by.as_str().to_owned(),
+        })
         .await?;
+    if ctx.json {
+        return output::json(&rows);
+    }
+    if rows.is_empty() {
+        println!("No requests in the last {days} days.");
+        return Ok(());
+    }
+    let table: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r| {
+            vec![
+                r.key.clone(),
+                r.requests.to_string(),
+                r.errors.to_string(),
+                format!("{}/{}", r.input_tokens, r.output_tokens),
+                format!("${:.4}", r.cost_usd),
+                r.avg_ttft_ms
+                    .map_or_else(|| "-".into(), |v| format!("{v:.0} ms")),
+                r.avg_tps.map_or_else(|| "-".into(), |v| format!("{v:.0}")),
+            ]
+        })
+        .collect();
+    output::table(
+        &[
+            by.as_str(),
+            "REQUESTS",
+            "ERRORS",
+            "TOKENS IN/OUT",
+            "COST",
+            "AVG TTFT",
+            "AVG TOK/S",
+        ],
+        &table,
+    );
+    Ok(())
+}
+
+pub async fn logs(ctx: &Ctx, filter: RecentParams) -> Result<(), Failure> {
+    let mut ipc = ctx.connect().await?;
+    let list = ipc.call::<api::RequestsRecent>(&filter).await?;
     if ctx.json {
         return output::json(&list);
     }
@@ -155,6 +220,7 @@ pub async fn logs(ctx: &Ctx, limit: usize) -> Result<(), Failure> {
             };
             vec![
                 output::timestamp(r.ts_ms),
+                r.client.clone().unwrap_or_else(|| "-".into()),
                 r.requested_model.clone(),
                 r.route.clone().unwrap_or_else(|| "-".into()),
                 format!(
@@ -177,6 +243,7 @@ pub async fn logs(ctx: &Ctx, limit: usize) -> Result<(), Failure> {
     output::table(
         &[
             "TIME",
+            "CLIENT",
             "MODEL",
             "ROUTE",
             "PROTOCOL",

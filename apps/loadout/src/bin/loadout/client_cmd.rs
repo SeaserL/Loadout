@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Subcommand;
-use loadout_ipc::api::{self, ClientCreateParams, ClientNameParams};
+use loadout_ipc::api::{
+    self, ClientCreateParams, ClientNameParams, ClientPolicy, ClientPolicyParams,
+};
 
 use crate::{Ctx, Failure, output};
 
@@ -16,6 +18,52 @@ pub enum ClientCommand {
     List,
     /// Revoke a client's key immediately.
     Revoke { name: String },
+    /// Set what a client key may do (replaces its current policy).
+    Policy {
+        name: String,
+        /// Model used when the app sends a model name Loadout does not know (e.g. gpt-4o).
+        #[arg(long)]
+        default_model: Option<String>,
+        /// Allowed model name or prefix ending in `*` (repeatable), e.g. `loadout/*`.
+        #[arg(long = "allow", value_name = "MODEL")]
+        allowed_models: Vec<String>,
+        /// Maximum input + output tokens per day (UTC).
+        #[arg(long)]
+        daily_tokens: Option<u64>,
+        /// Maximum estimated cost per day in USD (UTC).
+        #[arg(long)]
+        daily_cost: Option<f64>,
+        /// Maximum requests per minute.
+        #[arg(long)]
+        rpm: Option<u32>,
+        /// Remove every restriction.
+        #[arg(long, conflicts_with_all = ["default_model", "allowed_models", "daily_tokens", "daily_cost", "rpm"])]
+        clear: bool,
+    },
+}
+
+fn describe(p: &ClientPolicy) -> String {
+    let mut parts = Vec::new();
+    if let Some(m) = &p.default_model {
+        parts.push(format!("default {m}"));
+    }
+    if !p.allowed_models.is_empty() {
+        parts.push(format!("allow {}", p.allowed_models.join(",")));
+    }
+    if let Some(t) = p.daily_token_limit {
+        parts.push(format!("{t} tokens/day"));
+    }
+    if let Some(c) = p.daily_cost_limit_usd {
+        parts.push(format!("${c}/day"));
+    }
+    if let Some(r) = p.requests_per_minute {
+        parts.push(format!("{r}/min"));
+    }
+    if parts.is_empty() {
+        "-".into()
+    } else {
+        parts.join("; ")
+    }
 }
 
 pub async fn run(ctx: &Ctx, cmd: ClientCommand) -> Result<(), Failure> {
@@ -57,10 +105,15 @@ pub async fn run(ctx: &Ctx, cmd: ClientCommand) -> Result<(), Failure> {
                         c.key_prefix.clone(),
                         if c.enabled { "active" } else { "revoked" }.to_owned(),
                         output::timestamp(c.created_at_ms),
+                        format!("{} tok · ${:.2}", c.tokens_today, c.cost_today_usd),
+                        describe(&c.policy),
                     ]
                 })
                 .collect();
-            output::table(&["NAME", "KEY", "STATUS", "CREATED"], &rows);
+            output::table(
+                &["NAME", "KEY", "STATUS", "CREATED", "TODAY", "POLICY"],
+                &rows,
+            );
             Ok(())
         }
         ClientCommand::Revoke { name } => {
@@ -76,6 +129,33 @@ pub async fn run(ctx: &Ctx, cmd: ClientCommand) -> Result<(), Failure> {
             } else {
                 Err(Failure::new(format!("no active client named \"{name}\"")))
             }
+        }
+        ClientCommand::Policy {
+            name,
+            default_model,
+            allowed_models,
+            daily_tokens,
+            daily_cost,
+            rpm,
+            clear: _,
+        } => {
+            let info = ipc
+                .call::<api::ClientSetPolicy>(&ClientPolicyParams {
+                    name,
+                    policy: ClientPolicy {
+                        default_model,
+                        allowed_models,
+                        daily_token_limit: daily_tokens,
+                        daily_cost_limit_usd: daily_cost,
+                        requests_per_minute: rpm,
+                    },
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&info);
+            }
+            println!("{}: {}", info.name, describe(&info.policy));
+            Ok(())
         }
     }
 }

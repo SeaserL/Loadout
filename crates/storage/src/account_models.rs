@@ -171,6 +171,17 @@ impl<'a> AccountModelRepo<'a> {
         account_id: &str,
         m: &ModelInput,
     ) -> Result<AccountModel, StorageError> {
+        self.insert(account_id, m, true, "manual")
+    }
+
+    /// Inserts a model with an explicit state and origin (configuration import).
+    pub fn insert(
+        &self,
+        account_id: &str,
+        m: &ModelInput,
+        enabled: bool,
+        source: &str,
+    ) -> Result<AccountModel, StorageError> {
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
         self.db.with_conn(|c| {
@@ -178,7 +189,7 @@ impl<'a> AccountModelRepo<'a> {
                 "INSERT INTO account_models (id, account_id, upstream_model_id, protocols_json,
                     context_window, max_output_tokens, capabilities_json, input_price, output_price,
                     cache_read_price, cache_write_price, enabled, source, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 'manual', ?12, ?12)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13, ?14, ?12, ?12)",
                 params![
                     id,
                     account_id,
@@ -191,7 +202,9 @@ impl<'a> AccountModelRepo<'a> {
                     m.output_price,
                     m.cache_read_price,
                     m.cache_write_price,
-                    now
+                    now,
+                    i64::from(enabled),
+                    source
                 ],
             )
             .map_err(|e| {

@@ -53,13 +53,34 @@ impl DaemonState {
 
     /// Rebuilds the gateway's in-memory key index from the database.
     pub(crate) async fn refresh_keys(&self) -> Result<(), ErrorBody> {
-        let entries = self.db(|db| db.clients().active_key_hashes()).await?;
+        let (entries, clients) = self
+            .db(|db| Ok((db.clients().active_key_hashes()?, db.clients().list()?)))
+            .await?;
         self.keys.replace(
             entries
                 .into_iter()
                 .map(|(hash, id)| (hash, ClientId::from(id.as_str()))),
         );
+        crate::clients::publish(&self.control.policies, &clients);
         Ok(())
+    }
+
+    fn client_info(&self, c: Client) -> ClientInfo {
+        let usage = self
+            .control
+            .policies
+            .usage_today(c.id.as_str(), loadout_storage::now_ms());
+        ClientInfo {
+            id: c.id.to_string(),
+            policy: crate::clients::parse_policy(&c.policy_json),
+            name: c.name,
+            key_prefix: c.key_prefix,
+            enabled: c.enabled,
+            created_at_ms: c.created_at,
+            revoked_at_ms: c.revoked_at,
+            tokens_today: usage.tokens,
+            cost_today_usd: usage.cost_usd,
+        }
     }
 }
 
@@ -71,17 +92,6 @@ fn storage_error(e: StorageError) -> ErrorBody {
             tracing::error!(error = %other, "database operation failed");
             ErrorBody::internal("database error; see the daemon log for details")
         }
-    }
-}
-
-fn client_info(c: Client) -> ClientInfo {
-    ClientInfo {
-        id: c.id.to_string(),
-        name: c.name,
-        key_prefix: c.key_prefix,
-        enabled: c.enabled,
-        created_at_ms: c.created_at,
-        revoked_at_ms: c.revoked_at,
     }
 }
 
@@ -150,14 +160,36 @@ impl Handler for Dispatcher {
                 tracing::info!(client = %client.name, prefix = %client.key_prefix, "client created");
                 s.emit(events::CLIENTS_CHANGED, Value::Null);
                 encode_result::<api::ClientCreate>(&api::ClientCreated {
-                    client: client_info(client),
+                    client: s.client_info(client),
                     key: key.key,
                 })
             }
 
             api::ClientList::NAME => {
                 let clients = s.db(|db| db.clients().list()).await?;
-                encode_result::<api::ClientList>(&clients.into_iter().map(client_info).collect())
+                encode_result::<api::ClientList>(
+                    &clients.into_iter().map(|c| s.client_info(c)).collect(),
+                )
+            }
+
+            api::ClientSetPolicy::NAME => {
+                let p = decode_params::<api::ClientSetPolicy>(params)?;
+                let policy = crate::clients::validate(p.policy)?;
+                let json = crate::clients::policy_json(&policy);
+                let name = p.name.clone();
+                let client = s
+                    .db(move |db| {
+                        if !db.clients().set_policy(&name, &json)? {
+                            return Err(StorageError::NotFound(format!("client {name}")));
+                        }
+                        db.clients()
+                            .get_by_name(&name)?
+                            .ok_or_else(|| StorageError::NotFound(format!("client {name}")))
+                    })
+                    .await?;
+                s.refresh_keys().await?;
+                s.emit(events::CLIENTS_CHANGED, Value::Null);
+                encode_result::<api::ClientSetPolicy>(&s.client_info(client))
             }
 
             api::ClientRevoke::NAME => {
@@ -170,6 +202,46 @@ impl Handler for Dispatcher {
                     s.emit(events::CLIENTS_CHANGED, Value::Null);
                 }
                 encode_result::<api::ClientRevoke>(&api::Revoked { revoked })
+            }
+
+            api::BackupExport::NAME => {
+                let p = decode_params::<api::BackupExport>(params)?;
+                let (db, dir) = (s.db.clone(), s.data_dir.clone());
+                let result =
+                    tokio::task::spawn_blocking(move || crate::backup::export(&db, &dir, p.path))
+                        .await
+                        .map_err(|_| ErrorBody::internal("backup task failed"))?
+                        .map_err(ErrorBody::invalid_params)?;
+                encode_result::<api::BackupExport>(&result)
+            }
+
+            api::BackupDatabase::NAME => {
+                let p = decode_params::<api::BackupDatabase>(params)?;
+                let (db, dir) = (s.db.clone(), s.data_dir.clone());
+                let path = tokio::task::spawn_blocking(move || {
+                    crate::backup::backup_database(&db, &dir, p.path)
+                })
+                .await
+                .map_err(|_| ErrorBody::internal("backup task failed"))?
+                .map_err(ErrorBody::invalid_params)?;
+                encode_result::<api::BackupDatabase>(&api::DatabaseBackup { path })
+            }
+
+            api::BackupImport::NAME => {
+                let p = decode_params::<api::BackupImport>(params)?;
+                let db = s.db.clone();
+                let report =
+                    tokio::task::spawn_blocking(move || crate::backup::import(&db, &p.path))
+                        .await
+                        .map_err(|_| ErrorBody::internal("import task failed"))?
+                        .map_err(ErrorBody::invalid_params)?;
+                tracing::info!(?report, "configuration imported");
+                s.refresh_keys().await?;
+                s.control.rebuild_routes().await?;
+                s.control.evaluate_latency(true).await?;
+                s.emit(events::CLIENTS_CHANGED, Value::Null);
+                s.emit(events::ROUTES_CHANGED, Value::Null);
+                encode_result::<api::BackupImport>(&report)
             }
 
             api::SettingsList::NAME => {
@@ -397,7 +469,11 @@ impl Dispatcher {
             }
             api::RequestsRecent::NAME => {
                 let p = decode_params::<api::RequestsRecent>(params)?;
-                encode_result::<api::RequestsRecent>(&c.recent_requests(p.limit).await?)
+                encode_result::<api::RequestsRecent>(&c.recent_requests(p).await?)
+            }
+            api::StatsSummary::NAME => {
+                let p = decode_params::<api::StatsSummary>(params)?;
+                encode_result::<api::StatsSummary>(&c.stats(p.since_ms, p.group_by).await?)
             }
             other => Err(ErrorBody::new(
                 ErrorCode::MethodNotFound,

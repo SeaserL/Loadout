@@ -14,8 +14,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use loadout_gateway::{
-    ClientId, ClientKeyIndex, DataPlane, Gateway, GatewayConfig, RequestRecord, ResponseRouteStore,
-    TelemetrySink, UpstreamLimits, generate_client_key,
+    ClientId, ClientKeyIndex, ClientPolicies, ClientPolicy, DataPlane, Gateway, GatewayConfig,
+    RequestRecord, ResponseRouteStore, TelemetrySink, UpstreamLimits, generate_client_key,
 };
 use loadout_protocol::Protocol;
 use loadout_protocol::sse::SseParser;
@@ -312,6 +312,7 @@ struct Harness {
     records: Arc<Records>,
     health: Arc<HealthRegistry>,
     routes_store: Arc<Routes>,
+    policies: Arc<ClientPolicies>,
     _shutdown: CancellationToken,
 }
 
@@ -322,6 +323,7 @@ impl Harness {
         let routes = Arc::new(RouteTableHandle::new(RouteTable::new(1, targets)));
         let records = Arc::new(Records::default());
         let routes_store = Arc::new(Routes::default());
+        let policies = Arc::new(ClientPolicies::default());
         let plane = DataPlane {
             routes,
             http: HttpClient::new(&HttpConfig::default()).expect("http"),
@@ -332,6 +334,7 @@ impl Harness {
                 ..UpstreamLimits::default()
             },
             sessions: Arc::default(),
+            policies: policies.clone(),
         };
         let key = generate_client_key();
         let keys = Arc::new(ClientKeyIndex::new([(
@@ -358,6 +361,7 @@ impl Harness {
             records,
             health,
             routes_store,
+            policies,
             _shutdown: shutdown,
         }
     }
@@ -973,5 +977,90 @@ async fn anthropic_passthrough_forwards_beta_headers() {
     assert!(
         seen.headers.get("x-custom").is_none(),
         "only allow-listed headers are forwarded"
+    );
+}
+
+#[tokio::test]
+async fn client_policy_default_model_filter_and_rate_limit() {
+    let (mock, base) = start_mock().await;
+    for _ in 0..6 {
+        mock.push("/v1/chat/completions", Reply::Sse(chat_stream_text("ok")));
+    }
+    let h = Harness::new(vec![
+        spec("acme", "main", 0, "m1", Protocol::Chat, &base),
+        spec("acme", "main", 0, "m2", Protocol::Chat, &base),
+    ])
+    .await;
+    h.policies.replace([(
+        ClientId::from("test-client"),
+        ClientPolicy {
+            default_model: Some("acme/main/m1".into()),
+            allowed_models: vec!["acme/main/m1".into()],
+            requests_per_minute: Some(2),
+            ..ClientPolicy::default()
+        },
+    )]);
+
+    // A tool that always sends its own model name gets the default model.
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "gpt-4o", "stream": true, "messages": [{"role": "user", "content": "hi"}]}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers()["x-loadout-route"].to_str().expect("route"),
+        "acme/main/m1"
+    );
+    let _ = resp.text().await;
+
+    let denied = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/main/m2", "messages": [{"role": "user", "content": "hi"}]}),
+        )
+        .await;
+    assert_eq!(denied.status(), 403);
+    let v: Value = denied.json().await.expect("json");
+    assert_eq!(v["error"]["code"], "model_not_allowed");
+
+    // The listing only shows allowed models.
+    let list: Value = h
+        .http
+        .get(format!("http://{}/v1/models", h.addr))
+        .bearer_auth(&h.key)
+        .send()
+        .await
+        .expect("send")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(list["data"].as_array().map(Vec::len), Some(1));
+
+    // At most 2 requests per minute: within a few more requests one is limited (a minute
+    // boundary during the test resets the window once).
+    let mut limited = None;
+    for _ in 0..4 {
+        let resp = h
+            .post(
+                "/v1/chat/completions",
+                json!({"model": "acme/main/m1", "stream": true, "messages": [{"role": "user", "content": "hi"}]}),
+            )
+            .await;
+        if resp.status() == 429 {
+            limited = Some(resp.json::<Value>().await.expect("json"));
+            break;
+        }
+        assert_eq!(resp.status(), 200);
+        let _ = resp.text().await;
+    }
+    let v = limited.expect("rate limited");
+    assert_eq!(v["error"]["code"], "client_limit");
+    assert!(
+        h.records(4)
+            .await
+            .iter()
+            .any(|r| r.error_category == Some("client_limit"))
     );
 }

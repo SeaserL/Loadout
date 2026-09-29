@@ -48,6 +48,14 @@ export interface DaemonStatus {
   gateway: { addr: string; listening: boolean };
 }
 
+export interface ClientPolicy {
+  default_model?: string | null;
+  allowed_models?: string[];
+  daily_token_limit?: number | null;
+  daily_cost_limit_usd?: number | null;
+  requests_per_minute?: number | null;
+}
+
 export interface ClientInfo {
   id: string;
   name: string;
@@ -55,6 +63,28 @@ export interface ClientInfo {
   enabled: boolean;
   created_at_ms: number;
   revoked_at_ms: number | null;
+  policy: ClientPolicy;
+  tokens_today: number;
+  cost_today_usd: number;
+}
+
+export interface StatsEntry {
+  key: string;
+  requests: number;
+  errors: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  avg_ttft_ms: number | null;
+  avg_tps: number | null;
+}
+
+export interface LogFilter {
+  limit: number;
+  client?: string | null;
+  search?: string | null;
+  status?: string | null;
+  since_ms?: number | null;
 }
 
 export interface ClientCreated {
@@ -261,6 +291,26 @@ export interface Revoked {
   revoked: boolean;
 }
 
+export interface BackupResult {
+  path: string;
+  providers: number;
+  accounts: number;
+  models: number;
+  pools: number;
+  clients: number;
+}
+
+export interface ImportReport {
+  settings: number;
+  providers: number;
+  accounts: number;
+  models: number;
+  pools: number;
+  clients: number;
+  skipped: string[];
+  accounts_needing_keys: string[];
+}
+
 // ---- methods ------------------------------------------------------------------------------
 
 export const api = {
@@ -269,6 +319,9 @@ export const api = {
   clients: () => call<ClientInfo[]>("client.list"),
   createClient: (name: string) => call<ClientCreated>("client.create", { name }),
   revokeClient: (name: string) => call<Revoked>("client.revoke", { name }),
+  setClientPolicy: (name: string, policy: ClientPolicy) =>
+    call<ClientInfo>("client.set_policy", { name, policy }),
+  stats: (since_ms: number, group_by: string) => call<StatsEntry[]>("stats.summary", { since_ms, group_by }),
 
   settings: () => call<Setting[]>("settings.list"),
   setSetting: (key: string, value: string) => call<Setting>("settings.set", { key, value }),
@@ -319,10 +372,14 @@ export const api = {
     call<PoolInfo>("pool.save", { name, ordering, members }),
   removePool: (name: string) => call<Revoked>("pool.remove", { name }),
 
-  recent: (limit: number) => call<RequestSummary[]>("requests.recent", { limit }),
+  recent: (filter: LogFilter) => call<RequestSummary[]>("requests.recent", filter),
   usage: (refresh: boolean) => call<AccountUsage[]>("usage.list", { provider: null, refresh }),
   scan: () => call<DiscoveredTool[]>("discovery.scan"),
   importTool: (kind: string, alias: string | null) => call<AccountInfo>("discovery.import", { kind, alias }),
+
+  exportConfig: (path: string | null) => call<BackupResult>("backup.export", { path }),
+  importConfig: (path: string) => call<ImportReport>("backup.import", { path }),
+  backupDatabase: (path: string | null) => call<{ path: string }>("backup.database", { path }),
 
   startDaemon: () => command<DaemonStatus>("daemon_start"),
   stopDaemon: () => command<void>("daemon_stop"),

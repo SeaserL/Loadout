@@ -6,29 +6,71 @@ import { Badge, Card, Empty, ErrorText, Page } from "../components";
 import { ms, num, time, usd } from "../format";
 import { usePoll } from "../hooks";
 
+const PERIODS = [
+  { label: "any time", hours: 0 },
+  { label: "last hour", hours: 1 },
+  { label: "last 24 h", hours: 24 },
+  { label: "last 7 days", hours: 168 },
+];
+
 export function Logs() {
   const [limit, setLimit] = useState(100);
-  const recent = usePoll(() => api.recent(limit), 4000, [limit]);
+  const [client, setClient] = useState("");
+  const [search, setSearch] = useState("");
+  const [errorsOnly, setErrorsOnly] = useState(false);
+  const [hours, setHours] = useState(0);
+  const clients = usePoll(api.clients, 0);
+  const recent = usePoll(
+    () =>
+      api.recent({
+        limit,
+        client: client || null,
+        search: search.trim() || null,
+        status: errorsOnly ? "error" : null,
+        since_ms: hours ? Date.now() - hours * 3600000 : null,
+      }),
+    4000,
+    [limit, client, search, errorsOnly, hours],
+  );
   return (
-    <Page
-      title="Request log"
-      actions={
-        <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-          {[50, 100, 500, 1000].map((n) => (
-            <option key={n} value={n}>
-              last {n}
-            </option>
-          ))}
-        </select>
-      }
-    >
+    <Page title="Request log">
       <div className="notice small">
         Metadata only: prompts, responses and tool arguments are never stored. Entries older than 30 days are
         deleted automatically.
       </div>
+      <div className="row wrap" style={{ marginBottom: 12 }}>
+        <input placeholder="Model or route contains…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select value={client} onChange={(e) => setClient(e.target.value)}>
+          <option value="">all clients</option>
+          {(clients.data ?? []).map((c) => (
+            <option key={c.id} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+          {PERIODS.map((p) => (
+            <option key={p.hours} value={p.hours}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <label className="row small">
+          <input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} />
+          failed only
+        </label>
+        <div className="spacer" />
+        <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
+          {[50, 100, 500, 1000].map((n) => (
+            <option key={n} value={n}>
+              up to {n}
+            </option>
+          ))}
+        </select>
+      </div>
       <ErrorText error={recent.error?.message} />
       <Card>
-        {(recent.data ?? []).length === 0 && !recent.loading && <Empty>No requests yet.</Empty>}
+        {(recent.data ?? []).length === 0 && !recent.loading && <Empty>No matching requests.</Empty>}
         {(recent.data ?? []).length > 0 && (
           <table>
             <thead>

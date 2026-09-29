@@ -9,6 +9,8 @@ use loadout_protocol::{Protocol, Usage};
 use loadout_provider_sdk::{BoxFuture, HttpClient};
 use loadout_router::{RouteTableHandle, SessionAffinity};
 
+use crate::ClientPolicies;
+
 /// Metadata of one client request (ADR-008 §1). No content, no credentials.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RequestRecord {
@@ -95,6 +97,8 @@ pub struct DataPlane {
     pub limits: UpstreamLimits,
     /// `X-Loadout-Session-ID` → account model (ADR-003 §5).
     pub sessions: Arc<SessionAffinity>,
+    /// Per-client policies and usage counters (ExecPlan 006).
+    pub policies: Arc<ClientPolicies>,
 }
 
 impl DataPlane {
@@ -107,6 +111,7 @@ impl DataPlane {
             response_routes: Arc::new(NullSink),
             limits: UpstreamLimits::default(),
             sessions: Arc::default(),
+            policies: Arc::default(),
         }
     }
 

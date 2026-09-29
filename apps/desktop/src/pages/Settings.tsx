@@ -75,6 +75,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
           </Button>
         </div>
       </Card>
+      <BackupCard />
       <Card title="Options">
         <table>
           <thead>
@@ -166,5 +167,70 @@ function SettingRow(props: {
         </div>
       </td>
     </tr>
+  );
+}
+
+function BackupCard() {
+  const action = useAction();
+  const [path, setPath] = useState("");
+  const [message, setMessage] = useState<string>();
+  return (
+    <Card title="Backup">
+      <p className="small muted">
+        The configuration export contains providers, accounts, models, pools, client keys (as hashes, so existing
+        keys keep working) and settings — never API keys. After importing on another PC, enter each API key again.
+      </p>
+      <div className="row wrap">
+        <input
+          style={{ flex: 1, minWidth: 320 }}
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          placeholder="File path (optional for export; default: the data folder's backups)"
+        />
+        <Button
+          disabled={action.busy}
+          onClick={() =>
+            void action.run(async () => {
+              const r = await api.exportConfig(path.trim() || null);
+              setMessage(
+                `Exported ${r.providers} providers, ${r.accounts} accounts, ${r.models} models, ${r.pools} pools, ${r.clients} client keys to ${r.path}`,
+              );
+            })
+          }
+        >
+          Export configuration
+        </Button>
+        <Button
+          disabled={action.busy || !path.trim()}
+          onClick={() =>
+            void action.run(async () => {
+              const r = await api.importConfig(path.trim());
+              const keys = r.accounts_needing_keys.length
+                ? ` Enter the API key again for: ${r.accounts_needing_keys.join(", ")}.`
+                : "";
+              const skipped = r.skipped.length ? ` Skipped: ${r.skipped.join(", ")}.` : "";
+              setMessage(
+                `Imported ${r.providers} providers, ${r.accounts} accounts, ${r.models} models, ${r.pools} pools, ${r.clients} client keys, ${r.settings} settings.${keys}${skipped}`,
+              );
+            })
+          }
+        >
+          Import
+        </Button>
+        <Button
+          disabled={action.busy}
+          onClick={() =>
+            void action.run(async () => {
+              const r = await api.backupDatabase(path.trim() || null);
+              setMessage(`Database copied to ${r.path}`);
+            })
+          }
+        >
+          Copy database
+        </Button>
+      </div>
+      <ErrorText error={action.error} />
+      {message && <div className="notice small" style={{ marginTop: 10 }}>{message}</div>}
+    </Card>
   );
 }

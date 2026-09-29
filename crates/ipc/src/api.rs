@@ -81,6 +81,37 @@ pub struct ClientInfo {
     pub enabled: bool,
     pub created_at_ms: i64,
     pub revoked_at_ms: Option<i64>,
+    #[serde(default)]
+    pub policy: ClientPolicy,
+    /// Usage today (UTC), counted for the policy's daily limits.
+    #[serde(default)]
+    pub tokens_today: u64,
+    #[serde(default)]
+    pub cost_today_usd: f64,
+}
+
+/// What a client key may do (ADR-011 §2, ExecPlan 006). Empty = no restrictions.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ClientPolicy {
+    /// Model used when the request names no Loadout model (e.g. a tool that always sends
+    /// `gpt-4o`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+    /// Exact model names or prefixes ending in `*`; empty allows all.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_models: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_token_limit: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_cost_limit_usd: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_per_minute: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ClientPolicyParams {
+    pub name: String,
+    pub policy: ClientPolicy,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -122,6 +153,12 @@ method!(
 );
 method!(ClientList, "client.list", (), Vec<ClientInfo>);
 method!(ClientRevoke, "client.revoke", ClientNameParams, Revoked);
+method!(
+    ClientSetPolicy,
+    "client.set_policy",
+    ClientPolicyParams,
+    ClientInfo
+);
 
 // ---- settings --------------------------------------------------------------------------
 
@@ -425,6 +462,37 @@ pub struct PoolInfo {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecentParams {
     pub limit: usize,
+    /// Client name.
+    #[serde(default)]
+    pub client: Option<String>,
+    /// Substring of the requested model or route.
+    #[serde(default)]
+    pub search: Option<String>,
+    /// `ok` or `error`.
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub since_ms: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StatsParams {
+    pub since_ms: i64,
+    /// `model`, `route`, `provider`, `client` or `day` (UTC).
+    pub group_by: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StatsEntry {
+    /// Model / route / provider / client name / `YYYY-MM-DD`.
+    pub key: String,
+    pub requests: i64,
+    pub errors: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+    pub avg_ttft_ms: Option<f64>,
+    pub avg_tps: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -616,6 +684,64 @@ method!(ModelSetTier, "model.set_tier", ModelTierParams, ModelInfo);
 method!(PoolSave, "pool.save", PoolSaveParams, PoolInfo);
 method!(PoolList, "pool.list", (), Vec<PoolInfo>);
 method!(PoolRemove, "pool.remove", PoolRef, Revoked);
+method!(StatsSummary, "stats.summary", StatsParams, Vec<StatsEntry>);
+
+// ---- backup (ExecPlan 006 §3.4) -----------------------------------------------------------
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct BackupPathParams {
+    /// Target file; default: `<data dir>ackups\…`.
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BackupResult {
+    pub path: String,
+    pub providers: usize,
+    pub accounts: usize,
+    pub models: usize,
+    pub pools: usize,
+    pub clients: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ImportParams {
+    pub path: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ImportReport {
+    pub settings: usize,
+    pub providers: usize,
+    pub accounts: usize,
+    pub models: usize,
+    pub pools: usize,
+    pub clients: usize,
+    /// Items that already existed or could not be imported.
+    pub skipped: Vec<String>,
+    /// `provider/account` names whose API key must be entered again.
+    pub accounts_needing_keys: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DatabaseBackup {
+    pub path: String,
+}
+
+method!(
+    BackupExport,
+    "backup.export",
+    BackupPathParams,
+    BackupResult
+);
+method!(BackupImport, "backup.import", ImportParams, ImportReport);
+method!(
+    BackupDatabase,
+    "backup.database",
+    BackupPathParams,
+    DatabaseBackup
+);
 method!(
     RequestsRecent,
     "requests.recent",
