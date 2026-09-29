@@ -1,0 +1,25 @@
+[package]
+name = "loadout-provider-sdk"
+description = "Provider module contract: descriptors, capabilities, trust levels, drivers, upstream HTTP."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+futures-util.workspace = true
+loadout-protocol.workspace = true
+loadout-secrets.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+
+[lints]
+workspace = true

@@ -212,8 +212,18 @@ loadout model list | remove | set-price
 
 ## 13. Progress
 
-- [ ] Stage 1 — protocol
-- [ ] Stage 2 — provider-sdk + providers
+- [x] Stage 1 — protocol（2026-09-29）
+  - Canonical 模型；Chat / Messages / Responses 的请求编解码、流解码器、流编码器（状态机）、非流式响应编码；`Aggregator`；SSE 增量解析器（保留原始字节；注释 / 心跳块的字节并入下一事件，保证 passthrough 字节完整）。
+  - Usage 语义：canonical `input_tokens` 含缓存（OpenAI 口径）；Anthropic 编解码时加减 cache 字段。
+  - Anthropic / Responses 编码器把 tool call 缓冲到结束时整块输出（Anthropic 内容块不能交错，而 OpenAI 上游可能交错并行 tool call）；Chat 编码器实时输出。
+  - Passthrough 改写只动 `model`；Chat 流式且客户端未要求 usage 时注入 `stream_options.include_usage`，并在转发时丢弃注入产生的 usage 块（`is_injected_usage_chunk`）。开启 `serde_json/preserve_order` 以保持字段顺序。
+  - 37 个测试（含三协议互转、编码器输出结构校验、自解码往返）。
+- [x] Stage 2 — provider-sdk + providers（2026-09-29）
+  - `provider-sdk`：`Capabilities`、`TrustLevel`（含 tier 与"v1 仅 tier A 可推理"）、`ProviderDescriptor`、`ProviderModule`（transport / catalog / usage driver 默认"不支持"）、`HttpClient`（reqwest + rustls + 系统证书；loopback 绕过系统代理）、上游错误分类（401/403/402/429 额度 vs 限流/5xx/超时…，Retry-After）、`UsageReport` 数据模型（为 Phase 4/5 准备）。
+  - `providers`：`openai-compatible`（Bearer；Chat + Responses；loopback 自动标记 `LOCAL`；`max_tokens_field` 设置）、`anthropic-compatible`（`x-api-key` 或 bearer；`anthropic-version`；`default_max_tokens`）、`Registry`。
+  - 脱敏函数从 core 移到 `secrets::redact`，上游错误信息同样经过脱敏（上游可能回显部分 key）。
+  - reqwest 默认 TLS（rustls + aws-lc-rs）在本机构建通过，无需改用 ring。
+  - 17 个测试。
 - [ ] Stage 3 — storage 0002 + telemetry writer
 - [ ] Stage 4 — router
 - [ ] Stage 5 — gateway proxy

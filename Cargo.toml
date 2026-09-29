@@ -8,6 +8,8 @@ members = [
     "crates/ipc",
     "crates/platform",
     "crates/protocol",
+    "crates/provider-sdk",
+    "crates/providers",
     "crates/secrets",
     "crates/storage",
 ]
@@ -26,6 +28,10 @@ loadout-core = { path = "crates/core" }
 loadout-gateway = { path = "crates/gateway" }
 loadout-ipc = { path = "crates/ipc" }
 loadout-platform = { path = "crates/platform" }
+loadout-protocol = { path = "crates/protocol" }
+loadout-provider-sdk = { path = "crates/provider-sdk" }
+loadout-providers = { path = "crates/providers" }
+loadout-router = { path = "crates/router" }
 loadout-secrets = { path = "crates/secrets" }
 loadout-storage = { path = "crates/storage" }
 
@@ -35,6 +41,7 @@ tokio-util = { version = "0.7", features = ["codec", "rt"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 bytes = "1.12"
 axum = "0.8"
+reqwest = { version = "0.13", features = ["stream"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["limit", "request-id", "trace"] }
 
