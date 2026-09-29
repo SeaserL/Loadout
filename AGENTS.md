@@ -128,7 +128,8 @@ docs/exec-plans/active/NNN-title.md
 ### 常用命令
 
 ```text
-cargo build --workspace                          构建全部（含 loadout.exe / loadoutd.exe）
+npm install && npm run build                     构建桌面端前端（apps/desktop/dist）；cargo 编译 loadout-desktop 前必须先有它
+cargo build --workspace                          构建全部（loadout.exe / loadoutd.exe / loadout-app.exe）
 cargo test --workspace                           全部测试（含真实 Named Pipe / Credential Manager / e2e）
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
@@ -143,12 +144,18 @@ loadout provider add <slug> --kind openai-compatible --base-url https://…/v1
 loadout account add <slug> <alias>                提示输入 API key（不回显），并同步模型列表
 loadout model list                                可用的 provider/account/model 名称
 loadout client create <name>                      创建客户端使用的 client key
-loadout route status | loadout logs               路由健康 / 最近请求
+loadout route status | loadout logs               路由健康、Tier、延迟 / 最近请求
+loadout route list                                loadout/realtime|fast|default 与 Pool 的路由顺序
+loadout bench [name…]                             立即测速（默认：所有未测量的路由）
+loadout pool set <name> <models…> [--ordering latency]
+loadout-app                                       桌面管理界面（托盘常驻；未运行 daemon 时自动拉起）
 loadout daemon stop
 loadoutd --foreground                             前台运行，日志输出到终端
 ```
 
-客户端配置：Base URL `http://127.0.0.1:8317/v1`，API key 为 client key，模型名用 `provider/account/model` 或 `provider/model`。
+客户端配置：Base URL `http://127.0.0.1:8317/v1`，API key 为 client key，模型名用 `loadout/<virtual 或 pool>`、`provider/account/model` 或 `provider/model`。
+
+桌面端开发：`LOADOUT_PIPE_NAME=\\.\pipe\loadout-<test>` 让 `loadout-app` 连接隔离的测试 daemon（先用 CLI 以隔离参数启动它）。
 
 ### 测试隔离约定
 

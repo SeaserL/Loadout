@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "The main window: Loadout commands and basic window/event access only.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

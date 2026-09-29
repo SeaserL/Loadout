@@ -58,6 +58,10 @@ loadout.exe       命令行工具（开发 / 调试 / 脚本）
 - 升级流程：UI 经 IPC 请求 daemon 优雅退出（停止接收新请求、等待在途流结束或超时）→ 替换二进制 → 重新拉起。
 - 安装器与自动更新细节留到 Phase 10。
 
+### 补充（2026-09-29，ExecPlan 005）
+
+- 桌面端可执行文件名为 `loadout-app.exe`：Windows 文件名不区分大小写，`Loadout.exe` 会与 CLI `loadout.exe` 在同一安装目录冲突。产品显示名、窗口标题与快捷方式名称仍为 "Loadout"。
+
 ## Alternatives
 
 | 方案 | 否决原因 |

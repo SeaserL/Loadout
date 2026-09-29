@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "apps/desktop/src-tauri",
     "apps/loadout",
     "benchmarks",
     "crates/core",
@@ -78,6 +79,8 @@ criterion = { version = "0.8", features = ["async_tokio"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
+# MSVC link.exe reports "Creating library …" for binaries that export symbols; not actionable.
+linker_messages = "allow"
 missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
