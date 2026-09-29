@@ -1,6 +1,6 @@
 # ExecPlan 004: Latency Engine, Tiers, Virtual Models and Pools
 
-- **Status**: In progress
+- **Status**: Completed
 - **Created**: 2026-09-29
 - **Phase**: Harness §26 Phase 6（Benchmark engine、Health、Quota、RouteSnapshot）+ Phase 7（按 ADR-003 收敛后的 v1 路由：realtime / fast / default + 用户 Pool）
 
@@ -103,15 +103,15 @@ daemon 启动时从 `request_events`（流式、成功、有 ttft）与 `latency
 | 风险 | 缓解 |
 |---|---|
 | 大上下文请求的 TTFT 偏高，与 probe 不可比 | 被动优先且不混用（§3.2）；阈值可配置 |
-| 推理模型 16 token 内无可见输出 | 以首个内容事件（含 reasoning）计 TTFT；无输出记为失败样本但不触发 breaker |
+| 推理模型 16 token 内无可见输出 | 以首个内容事件（含 reasoning）计 TTFT；无输出时不产生样本，也不触发 breaker |
 | OpenRouter 等同步出大量模型导致 probe 过多 | 每轮 ≤ 4、间隔 6 h、价格阈值；用户可禁用模型或关闭自动测速 |
 
 ## 8. Definition of Done
 
-- [ ] §1 全部功能，测试覆盖 §5
-- [ ] clippy / fmt / 全部测试通过；route_selection benchmark 满足预算
-- [ ] 文档：README / glossary / ADR-003 相关更新
-- [ ] 本文件移入 `completed/`
+- [x] §1 全部功能，测试覆盖 §5
+- [x] clippy / fmt / 全部测试通过；route_selection benchmark 满足预算
+- [x] 文档：glossary / ADR-003 相关更新（README 在最终交付时统一更新）
+- [x] 本文件移入 `completed/`
 
 ## 9. Progress
 
@@ -127,7 +127,11 @@ daemon 启动时从 `request_events`（流式、成功、有 ttft）与 `latency
 - [x] Stage 3 — probe（2026-09-29）
   - `bench::probe`：固定 prompt、16 token、流式，经 target 自身 endpoint；结果更新 breaker；无可见输出不算故障也不产生样本。
   - 自动测速：每 10 分钟最多 4 个到期 target（按最久未测排序）；`bench.run` 手动测速，并发 4。
-- [ ] Stage 4 — IPC / CLI / e2e / docs
+- [x] Stage 4 — IPC / CLI / e2e / docs（2026-09-29）
+  - CLI：`loadout bench [names…]`、`loadout route list`、`loadout route status`（新增 TIER / TTFT P50/P90 / TOK/S / SAMPLES）、`loadout pool set|list|remove`、`loadout model tier <name> ultra-fast|fast|normal|auto`。修改 `latency.*` 设置立即重新评估。
+  - Gateway：`X-Loadout-Session-ID`；空的 virtual 模型返回明确提示（运行 `loadout bench`）。
+  - `latency_e2e`：mock 上游快 / 慢两个模型 → bench → tier、realtime / fast / default、tier 固定、manual / latency Pool、保留名拒绝、会话粘性、`/v1/models`。
+  - Benchmark：`route_selection/virtual_100_targets_with_session` 6.9 µs（候选分组改为哈希索引，原先 O(n²) 为 24.6 µs）；provider/model 0.49 µs，exact 0.23 µs。
 
 ## 10. Decisions
 

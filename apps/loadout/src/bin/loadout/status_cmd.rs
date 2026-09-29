@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Subcommand;
-use loadout_ipc::api::{self, RecentParams};
+use loadout_ipc::api::{self, BenchParams, RecentParams};
 
 use crate::{Ctx, Failure, output};
 
 #[derive(Debug, Subcommand)]
 pub enum RouteCommand {
-    /// Health of every route target (account + model + protocol).
+    /// Health, latency tier and speed of every route (account + model + protocol).
     Status,
+    /// Virtual models (loadout/realtime, loadout/fast, loadout/default) and pools, with the
+    /// order in which their routes are tried.
+    List,
+}
+
+fn ms(v: Option<u32>) -> String {
+    v.map_or_else(|| "-".into(), |v| v.to_string())
 }
 
 pub async fn route(ctx: &Ctx, cmd: RouteCommand) -> Result<(), Failure> {
@@ -30,10 +37,18 @@ pub async fn route(ctx: &Ctx, cmd: RouteCommand) -> Result<(), Failure> {
                         t.name.clone(),
                         t.protocol.clone(),
                         t.state.clone(),
+                        if t.tier_pinned {
+                            format!("{} (pinned)", t.tier)
+                        } else {
+                            t.tier.clone()
+                        },
+                        format!("{}/{}", ms(t.ttft_p50_ms), ms(t.ttft_p90_ms)),
+                        t.tps.map_or_else(|| "-".into(), |v| format!("{v:.0}")),
+                        t.samples.to_string(),
+                        format!("{}/{}", t.successes, t.failures),
                         t.unavailable_until_ms
                             .map(output::timestamp)
                             .unwrap_or_default(),
-                        format!("{}/{}", t.successes, t.failures),
                         t.last_error.clone().unwrap_or_default(),
                     ]
                 })
@@ -43,15 +58,80 @@ pub async fn route(ctx: &Ctx, cmd: RouteCommand) -> Result<(), Failure> {
                     "ROUTE",
                     "PROTOCOL",
                     "STATE",
-                    "UNTIL",
+                    "TIER",
+                    "TTFT P50/P90 MS",
+                    "TOK/S",
+                    "SAMPLES",
                     "OK/FAIL",
+                    "UNTIL",
                     "LAST ERROR",
                 ],
                 &rows,
             );
             Ok(())
         }
+        RouteCommand::List => {
+            let list = ipc.call::<api::RouteVirtuals>(&()).await?;
+            if ctx.json {
+                return output::json(&list);
+            }
+            for v in &list {
+                let kind = match &v.ordering {
+                    Some(o) => format!("{}, {o} order", v.kind),
+                    None => v.kind.clone(),
+                };
+                println!("{} ({kind})", v.name);
+                if v.routes.is_empty() {
+                    println!("  (no routes yet)");
+                }
+                for (i, r) in v.routes.iter().enumerate() {
+                    println!("  {}. {r}", i + 1);
+                }
+            }
+            Ok(())
+        }
     }
+}
+
+pub async fn bench(ctx: &Ctx, names: Vec<String>) -> Result<(), Failure> {
+    let mut ipc = ctx.connect().await?;
+    if !ctx.json {
+        if names.is_empty() {
+            println!("Measuring every route without latency data...");
+        } else {
+            println!("Measuring {}...", names.join(", "));
+        }
+    }
+    let results = ipc.call::<api::BenchRun>(&BenchParams { names }).await?;
+    if ctx.json {
+        return output::json(&results);
+    }
+    if results.is_empty() {
+        println!("Nothing to measure: every route already has latency data.");
+        return Ok(());
+    }
+    let rows: Vec<Vec<String>> = results
+        .iter()
+        .map(|r| {
+            vec![
+                r.name.clone(),
+                r.protocol.clone(),
+                if r.ok { "ok".into() } else { "failed".into() },
+                r.ttft_ms.map_or_else(|| "-".into(), |t| format!("{t} ms")),
+                format!("{} ms", r.duration_ms),
+                r.tier.clone(),
+                r.error.clone().unwrap_or_default(),
+            ]
+        })
+        .collect();
+    output::table(
+        &[
+            "ROUTE", "PROTOCOL", "RESULT", "TTFT", "TOTAL", "TIER", "ERROR",
+        ],
+        &rows,
+    );
+    println!("A tier needs at least 3 measurements; real requests count too.");
+    Ok(())
 }
 
 pub async fn logs(ctx: &Ctx, limit: usize) -> Result<(), Failure> {

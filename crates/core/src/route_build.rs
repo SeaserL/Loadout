@@ -74,6 +74,7 @@ pub(crate) const RESERVED_VIRTUAL_NAMES: &[&str] = &[
     "batch",
     "auto",
     "manual",
+    "throughput",
 ];
 
 /// Account models of a table in table order, each with its target ids.

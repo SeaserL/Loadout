@@ -3,7 +3,7 @@
 use clap::Subcommand;
 use loadout_ipc::api::{
     self, AccountRef, ModelAddParams, ModelEnableParams, ModelInfo, ModelListParams,
-    ModelPriceParams, ModelRef,
+    ModelPriceParams, ModelRef, ModelTierParams,
 };
 
 use crate::account_cmd::print_sync;
@@ -54,6 +54,9 @@ pub enum ModelCommand {
     },
     /// Remove a model.
     Remove { name: String },
+    /// Pin the latency tier of a model (ultra-fast, fast, normal) or return to the measured
+    /// tier (auto).
+    Tier { name: String, tier: String },
 }
 
 fn price(p: Option<f64>) -> String {
@@ -171,6 +174,20 @@ pub async fn run(ctx: &Ctx, cmd: ModelCommand) -> Result<(), Failure> {
                 price(m.input_price),
                 price(m.output_price)
             );
+            Ok(())
+        }
+        ModelCommand::Tier { name, tier } => {
+            let tier = (tier != "auto").then_some(tier);
+            let m = ipc
+                .call::<api::ModelSetTier>(&ModelTierParams { name, tier })
+                .await?;
+            if ctx.json {
+                return output::json(&m);
+            }
+            match &m.tier_override {
+                Some(t) => println!("{} is pinned to {t}.", m.name),
+                None => println!("{} uses its measured tier.", m.name),
+            }
             Ok(())
         }
         ModelCommand::Remove { name } => {

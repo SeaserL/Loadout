@@ -5,6 +5,8 @@
 //! ingress protocol within each account model (ADR-006 §2). A session's previous account
 //! model moves to the front while it stays eligible (ADR-003 §5).
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 
 use loadout_protocol::Protocol;
@@ -48,13 +50,14 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
 
     // Group protocol variants of the same account model, keeping chain order.
     let mut groups: Vec<Vec<&Arc<RouteTarget>>> = Vec::new();
+    let mut index: HashMap<&str, usize> = HashMap::with_capacity(resolution.candidates.len());
     for t in &resolution.candidates {
-        match groups
-            .iter_mut()
-            .find(|g| account_model_key(&g[0].id) == account_model_key(&t.id))
-        {
-            Some(g) => g.push(t),
-            None => groups.push(vec![t]),
+        match index.entry(account_model_key(&t.id)) {
+            Entry::Occupied(e) => groups[*e.get()].push(t),
+            Entry::Vacant(e) => {
+                e.insert(groups.len());
+                groups.push(vec![t]);
+            }
         }
     }
     let is_virtual = resolution.kind == ResolutionKind::Virtual;

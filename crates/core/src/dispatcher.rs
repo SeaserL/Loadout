@@ -192,6 +192,10 @@ impl Handler for Dispatcher {
                     })
                     .await?;
                 s.emit(events::SETTINGS_CHANGED, json!({ "key": def.key }));
+                if def.key.starts_with("latency.") {
+                    // New tier thresholds apply right away.
+                    s.control.evaluate_latency(true).await?;
+                }
                 encode_result::<api::SettingsSet>(&setting)
             }
 
@@ -207,6 +211,10 @@ impl Handler for Dispatcher {
                     })
                     .await?;
                 s.emit(events::SETTINGS_CHANGED, json!({ "key": def.key }));
+                if def.key.starts_with("latency.") {
+                    // New tier thresholds apply right away.
+                    s.control.evaluate_latency(true).await?;
+                }
                 encode_result::<api::SettingsReset>(&setting)
             }
 

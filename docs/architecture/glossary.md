@@ -72,6 +72,8 @@ v1 推理 Transport 只允许 Tier A（见 ADR-009）。
 
 同一 Tier 内按 **TPS**（output tokens/sec）从高到低排序，用户手动排序优先。
 
+统计单位是 account model（账号 + 模型 + 渠道）；同一 account model 的不同协议变体共用统计（ExecPlan 004 §3.1）。P90 以近期样本加权（EWMA），至少 3 个样本才有 Tier；真实请求样本足够时不混用 probe 样本。Tier 有 ±10% 死区，TPS 排序变化需超过 20% 且持续 3 分钟，避免频繁切换。用户可用 `loadout model tier` 固定某个模型的 Tier。
+
 v1 内置 Virtual Models：
 
 | 名称 | 候选范围 |
@@ -79,9 +81,11 @@ v1 内置 Virtual Models：
 | `loadout/realtime` | 仅 `ULTRA_FAST` |
 | `loadout/fast` | `ULTRA_FAST` → `FAST` |
 | `loadout/default` | 全部可用 target（含 `UNMEASURED`），按 Tier 顺序 |
-| `loadout/<pool>` | 用户自定义 Pool，按用户给定顺序 |
+| `loadout/<pool>` | 用户自定义 Pool：`manual` 按用户给定顺序，`latency` 按上面的 Tier / TPS 规则 |
 
-保留名称（v1 不实现，不得被用户 Pool 占用）：`balanced`、`quality`、`economy`、`coding`、`batch`、`auto`、`throughput`。
+保留名称（v1 不实现，不得被用户 Pool 占用）：`balanced`、`quality`、`economy`、`coding`、`batch`、`auto`、`manual`、`throughput`。
+
+**Session affinity**：请求带 `X-Loadout-Session-ID` 时，同一会话优先继续使用上次的 account model，直到它不再 eligible（仅内存，2 小时过期）。
 
 ---
 
@@ -104,7 +108,7 @@ v1 内置 Virtual Models：
 | 状态 | 进入条件 | 是否可选 |
 |---|---|---|
 | `HEALTHY` | 近期成功 | 是 |
-| `DEGRADED` | 错误率或延迟异常升高 | 是（排序降权） |
+| `DEGRADED` | 最近至少 4 次结果中失败 ≥ 25%（当前仍为 HEALTHY） | 是（同 Tier 内排在后面） |
 | `COOLDOWN` | 5xx / timeout，指数退避中 | 否，到期自动半开 |
 | `RATE_LIMITED` | 429，按 retry-after / reset 冷却 | 否，到期恢复 |
 | `QUOTA_EXHAUSTED` | 上游返回额度耗尽，或 Account 为 `QUOTA_EXHAUSTED` | 否，到 reset 恢复 |

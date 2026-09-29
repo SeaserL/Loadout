@@ -49,6 +49,7 @@ Eligibility filter 同时读取快照与这些原子状态。两者都是内存�
 - 按 RouteTarget 计算，而非按 Model（Harness §16）。
 - 依据：TTFT P90（EWMA 加权近期样本）。默认阈值：超快 < 800 ms，快 < 2000 ms，其余为普通；样本不足为 `UNMEASURED`。
   - **阈值是初始猜测**，Phase 6 用真实数据校准后更新本 ADR。
+  - 2026-09-29（ExecPlan 004）：阈值改为设置项 `latency.ultra_fast_ms` / `latency.fast_ms`，默认值不变，待用户真实流量校准。统计按 account model 聚合（协议变体共用），被动样本足够时不混用 probe 样本。
 - 同一 Tier 内按 TPS 从高到低排序。
 - **用户手动排序优先于自动排序**。
 - **滞后（hysteresis）**：排序只在差异显著时变化（默认：tier 变化，或 TPS 差距 > 20% 且持续 N 个窗口），避免因测量噪声频繁切换 target、破坏上游 prompt cache。

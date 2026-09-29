@@ -9,6 +9,7 @@ mod config_cmd;
 mod daemon_cmd;
 mod model_cmd;
 mod output;
+mod pool_cmd;
 mod provider_cmd;
 mod scan_cmd;
 mod status_cmd;
@@ -67,6 +68,14 @@ enum Command {
     /// Inspect routing.
     #[command(subcommand)]
     Route(status_cmd::RouteCommand),
+    /// Manage pools: your own ordered model lists, used as `loadout/<name>`.
+    #[command(subcommand)]
+    Pool(pool_cmd::PoolCommand),
+    /// Measure latency now with a tiny request (default: every route without data).
+    Bench {
+        /// provider/account/model, provider/model or loadout/<name>.
+        names: Vec<String>,
+    },
     /// Find AI tools installed on this machine (Codex, Claude Code, Gemini CLI, Kimi Code…).
     Scan {
         #[command(subcommand)]
@@ -199,6 +208,8 @@ fn main() -> ExitCode {
             Command::Account(cmd) => account_cmd::run(&ctx, cmd).await,
             Command::Model(cmd) => model_cmd::run(&ctx, cmd).await,
             Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
+            Command::Pool(cmd) => pool_cmd::run(&ctx, cmd).await,
+            Command::Bench { names } => status_cmd::bench(&ctx, names).await,
             Command::Logs { limit } => status_cmd::logs(&ctx, limit).await,
             Command::Usage { provider, refresh } => usage_cmd::run(&ctx, provider, refresh).await,
             Command::Scan { command } => scan_cmd::run(&ctx, command).await,
