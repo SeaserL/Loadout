@@ -22,7 +22,10 @@ use loadout_provider_sdk::oauth::{
     DevicePoll, DeviceStart, OAuthFlow, PollOutcome, RefreshError, TokenSet, form_encode,
     jwt_claims,
 };
-use loadout_provider_sdk::time::now_ms;
+use loadout_provider_sdk::time::{now_ms, number_field, timestamp_ms};
+use loadout_provider_sdk::usage::{
+    Confidence, Plan, QuotaUnit, QuotaWindow, UsageReport, UsageSource,
+};
 use loadout_provider_sdk::{
     AuthMethod, BoxFuture, Capabilities, CatalogModel, DriverContext, Drivers, Endpoint,
     FailureKind, HttpClient, ProviderConfig, ProviderDescriptor, ProviderError, ProviderModule,
@@ -45,7 +48,7 @@ static DESCRIPTOR: ProviderDescriptor = ProviderDescriptor {
     drivers: Drivers {
         discovery: false,
         auth: true,
-        usage: false,
+        usage: true,
         catalog: true,
         transport: true,
         health: true,
@@ -177,6 +180,101 @@ pub(crate) fn classify_codex(status: u16, headers: &HeaderMap, body: &str) -> Up
         }
         _ => classify(status, headers, body),
     }
+}
+
+/// `GET …/backend-api/wham/usage`: the rate-limit status the official Codex client reads
+/// (openai/codex `codex-rs/backend-client`, `rate_limit_status_url`, ChatGPT path style). It
+/// sends no prompt and spends no quota. The inference base ends in `/codex`; the usage
+/// endpoint sits beside it.
+pub(crate) fn usage_url(base: &str) -> String {
+    let base = base.trim_end_matches('/');
+    let root = base.strip_suffix("/codex").unwrap_or(base);
+    join_url(root, "/wham/usage")
+}
+
+/// Parses the `wham/usage` payload: `rate_limit.{primary,secondary}_window` with
+/// `used_percent`, `limit_window_seconds`, `reset_at` (Unix seconds) or
+/// `reset_after_seconds`; `plan_type` at the top level.
+pub(crate) fn report_from_usage(v: &Value, now: i64) -> Result<UsageReport, ProviderError> {
+    let limits = v.get("rate_limit").filter(|l| l.is_object());
+    let mut report = UsageReport::new(UsageSource::PrivateEndpoint, Confidence::Exact);
+    for key in ["primary_window", "secondary_window"] {
+        let Some(w) = limits.and_then(|l| l.get(key)).filter(|w| w.is_object()) else {
+            continue;
+        };
+        let Some(used) = number_field(w, &["used_percent"]) else {
+            continue;
+        };
+        let minutes = number_field(w, &["limit_window_seconds"]).map(|s| (s / 60.0).ceil());
+        let resets_at_ms = w
+            .get("reset_at")
+            .and_then(timestamp_ms)
+            .filter(|t| *t > 0)
+            .or_else(|| {
+                number_field(w, &["reset_after_seconds"]).map(|s| now + (s * 1000.0) as i64)
+            });
+        let (scope, label, secs) = crate::codex::scope_for(minutes);
+        report.windows.push(QuotaWindow {
+            scope,
+            label,
+            unit: QuotaUnit::Percent,
+            used: Some(used.clamp(0.0, 100.0)),
+            limit: None,
+            window_seconds: secs,
+            resets_at_ms,
+        });
+    }
+    if report.windows.is_empty() {
+        return Err(ProviderError::InvalidResponse(
+            "Codex reported no rate-limit windows".into(),
+        ));
+    }
+    report.plan = v.get("plan_type").and_then(Value::as_str).map(|p| Plan {
+        name: format!("ChatGPT {p}"),
+        price_usd_monthly: None,
+        renews_at_ms: None,
+        auto_renew: None,
+    });
+    Ok(report)
+}
+
+/// Parses the rate-limit headers the Codex backend sets on inference responses
+/// (openai/codex `codex-rs/codex-api/src/rate_limits.rs`): `x-codex-{primary,secondary}-
+/// used-percent`, `-window-minutes` and `-reset-at` (Unix seconds); `-reset-after-seconds`
+/// is accepted as a fallback.
+pub(crate) fn report_from_headers(headers: &HeaderMap, now: i64) -> Option<UsageReport> {
+    let get = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.trim().parse::<f64>().ok())
+            .filter(|n| n.is_finite())
+    };
+    let mut report = UsageReport::new(UsageSource::PrivateEndpoint, Confidence::Exact);
+    for which in ["primary", "secondary"] {
+        let Some(used) = get(&format!("x-codex-{which}-used-percent")) else {
+            continue;
+        };
+        let minutes = get(&format!("x-codex-{which}-window-minutes"));
+        let resets_at_ms = get(&format!("x-codex-{which}-reset-at"))
+            .filter(|s| *s > 0.0)
+            .map(|s| (s * 1000.0) as i64)
+            .or_else(|| {
+                get(&format!("x-codex-{which}-reset-after-seconds"))
+                    .map(|s| now + (s * 1000.0) as i64)
+            });
+        let (scope, label, secs) = crate::codex::scope_for(minutes);
+        report.windows.push(QuotaWindow {
+            scope,
+            label,
+            unit: QuotaUnit::Percent,
+            used: Some(used.clamp(0.0, 100.0)),
+            limit: None,
+            window_seconds: secs,
+            resets_at_ms,
+        });
+    }
+    (!report.windows.is_empty()).then_some(report)
 }
 
 pub(crate) fn parse_models(v: &Value) -> Result<Vec<CatalogModel>, ProviderError> {
@@ -522,6 +620,34 @@ impl ProviderModule for CodexSubscription {
             parse_models(&v)
         })
     }
+
+    fn fetch_usage<'a>(
+        &'a self,
+        ctx: DriverContext<'a>,
+    ) -> BoxFuture<'a, Result<UsageReport, ProviderError>> {
+        Box::pin(async move {
+            let e = self.endpoint(ctx.config, Protocol::Responses, ctx.key)?;
+            let base = ctx.config.base_url(&DESCRIPTOR)?;
+            let v = ctx
+                .http
+                .get_json(&usage_url(&base), e.headers, crate::common::CATALOG_TIMEOUT)
+                .await?;
+            let mut report = report_from_usage(&v, now_ms())?;
+            report.account_label = ctx.key.and_then(|k| token_facts(k.expose()).email);
+            Ok(report)
+        })
+    }
+
+    /// Responses carry the same windows as headers, so routed traffic keeps the quota
+    /// state fresh without extra requests (ADR-012 §1); the poll above is only a slow
+    /// backstop for idle accounts.
+    fn usage_interval(&self) -> Duration {
+        Duration::from_secs(1800)
+    }
+
+    fn usage_from_headers(&self, headers: &HeaderMap) -> Option<UsageReport> {
+        report_from_headers(headers, now_ms())
+    }
 }
 
 #[cfg(test)]
@@ -797,5 +923,125 @@ pub(crate) mod tests {
             flow.refresh(&http, &cfg, &Secret::new("dead")).await,
             Err(RefreshError::LoginInvalid(_))
         ));
+    }
+
+    #[test]
+    fn usage_url_sits_beside_the_codex_base() {
+        assert_eq!(
+            usage_url("https://chatgpt.com/backend-api/codex"),
+            "https://chatgpt.com/backend-api/wham/usage"
+        );
+        assert_eq!(
+            usage_url("http://127.0.0.1:9/backend-api/codex/"),
+            "http://127.0.0.1:9/backend-api/wham/usage"
+        );
+    }
+
+    #[test]
+    fn parses_the_usage_payload() {
+        let v = json!({
+            "plan_type": "plus",
+            "rate_limit": {
+                "allowed": true,
+                "limit_reached": false,
+                "primary_window": {"used_percent": 42, "limit_window_seconds": 18000,
+                                   "reset_after_seconds": 600, "reset_at": 1_900_000_000},
+                "secondary_window": {"used_percent": 7, "limit_window_seconds": 604800,
+                                     "reset_after_seconds": 3600, "reset_at": 0}
+            }
+        });
+        let r = report_from_usage(&v, 1_000).expect("report");
+        assert_eq!(r.windows.len(), 2);
+        assert_eq!(r.windows[0].scope, "5h");
+        assert_eq!(r.windows[0].used, Some(42.0));
+        assert_eq!(r.windows[0].resets_at_ms, Some(1_900_000_000_000));
+        assert_eq!(r.windows[1].scope, "weekly");
+        assert_eq!(r.windows[1].resets_at_ms, Some(1_000 + 3_600_000));
+        assert_eq!(r.plan.map(|p| p.name).as_deref(), Some("ChatGPT plus"));
+        assert!(report_from_usage(&json!({"rate_limit": null}), 0).is_err());
+    }
+
+    #[test]
+    fn parses_rate_limit_headers() {
+        let mut h = HeaderMap::new();
+        for (k, v) in [
+            ("x-codex-primary-used-percent", "91.5"),
+            ("x-codex-primary-window-minutes", "300"),
+            ("x-codex-primary-reset-at", "1900000000"),
+            ("x-codex-secondary-used-percent", "40"),
+            ("x-codex-secondary-window-minutes", "10080"),
+            ("x-codex-secondary-reset-after-seconds", "60"),
+        ] {
+            h.insert(k, v.parse().expect("value"));
+        }
+        let r = CodexSubscription::default()
+            .usage_from_headers(&h)
+            .expect("report");
+        assert_eq!(r.windows.len(), 2);
+        assert_eq!(
+            (r.windows[0].scope.as_str(), r.windows[0].used),
+            ("5h", Some(91.5))
+        );
+        assert_eq!(r.windows[0].resets_at_ms, Some(1_900_000_000_000));
+        assert_eq!(r.windows[1].scope, "weekly");
+        assert!(r.windows[1].resets_at_ms.is_some());
+        let r = report_from_headers(&h, 1_000).expect("report");
+        assert_eq!(r.windows[1].resets_at_ms, Some(61_000));
+        assert!(report_from_headers(&HeaderMap::new(), 0).is_none());
+    }
+
+    #[tokio::test]
+    async fn fetches_usage_from_a_mock_backend() {
+        use axum::routing::get as axum_get;
+        let app = Router::new().route(
+            "/backend-api/wham/usage",
+            axum_get(|headers: axum::http::HeaderMap| async move {
+                assert!(
+                    headers
+                        .get("authorization")
+                        .is_some_and(|v| v.to_str().is_ok_and(|s| s.starts_with("Bearer ")))
+                );
+                assert_eq!(
+                    headers
+                        .get("chatgpt-account-id")
+                        .and_then(|v| v.to_str().ok()),
+                    Some("acct-1")
+                );
+                axum::Json(json!({
+                    "plan_type": "pro",
+                    "rate_limit": {"primary_window": {"used_percent": 95.5,
+                        "limit_window_seconds": 18000, "reset_at": 1_900_000_000}}
+                }))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let cfg = crate::testutil::config(
+            "codex-sub",
+            "codex-subscription",
+            &format!("http://{addr}/backend-api/codex"),
+        );
+        let key = Secret::new(fake_jwt(&json!({
+            "exp": 1_900_000_000,
+            "email": "u@example.test",
+            AUTH_CLAIM: {"chatgpt_account_id": "acct-1"}
+        })));
+        let http = crate::testutil::http();
+        let report = CodexSubscription::default()
+            .fetch_usage(DriverContext {
+                http: &http,
+                config: &cfg,
+                key: Some(&key),
+                home: None,
+            })
+            .await
+            .expect("usage");
+        assert_eq!(report.windows[0].used, Some(95.5));
+        assert_eq!(report.account_label.as_deref(), Some("u@example.test"));
     }
 }

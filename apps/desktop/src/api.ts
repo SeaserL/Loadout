@@ -137,6 +137,8 @@ export interface AccountInfo {
   transport_opt_in: boolean;
   /** Expiry of a Loadout-managed sign-in (refreshed automatically). */
   login_expires_at_ms: number | null;
+  /** Per-account quota reserve, e.g. {default: 10, weekly: 20}; null = global setting. */
+  quota_reserve?: Record<string, number> | null;
 }
 
 export interface OAuthStart {
@@ -380,6 +382,8 @@ export const api = {
     price_usd_monthly: number | null;
     renews_at_ms: number | null;
   }) => call<AccountInfo>("account.set_plan", p),
+  setReserve: (provider: string, alias: string, reserve: Record<string, number> | null) =>
+    call<AccountInfo>("account.set_reserve", { provider, alias, reserve }),
 
   models: () => call<ModelInfo[]>("model.list", { provider: null, account: null }),
   syncModels: (provider: string, alias: string) => call<SyncResult>("model.sync", { provider, alias }),

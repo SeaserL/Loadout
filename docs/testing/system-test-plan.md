@@ -60,6 +60,8 @@
 - [ ] 同一模型配两个账号（或两个提供方的同一模型加入同一 Pool）：给第一个账号设置错误的 key → 请求自动走第二个，Route health 中第一个显示 AUTH_FAILED；改回正确 key 后恢复。
 - [ ] 某账号额度耗尽（或上游返回 429）时，请求切到下一条路由；Route health 显示 QUOTA_EXHAUSTED / RATE_LIMITED 及恢复时间。
 - [ ] Settings → `routing.quota_reserve_percent` 设为例如 10：额度剩余低于 10% 的账号不再被选中。
+- [ ] 按账号 / 按窗口阈值：`loadout account reserve <provider> <alias> --window weekly=20`（或账号卡片 → 套餐对话框的"保留阈值"）→ 周窗口剩余低于 20% 时该账号退出候选，其他账号不受影响；`--clear` 后恢复全局设置。
+- [ ] `codex-sub` 账号发出一次请求后，`loadout usage codex-sub` 显示 5h / Weekly 窗口（来自响应头）。
 - [ ] 请求头 `X-Loadout-No-Failover: true` 时不切换，直接返回错误。
 
 ## 6. Client 策略

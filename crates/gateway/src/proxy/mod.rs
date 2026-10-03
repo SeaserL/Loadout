@@ -497,6 +497,12 @@ impl Attempt<'_> {
             let text = read_error_body(resp).await;
             return Outcome::Failed(self.target.module.classify(status, &resp_headers, &text));
         }
+        // Passive usage (after route selection; parsing headers only, the sink queues it).
+        if let Some(report) = self.target.module.usage_from_headers(resp.headers()) {
+            self.plane
+                .telemetry
+                .observe_usage(&self.target.account_id, report);
+        }
 
         if !upstream_stream {
             return self.passthrough_complete(resp, status, sent_at).await;

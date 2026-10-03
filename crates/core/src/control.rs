@@ -435,6 +435,10 @@ impl ControlPlane {
             models: models.len(),
             transport_opt_in: a.transport_opt_in_at.is_some(),
             login_expires_at_ms,
+            quota_reserve: a
+                .quota_reserve_json
+                .as_deref()
+                .and_then(|j| serde_json::from_str(j).ok()),
         })
     }
 

@@ -23,6 +23,12 @@ const MIGRATIONS: &[M<'static>] = &[
         .down(include_str!("../migrations/0005_client_policies/down.sql")),
     M::up(include_str!("../migrations/0006_transport_opt_in/up.sql"))
         .down(include_str!("../migrations/0006_transport_opt_in/down.sql")),
+    M::up(include_str!(
+        "../migrations/0008_account_quota_reserve/up.sql"
+    ))
+    .down(include_str!(
+        "../migrations/0008_account_quota_reserve/down.sql"
+    )),
 ];
 
 /// Schema version after applying every migration.

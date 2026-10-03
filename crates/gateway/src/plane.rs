@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use loadout_protocol::{Protocol, Usage};
+use loadout_provider_sdk::usage::UsageReport;
 use loadout_provider_sdk::{BoxFuture, HttpClient};
 use loadout_router::{RouteTableHandle, SessionAffinity};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -45,6 +46,10 @@ pub struct RequestRecord {
 /// Receives request records. Implementations must not block (ADR-008 §5).
 pub trait TelemetrySink: Send + Sync + 'static {
     fn record(&self, record: RequestRecord);
+
+    /// Quota state an upstream reported on a response (passive usage, ExecPlan 013).
+    /// Implementations must not block; the default drops it.
+    fn observe_usage(&self, _account_id: &str, _report: UsageReport) {}
 }
 
 /// `response_id → route target` for stateful Responses conversations (ADR-006 §3).

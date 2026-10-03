@@ -495,6 +495,12 @@ const en = {
   "logs.rows": "Rows",
   "settings.confirmStopTitle": "Stop the gateway?",
   "settings.appearanceHint": "Theme and language are remembered on this PC for this app only.",
+  // Demo: reserve
+  "acc.reserve": "Quota reserve (%)",
+  "acc.reserveHint": "Stop sending requests to this account when a usage window has less than this much left. Empty = global setting.",
+  "acc.reserveWindows": "Per window",
+  "acc.reserveWindowsHint": "For example 5h=10, weekly=20. Overrides the value above for those windows.",
+  "acc.errReserve": "Use percentages from 0 to 99, and windows as name=number separated by commas.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -956,6 +962,12 @@ const zh: Record<MessageKey, string> = {
   "logs.rows": "条数",
   "settings.confirmStopTitle": "停止网关？",
   "settings.appearanceHint": "主题和语言只保存在本机的这个应用里。",
+  // Demo: reserve
+  "acc.reserve": "保留阈值（%）",
+  "acc.reserveHint": "任一额度窗口剩余低于该比例时，不再把请求发往该账号。留空则使用全局设置。",
+  "acc.reserveWindows": "按窗口设置",
+  "acc.reserveWindowsHint": "例如 5h=10, weekly=20，对这些窗口覆盖上面的值。",
+  "acc.errReserve": "百分比需在 0 到 99 之间，窗口格式为 名称=数字，用逗号分隔。",
 };
 
 /** Chinese descriptions of the daemon's settings (the daemon sends English). */

@@ -51,7 +51,7 @@ fn codex_home(home: &Path) -> PathBuf {
     config_dir("CODEX_HOME", home, ".codex")
 }
 
-fn scope_for(minutes: Option<f64>) -> (String, String, Option<u64>) {
+pub(crate) fn scope_for(minutes: Option<f64>) -> (String, String, Option<u64>) {
     match minutes.map(|m| m.round() as u64) {
         Some(300) => ("5h".into(), "5h".into(), Some(18_000)),
         Some(10_080) => ("weekly".into(), "Weekly".into(), Some(604_800)),

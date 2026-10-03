@@ -66,6 +66,9 @@ struct AccountEntry {
     external_credential: Option<String>,
     /// The account had an API key (it must be entered again after import).
     had_api_key: bool,
+    /// Per-account quota reserve (ADR-003 §9), when set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    quota_reserve: Option<Value>,
     #[serde(default)]
     models: Vec<ModelEntry>,
 }
@@ -174,6 +177,10 @@ fn read_config(db: &Database) -> Result<ConfigFile, StorageError> {
                     .find(|c| c.credential_type == "external_managed")
                     .map(|c| c.source.clone()),
                 had_api_key: creds.iter().any(|c| c.credential_type == "api_key"),
+                quota_reserve: a
+                    .quota_reserve_json
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok()),
                 models,
             });
         }
@@ -423,6 +430,15 @@ pub(crate) fn import(db: &Database, path: &str) -> Result<ImportReport, String> 
                         a.price_monthly_usd,
                         a.renews_at_ms,
                     )
+                    .map_err(s)?;
+            }
+            if let Some(reserve) = a
+                .quota_reserve
+                .as_ref()
+                .and_then(|v| crate::usage::normalize_reserve(v).ok().flatten())
+            {
+                db.accounts()
+                    .set_quota_reserve(&account.id, Some(&reserve))
                     .map_err(s)?;
             }
             if let Some(source) = &a.external_credential {
