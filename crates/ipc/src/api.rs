@@ -269,6 +269,10 @@ pub struct AccountInfo {
     /// Expiry of a Loadout-managed OAuth login (refreshed automatically).
     #[serde(default)]
     pub login_expires_at_ms: Option<i64>,
+    /// Per-account quota reserve, e.g. `{"default":10,"weekly":20}`; `None` = the global
+    /// `routing.quota_reserve_percent` applies (ADR-003 §9).
+    #[serde(default)]
+    pub quota_reserve: Option<serde_json::Value>,
 }
 
 /// Starts a Loadout-managed device-code login (ADR-012). The account is created (or its
@@ -985,4 +989,24 @@ method!(
     "account.check",
     AccountCheckParams,
     AccountCheckResult
+);
+
+// ---- quota reserve (ExecPlan 013, ADR-003 §9) -----------------------------------------------
+
+/// Sets an account's quota reserve: percent remaining below which the account leaves the
+/// candidate chain, per window scope plus `default`, e.g. `{"default":10,"weekly":20}`.
+/// `null` (or `{}`) clears it so the global `routing.quota_reserve_percent` applies.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountReserveParams {
+    pub provider: String,
+    pub alias: String,
+    #[serde(default)]
+    pub reserve: Option<serde_json::Value>,
+}
+
+method!(
+    AccountSetReserve,
+    "account.set_reserve",
+    AccountReserveParams,
+    AccountInfo
 );

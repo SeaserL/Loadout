@@ -127,6 +127,7 @@
   2. 只能排除，不能"降级到链尾"；
   3. 没有"优先用先重置的账号"；
   4. `codex-sub` 账号还没有用量数据，阈值对它不起作用。Codex 响应头里带有 primary/secondary 窗口，可以直接利用；也可以和同一 ChatGPT 账号的 `codex` 用量账号关联。
+- 更新（ExecPlan 013）：缺口 1、4 已完成——按账号 / 按窗口的保留阈值（`loadout account reserve`），`codex-sub` 用量来自响应头（被动）和 `wham/usage`（后备轮询）。
 
 ### 4.2 方案与 ADR 影响
 

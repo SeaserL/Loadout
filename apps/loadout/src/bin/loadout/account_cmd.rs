@@ -94,6 +94,22 @@ pub enum AccountCommand {
         #[arg(long)]
         models: bool,
     },
+    /// Keep a quota reserve for this account: when a usage window has less than N percent
+    /// left, requests stop going to it until the window resets. Overrides the global
+    /// `routing.quota_reserve_percent`. Without options, shows the current reserve.
+    Reserve {
+        provider: String,
+        alias: String,
+        /// Reserve for every window without its own value.
+        #[arg(long, value_name = "PERCENT")]
+        default: Option<f64>,
+        /// Reserve for one window, e.g. `--window 5h=10 --window weekly=20`.
+        #[arg(long = "window", value_name = "SCOPE=PERCENT")]
+        windows: Vec<String>,
+        /// Remove the account's reserve (the global setting applies again).
+        #[arg(long, conflicts_with_all = ["default", "windows"])]
+        clear: bool,
+    },
 }
 
 fn check_summary(status: &str) -> &'static str {
@@ -168,6 +184,48 @@ async fn check(ctx: &Ctx, provider: String, alias: String, models: bool) -> Resu
         Ok(())
     } else {
         Err(Failure::new("the check found a problem"))
+    }
+}
+
+
+/// The `account.set_reserve` value for the CLI options: `Ok(None)` = nothing to set (show),
+/// `Ok(Some(None))` = clear.
+fn reserve_value(
+    default: Option<f64>,
+    windows: &[String],
+    clear: bool,
+) -> Result<Option<Option<serde_json::Value>>, Failure> {
+    if clear {
+        return Ok(Some(None));
+    }
+    if default.is_none() && windows.is_empty() {
+        return Ok(None);
+    }
+    let mut map = serde_json::Map::new();
+    if let Some(d) = default {
+        map.insert("default".into(), d.into());
+    }
+    for w in windows {
+        let (scope, n) = w
+            .split_once('=')
+            .ok_or_else(|| Failure::new(format!("expected SCOPE=PERCENT, not {w:?}")))?;
+        let n: f64 = n
+            .trim()
+            .parse()
+            .map_err(|_| Failure::new(format!("invalid percentage in {w:?}")))?;
+        map.insert(scope.trim().to_owned(), n.into());
+    }
+    Ok(Some(Some(serde_json::Value::Object(map))))
+}
+
+fn describe_reserve(info: &AccountInfo) -> String {
+    match info.quota_reserve.as_ref().and_then(|v| v.as_object()) {
+        Some(map) if !map.is_empty() => map
+            .iter()
+            .map(|(k, v)| format!("{k}={}%", v.as_f64().unwrap_or_default()))
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => "global setting (routing.quota_reserve_percent)".to_owned(),
     }
 }
 
@@ -434,6 +492,44 @@ pub async fn run(ctx: &Ctx, cmd: AccountCommand) -> Result<(), Failure> {
             println!("Saved the plan of {}/{}.", info.provider, info.alias);
             Ok(())
         }
+        AccountCommand::Reserve {
+            provider,
+            alias,
+            default,
+            windows,
+            clear,
+        } => {
+            let value = reserve_value(default, &windows, clear)?;
+            let mut ipc = ctx.connect().await?;
+            let info = match value {
+                Some(reserve) => {
+                    ipc.call::<api::AccountSetReserve>(&api::AccountReserveParams {
+                        provider,
+                        alias,
+                        reserve,
+                    })
+                    .await?
+                }
+                None => ipc
+                    .call::<api::AccountList>(&AccountListParams {
+                        provider: Some(provider.clone()),
+                    })
+                    .await?
+                    .into_iter()
+                    .find(|a| a.alias == alias)
+                    .ok_or_else(|| Failure::new(format!("account {provider}/{alias} not found")))?,
+            };
+            if ctx.json {
+                return output::json(&info);
+            }
+            println!(
+                "Quota reserve of {}/{}: {}",
+                info.provider,
+                info.alias,
+                describe_reserve(&info)
+            );
+            Ok(())
+        }
         AccountCommand::Login { provider, alias } => login(ctx, provider, alias).await,
         AccountCommand::Check {
             provider,
@@ -520,4 +616,24 @@ async fn set_enabled(
         if info.enabled { "enabled" } else { "disabled" }
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reserve_options_become_ipc_values() {
+        assert!(reserve_value(None, &[], false).expect("show").is_none());
+        assert_eq!(reserve_value(None, &[], true).expect("clear"), Some(None));
+        assert_eq!(
+            reserve_value(Some(10.0), &["5h=5".into(), " weekly = 20 ".into()], false)
+                .expect("set"),
+            Some(Some(
+                serde_json::json!({"default": 10.0, "5h": 5.0, "weekly": 20.0})
+            ))
+        );
+        assert!(reserve_value(None, &["weekly".into()], false).is_err());
+        assert!(reserve_value(None, &["weekly=x".into()], false).is_err());
+    }
 }

@@ -496,6 +496,13 @@ impl Dispatcher {
                     .await?;
                 encode_result::<api::AccountSetPlan>(&info)
             }
+            api::AccountSetReserve::NAME => {
+                let p = decode_params::<api::AccountSetReserve>(params)?;
+                let info = c
+                    .set_account_reserve(p.provider, p.alias, p.reserve)
+                    .await?;
+                encode_result::<api::AccountSetReserve>(&info)
+            }
             api::RequestsRecent::NAME => {
                 let p = decode_params::<api::RequestsRecent>(params)?;
                 encode_result::<api::RequestsRecent>(&c.recent_requests(p).await?)

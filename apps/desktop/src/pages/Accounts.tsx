@@ -775,6 +775,30 @@ function PlanDialog(props: { account: AccountInfo; usage?: AccountUsage; onClose
     plan?.renews_at_ms ? new Date(plan.renews_at_ms).toISOString().slice(0, 10) : "",
   );
   const a = props.account;
+  // Demo: reserve — `default` plus per-window values (ADR-003 §9).
+  const reserve = a.quota_reserve ?? {};
+  const [reserveDefault, setReserveDefault] = useState(reserve.default?.toString() ?? "");
+  const [reserveWindows, setReserveWindows] = useState(
+    Object.entries(reserve)
+      .filter(([k]) => k !== "default")
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", "),
+  );
+  const parseReserve = (): Record<string, number> | null => {
+    const out: Record<string, number> = {};
+    const pct = (s: string) => {
+      const n = Number(s.trim());
+      if (!s.trim() || !Number.isFinite(n) || n < 0 || n >= 100) throw new Error(t("acc.errReserve"));
+      return n;
+    };
+    if (reserveDefault.trim()) out.default = pct(reserveDefault);
+    for (const part of reserveWindows.split(",").map((s) => s.trim()).filter(Boolean)) {
+      const [k, v] = part.split("=");
+      if (!k?.trim() || v == null) throw new Error(t("acc.errReserve"));
+      out[k.trim()] = pct(v);
+    }
+    return Object.keys(out).length ? out : null;
+  };
   return (
     <Modal
       title={t("acc.planTitle", { name: `${a.provider}/${a.alias}` })}
@@ -789,6 +813,10 @@ function PlanDialog(props: { account: AccountInfo; usage?: AccountUsage; onClose
               void action.run(async () => {
                 const p = price.trim() ? Number(price) : null;
                 if (p != null && (!Number.isFinite(p) || p < 0)) throw new Error(t("acc.errPrice"));
+                const nextReserve = parseReserve();
+                if (JSON.stringify(nextReserve) !== JSON.stringify(a.quota_reserve ?? null)) {
+                  await api.setReserve(a.provider, a.alias, nextReserve);
+                }
                 await api.setPlan({
                   provider: a.provider,
                   alias: a.alias,
@@ -817,6 +845,21 @@ function PlanDialog(props: { account: AccountInfo; usage?: AccountUsage; onClose
       </Field>
       <Field label={t("acc.nextRenewal")}>
         <input type="date" value={renews} onChange={(e) => setRenews(e.target.value)} />
+      </Field>
+      <Field label={t("acc.reserve")} hint={t("acc.reserveHint")}>
+        <input
+          value={reserveDefault}
+          onChange={(e) => setReserveDefault(e.target.value)}
+          inputMode="decimal"
+          placeholder="10"
+        />
+      </Field>
+      <Field label={t("acc.reserveWindows")} hint={t("acc.reserveWindowsHint")}>
+        <input
+          value={reserveWindows}
+          onChange={(e) => setReserveWindows(e.target.value)}
+          placeholder="5h=10, weekly=20"
+        />
       </Field>
       <ErrorText error={action.error} />
     </Modal>

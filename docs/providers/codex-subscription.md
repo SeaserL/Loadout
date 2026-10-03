@@ -70,6 +70,10 @@ loadout account transport codex-sub main off          停止路由
   - 每账号最多 2 个并发请求，超出时跳过该账号；
   - 不使用 TLS 指纹伪装。
 - **模型目录**：`GET …/codex/models?client_version=0.154.0`，只取 `visibility=list` 且 `supported_in_api` 的模型。
+- **用量**（ExecPlan 013，2026-10-04 对照 openai/codex `main` 源码核对）：
+  - 被动（主要来源，ADR-012 §1）：推理响应头 `x-codex-{primary,secondary}-used-percent`、`-window-minutes`、`-reset-at`（Unix 秒）。见 `codex-rs/codex-api/src/rate_limits.rs`；旧版 `-reset-after-seconds` 作为后备。Gateway 在选路之后只解析响应头，交给控制面队列；每账号最多 30 秒写一次数据库，路由状态每次都更新。
+  - 主动（后备，每 30 分钟）：`GET https://chatgpt.com/backend-api/wham/usage`，与官方客户端读取额度的接口相同（`codex-rs/backend-client` 的 `rate_limit_status_url`）。不发送 prompt，不消耗额度；字段 `rate_limit.{primary,secondary}_window.{used_percent, limit_window_seconds, reset_at}`、`plan_type`。
+  - 窗口按时长映射为 `5h` / `weekly`，可用于 `loadout account reserve`。
 
 ## Settings
 
@@ -92,7 +96,7 @@ loadout account transport codex-sub main off          停止路由
 
 ## Implementation References
 
-- OpenAI Codex（Apache-2.0）：官方认证与 app-server 文档（learn.chatgpt.com/docs/auth）。
+- OpenAI Codex（Apache-2.0）：官方认证与 app-server 文档（learn.chatgpt.com/docs/auth）；用量接口与响应头见 `codex-rs/backend-client/src/client/rate_limit_resets.rs`、`codex-rs/codex-api/src/rate_limits.rs`（只用接口知识，未复制代码）。
 - CLIProxyAPI（MIT，`d7914afdedca7af95ee974a42453dc49fc1388ce`）：
   - `sdk/auth/codex_device.go`、`internal/auth/codex/openai_auth.go`、`internal/auth/codex/jwt_parser.go`；
   - `internal/runtime/executor/codex_executor_*.go`、`helps/codex_quota.go`；

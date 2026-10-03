@@ -114,4 +114,42 @@ fn scan_import_and_report_subscription_usage() {
     let usage = d.json(&["usage", "claude-code"], None);
     assert_eq!(usage[0]["plan"]["price_usd_monthly"], 100.0);
     assert_eq!(usage[0]["plan"]["renews_at_ms"], 1_791_936_000_000_i64);
+
+    // Per-account quota reserve (ExecPlan 013): set, show, reject bad input, clear.
+    let info = d.json(
+        &[
+            "account",
+            "reserve",
+            "claude-code",
+            "main",
+            "--default",
+            "10",
+            "--window",
+            "weekly=20",
+        ],
+        None,
+    );
+    assert_eq!(
+        info["quota_reserve"],
+        serde_json::json!({"default": 10.0, "weekly": 20.0})
+    );
+    let shown = d.json(&["account", "reserve", "claude-code", "main"], None);
+    assert_eq!(shown["quota_reserve"]["weekly"], 20.0);
+    let out = d.cli(
+        &[
+            "account",
+            "reserve",
+            "claude-code",
+            "main",
+            "--window",
+            "5h=150",
+        ],
+        None,
+    );
+    assert!(!out.status.success());
+    let cleared = d.json(
+        &["account", "reserve", "claude-code", "main", "--clear"],
+        None,
+    );
+    assert!(cleared["quota_reserve"].is_null());
 }

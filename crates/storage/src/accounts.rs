@@ -21,6 +21,9 @@ pub struct Account {
     pub updated_at: i64,
     /// When the user confirmed a lower-trust transport for this account (ADR-012).
     pub transport_opt_in_at: Option<i64>,
+    /// Per-account quota reserve (JSON, e.g. `{"default":10,"weekly":20}`); `None` uses
+    /// the global setting (ADR-003 §9).
+    pub quota_reserve_json: Option<String>,
 }
 
 #[derive(Debug)]
@@ -52,7 +55,7 @@ pub struct AccountRepo<'a> {
 
 const COLUMNS: &str = "id, provider_id, alias, display_name, account_type, enabled, position, \
                        subscription_plan, price_monthly_usd, renew_at, created_at, updated_at, \
-                       transport_opt_in_at";
+                       transport_opt_in_at, quota_reserve_json";
 
 fn map_account(row: &Row<'_>) -> rusqlite::Result<Account> {
     Ok(Account {
@@ -69,6 +72,7 @@ fn map_account(row: &Row<'_>) -> rusqlite::Result<Account> {
         created_at: row.get(10)?,
         updated_at: row.get(11)?,
         transport_opt_in_at: row.get(12)?,
+        quota_reserve_json: row.get(13)?,
     })
 }
 
@@ -112,6 +116,7 @@ impl<'a> AccountRepo<'a> {
                 created_at: now,
                 updated_at: now,
                 transport_opt_in_at: None,
+                quota_reserve_json: None,
             };
             tx.execute(
                 "INSERT INTO accounts (id, provider_id, alias, display_name, account_type, enabled,
@@ -149,6 +154,17 @@ impl<'a> AccountRepo<'a> {
             Ok(c.query_row(
                 &format!("SELECT {COLUMNS} FROM accounts WHERE provider_id = ?1 AND alias = ?2"),
                 params![provider_id, alias],
+                map_account,
+            )
+            .optional()?)
+        })
+    }
+
+    pub fn get_by_id(&self, id: &str) -> Result<Option<Account>, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.query_row(
+                &format!("SELECT {COLUMNS} FROM accounts WHERE id = ?1"),
+                params![id],
                 map_account,
             )
             .optional()?)
@@ -216,6 +232,16 @@ impl<'a> AccountRepo<'a> {
             Ok(c.execute(
                 "UPDATE accounts SET transport_opt_in_at = ?2, updated_at = ?3 WHERE id = ?1",
                 params![id, at, now_ms()],
+            )? > 0)
+        })
+    }
+
+    /// Stores (or clears, with `None`) the account's quota reserve JSON.
+    pub fn set_quota_reserve(&self, id: &str, json: Option<&str>) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE accounts SET quota_reserve_json = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, json, now_ms()],
             )? > 0)
         })
     }

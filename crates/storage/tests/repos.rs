@@ -388,3 +388,51 @@ fn oauth_tokens_rotate_and_route_with_opt_in() {
         .expect("opt out");
     assert!(!db.routable_models().expect("rows")[0].transport_opt_in);
 }
+
+#[test]
+fn quota_reserve_round_trips() {
+    let (db, pid) = db_with_provider();
+    let acc = db
+        .accounts()
+        .create(&NewAccount {
+            provider_id: &pid,
+            alias: "reserve",
+            display_name: None,
+            account_type: "api_key",
+        })
+        .expect("acc");
+    assert_eq!(acc.quota_reserve_json, None);
+    let json = r#"{"default":10,"5h":10,"weekly":20}"#;
+    assert!(
+        db.accounts()
+            .set_quota_reserve(&acc.id, Some(json))
+            .expect("set")
+    );
+    let get = || {
+        db.accounts()
+            .get(&pid, "reserve")
+            .expect("get")
+            .expect("acc")
+            .quota_reserve_json
+    };
+    assert_eq!(get().as_deref(), Some(json));
+    assert_eq!(
+        db.accounts()
+            .get_by_id(&acc.id)
+            .expect("by id")
+            .expect("acc")
+            .quota_reserve_json
+            .as_deref(),
+        Some(json)
+    );
+    assert!(db.accounts().get_by_id("missing").expect("none").is_none());
+    db.accounts()
+        .set_quota_reserve(&acc.id, None)
+        .expect("clear");
+    assert_eq!(get(), None);
+    assert!(
+        !db.accounts()
+            .set_quota_reserve("missing", None)
+            .expect("noop")
+    );
+}

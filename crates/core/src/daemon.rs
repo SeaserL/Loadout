@@ -115,12 +115,14 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
 
     // Telemetry writer (ADR-008 §5).
     let (telemetry_writer, telemetry) = TelemetryWriter::spawn(&paths.database, DEFAULT_CAPACITY)?;
+    let (passive_tx, passive_rx) = tokio::sync::mpsc::channel(crate::usage::PASSIVE_QUEUE);
     let plane = Arc::new(DataPlane {
         routes: routes.clone(),
         http,
         telemetry: Arc::new(LatencyTap {
             latency: control.latency.clone(),
             policies: control.policies.clone(),
+            passive_usage: Some(passive_tx),
             inner: StorageTelemetry {
                 sender: telemetry.clone(),
             },
@@ -171,6 +173,11 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     })?;
 
     let shutdown = CancellationToken::new();
+    tokio::spawn(crate::usage::passive(
+        control.clone(),
+        passive_rx,
+        shutdown.clone(),
+    ));
     {
         let (control, token) = (control.clone(), shutdown.clone());
         spawn_restartable("usage", shutdown.clone(), Backoff::default(), move || {

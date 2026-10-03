@@ -19,6 +19,7 @@ use loadout_gateway::{
 };
 use loadout_protocol::Protocol;
 use loadout_protocol::sse::SseParser;
+use loadout_provider_sdk::usage::{Confidence, UsageReport, UsageSource};
 use loadout_provider_sdk::{
     BoxFuture, Capabilities, HttpClient, HttpConfig, ProviderConfig, ProviderModule, TrustLevel,
 };
@@ -228,11 +229,17 @@ fn responses_stream_text(id: &str, text: &str) -> Vec<String> {
 // ---- gateway harness ------------------------------------------------------------------------
 
 #[derive(Default)]
-struct Records(Mutex<Vec<RequestRecord>>);
+struct Records(Mutex<Vec<RequestRecord>>, Mutex<Vec<(String, UsageReport)>>);
 
 impl TelemetrySink for Records {
     fn record(&self, r: RequestRecord) {
         self.0.lock().expect("lock").push(r);
+    }
+    fn observe_usage(&self, account_id: &str, report: UsageReport) {
+        self.1
+            .lock()
+            .expect("lock")
+            .push((account_id.to_owned(), report));
     }
 }
 
@@ -1169,6 +1176,11 @@ impl ProviderModule for StreamOnly {
     fn account_concurrency(&self) -> Option<u32> {
         Some(1)
     }
+    /// Passive usage hook (ExecPlan 013): reports something for every SSE response.
+    fn usage_from_headers(&self, headers: &HeaderMap) -> Option<UsageReport> {
+        (headers.get("content-type")? == "text/event-stream")
+            .then(|| UsageReport::new(UsageSource::PrivateEndpoint, Confidence::Exact))
+    }
 }
 
 #[tokio::test]
@@ -1208,6 +1220,9 @@ async fn stream_only_upstream_serves_non_streaming_clients_and_prepares_bodies()
         seen[0].headers["accept"], "text/event-stream",
         "streaming accept header"
     );
+    let usage = h.records.1.lock().expect("lock").clone();
+    assert_eq!(usage.len(), 1, "passive usage observed once");
+    assert_eq!(usage[0].0, "sub-main");
 }
 
 #[tokio::test]

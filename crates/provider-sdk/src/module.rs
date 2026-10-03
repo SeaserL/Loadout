@@ -196,4 +196,11 @@ pub trait ProviderModule: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<UsageReport, ProviderError>> {
         Box::pin(async { Err(ProviderError::NotSupported("usage")) })
     }
+
+    /// Quota state an upstream reports on a successful inference response (passive usage,
+    /// ExecPlan 013). Called by the gateway after route selection, once per response; must be
+    /// cheap and must not block. The default reports nothing.
+    fn usage_from_headers(&self, _headers: &HeaderMap) -> Option<UsageReport> {
+        None
+    }
 }
