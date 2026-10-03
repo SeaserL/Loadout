@@ -504,6 +504,14 @@ impl Dispatcher {
                 let p = decode_params::<api::StatsSummary>(params)?;
                 encode_result::<api::StatsSummary>(&c.stats(p.since_ms, p.group_by).await?)
             }
+            api::PriceCompare::NAME => {
+                let p = decode_params::<api::PriceCompare>(params)?;
+                let now = loadout_storage::now_ms();
+                let groups = s
+                    .db(move |db| crate::prices::compare_from_db(db, p.model.as_deref(), now))
+                    .await?;
+                encode_result::<api::PriceCompare>(&groups)
+            }
             other => Err(ErrorBody::new(
                 ErrorCode::MethodNotFound,
                 format!("unknown method {other}"),
@@ -666,5 +674,59 @@ mod tests {
 
         let err = d.handle("nope", Value::Null).await.expect_err("unknown");
         assert_eq!(err.code, ErrorCode::MethodNotFound);
+    }
+
+    #[tokio::test]
+    async fn price_compare_lists_priced_models() {
+        let d = Dispatcher { state: state() };
+        let db = &d.state.db;
+        let p = db
+            .providers()
+            .create(&loadout_storage::NewProvider {
+                slug: "acme",
+                kind: "openai-compatible",
+                display_name: "Acme",
+                base_url: None,
+                config_json: "{}",
+            })
+            .expect("provider");
+        let a = db
+            .accounts()
+            .create(&loadout_storage::NewAccount {
+                provider_id: &p.id,
+                alias: "main",
+                display_name: None,
+                account_type: "api_key",
+            })
+            .expect("account");
+        db.account_models()
+            .add_manual(
+                &a.id,
+                &loadout_storage::ModelInput {
+                    upstream_model_id: "vendor/m-20250101".into(),
+                    protocols_json: r#"["chat"]"#.into(),
+                    capabilities_json: "[]".into(),
+                    input_price: Some(1.0),
+                    output_price: Some(5.0),
+                    ..Default::default()
+                },
+            )
+            .expect("model");
+
+        let groups = call::<api::PriceCompare>(
+            &d,
+            &api::PriceCompareParams {
+                model: Some("m".into()),
+            },
+        )
+        .await
+        .expect("compare");
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].key, "m");
+        let offer = &groups[0].offers[0];
+        assert_eq!(offer.name, "acme/main/vendor/m-20250101");
+        assert_eq!(offer.price_source.as_deref(), Some("user"));
+        // Default mix 75/25: 0.75 * 1 + 0.25 * 5 = 2.
+        assert!((offer.blended_per_million.expect("known") - 2.0).abs() < 1e-9);
     }
 }

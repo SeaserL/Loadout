@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   Boxes,
   ChartColumn,
+  CircleDollarSign,
   Gauge,
   House,
   KeyRound,
@@ -27,11 +28,13 @@ import { Clients } from "./pages/Clients";
 import { Logs } from "./pages/Logs";
 import { Stats } from "./pages/Stats";
 import { Settings } from "./pages/Settings";
+import { Prices } from "./pages/Prices";
 
 const PAGES: { id: string; label: MessageKey; icon: ComponentType<{ size?: number }> }[] = [
   { id: "dashboard", label: "nav.dashboard", icon: House },
   { id: "accounts", label: "nav.accounts", icon: Gauge },
   { id: "models", label: "nav.models", icon: Boxes },
+  { id: "prices", label: "nav.prices", icon: CircleDollarSign },
   { id: "routes", label: "nav.routes", icon: Route },
   { id: "clients", label: "nav.clients", icon: KeyRound },
   { id: "stats", label: "nav.stats", icon: ChartColumn },
@@ -161,6 +164,7 @@ export function App() {
             {page === "dashboard" && <Dashboard status={status.data} onDaemonChange={status.reload} />}
             {page === "accounts" && <Accounts />}
             {page === "models" && <Models />}
+            {page === "prices" && <Prices />}
             {page === "routes" && <Routes />}
             {page === "clients" && <Clients gateway={status.data.gateway.addr} />}
             {page === "stats" && <Stats />}

@@ -15,6 +15,7 @@ mod latency;
 pub mod logging;
 mod oauth;
 mod paths;
+mod prices;
 mod route_build;
 pub mod settings;
 mod sinks;

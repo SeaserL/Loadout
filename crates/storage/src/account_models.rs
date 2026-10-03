@@ -25,6 +25,9 @@ pub struct AccountModel {
     pub source: String,
     /// Latency tier pinned by the user (ExecPlan 004).
     pub tier_override: Option<String>,
+    /// `user` (never overwritten by a catalog sync), `catalog`, or `None` (no prices).
+    pub price_source: Option<String>,
+    pub price_updated_at: Option<i64>,
 }
 
 /// Model data from a catalog sync or manual entry.
@@ -57,7 +60,8 @@ pub struct AccountModelRepo<'a> {
 
 pub(crate) const COLUMNS: &str = "id, account_id, upstream_model_id, model_id, protocols_json, \
      context_window, max_output_tokens, capabilities_json, input_price, output_price, \
-     cache_read_price, cache_write_price, enabled, source, tier_override";
+     cache_read_price, cache_write_price, enabled, source, tier_override, price_source, \
+     price_updated_at";
 
 pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Result<AccountModel> {
     Ok(AccountModel {
@@ -76,7 +80,18 @@ pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Resul
         enabled: row.get::<_, i64>(offset + 12)? == 1,
         source: row.get(offset + 13)?,
         tier_override: row.get(offset + 14)?,
+        price_source: row.get(offset + 15)?,
+        price_updated_at: row.get(offset + 16)?,
     })
+}
+
+impl ModelInput {
+    fn has_price(&self) -> bool {
+        self.input_price.is_some()
+            || self.output_price.is_some()
+            || self.cache_read_price.is_some()
+            || self.cache_write_price.is_some()
+    }
 }
 
 impl<'a> AccountModelRepo<'a> {
@@ -86,8 +101,9 @@ impl<'a> AccountModelRepo<'a> {
 
     /// Applies a full catalog listing for an account:
     /// - new models are inserted (enabled);
-    /// - existing catalog models get fresh metadata, but the user's `enabled` flag and any
-    ///   prices already set are kept;
+    /// - existing catalog models get fresh metadata; the user's `enabled` flag is kept;
+    /// - prices reported by the catalog replace stored prices unless the user set them
+    ///   (`price_source = 'user'`); a listing without prices leaves stored prices alone;
     /// - catalog models missing from the listing are disabled;
     /// - manually added models are never touched.
     pub fn sync_catalog(
@@ -99,14 +115,17 @@ impl<'a> AccountModelRepo<'a> {
             let now = now_ms();
             let mut counts = SyncCounts::default();
             for m in models {
+                // ?12: the listing carries prices, which replace stored non-user prices.
                 let updated = tx.execute(
                     "UPDATE account_models SET
                         protocols_json = ?3, context_window = ?4, max_output_tokens = ?5,
                         capabilities_json = ?6,
-                        input_price = COALESCE(input_price, ?7),
-                        output_price = COALESCE(output_price, ?8),
-                        cache_read_price = COALESCE(cache_read_price, ?9),
-                        cache_write_price = COALESCE(cache_write_price, ?10),
+                        input_price = CASE WHEN ?12 AND price_source IS NOT 'user' THEN ?7 ELSE input_price END,
+                        output_price = CASE WHEN ?12 AND price_source IS NOT 'user' THEN ?8 ELSE output_price END,
+                        cache_read_price = CASE WHEN ?12 AND price_source IS NOT 'user' THEN ?9 ELSE cache_read_price END,
+                        cache_write_price = CASE WHEN ?12 AND price_source IS NOT 'user' THEN ?10 ELSE cache_write_price END,
+                        price_updated_at = CASE WHEN ?12 AND price_source IS NOT 'user' THEN ?11 ELSE price_updated_at END,
+                        price_source = CASE WHEN ?12 AND price_source IS NOT 'user' THEN 'catalog' ELSE price_source END,
                         updated_at = ?11
                      WHERE account_id = ?1 AND upstream_model_id = ?2 AND source = 'catalog'",
                     params![
@@ -120,7 +139,8 @@ impl<'a> AccountModelRepo<'a> {
                         m.output_price,
                         m.cache_read_price,
                         m.cache_write_price,
-                        now
+                        now,
+                        m.has_price()
                     ],
                 )?;
                 if updated > 0 {
@@ -131,8 +151,9 @@ impl<'a> AccountModelRepo<'a> {
                     "INSERT OR IGNORE INTO account_models (id, account_id, upstream_model_id,
                         protocols_json, context_window, max_output_tokens, capabilities_json,
                         input_price, output_price, cache_read_price, cache_write_price,
-                        enabled, source, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 'catalog', ?12, ?12)",
+                        enabled, source, created_at, updated_at, price_source, price_updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 'catalog', ?12, ?12,
+                        ?13, CASE WHEN ?13 IS NULL THEN NULL ELSE ?12 END)",
                     params![
                         Uuid::new_v4().to_string(),
                         account_id,
@@ -145,7 +166,8 @@ impl<'a> AccountModelRepo<'a> {
                         m.output_price,
                         m.cache_read_price,
                         m.cache_write_price,
-                        now
+                        now,
+                        m.has_price().then_some("catalog")
                     ],
                 )?;
                 counts.added += inserted;
@@ -184,12 +206,20 @@ impl<'a> AccountModelRepo<'a> {
     ) -> Result<AccountModel, StorageError> {
         let id = Uuid::new_v4().to_string();
         let now = now_ms();
+        // Prices on a manual model are the user's; catalog rows keep catalog semantics.
+        let price_source = m.has_price().then_some(if source == "manual" {
+            "user"
+        } else {
+            "catalog"
+        });
         self.db.with_conn(|c| {
             c.execute(
                 "INSERT INTO account_models (id, account_id, upstream_model_id, protocols_json,
                     context_window, max_output_tokens, capabilities_json, input_price, output_price,
-                    cache_read_price, cache_write_price, enabled, source, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13, ?14, ?12, ?12)",
+                    cache_read_price, cache_write_price, enabled, source, created_at, updated_at,
+                    price_source, price_updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13, ?14, ?12, ?12,
+                    ?15, CASE WHEN ?15 IS NULL THEN NULL ELSE ?12 END)",
                 params![
                     id,
                     account_id,
@@ -204,7 +234,8 @@ impl<'a> AccountModelRepo<'a> {
                     m.cache_write_price,
                     now,
                     i64::from(enabled),
-                    source
+                    source,
+                    price_source
                 ],
             )
             .map_err(|e| {
@@ -265,6 +296,8 @@ impl<'a> AccountModelRepo<'a> {
         })
     }
 
+    /// Sets prices chosen by the user; they are never overwritten by a catalog sync.
+    /// Clearing every price hands the model back to the catalog.
     #[allow(clippy::too_many_arguments)]
     pub fn set_prices(
         &self,
@@ -275,10 +308,22 @@ impl<'a> AccountModelRepo<'a> {
         cache_write: Option<f64>,
     ) -> Result<bool, StorageError> {
         self.db.with_conn(|c| {
+            let any = [input, output, cache_read, cache_write]
+                .iter()
+                .any(Option::is_some);
             Ok(c.execute(
                 "UPDATE account_models SET input_price = ?2, output_price = ?3,
-                    cache_read_price = ?4, cache_write_price = ?5, updated_at = ?6 WHERE id = ?1",
-                params![id, input, output, cache_read, cache_write, now_ms()],
+                    cache_read_price = ?4, cache_write_price = ?5, updated_at = ?6,
+                    price_source = ?7, price_updated_at = ?6 WHERE id = ?1",
+                params![
+                    id,
+                    input,
+                    output,
+                    cache_read,
+                    cache_write,
+                    now_ms(),
+                    any.then_some("user")
+                ],
             )? > 0)
         })
     }
