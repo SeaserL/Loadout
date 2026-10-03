@@ -5,7 +5,7 @@ use std::io::Read;
 use clap::{Args, Subcommand};
 use loadout_ipc::api::{
     self, AccountAddParams, AccountEnableParams, AccountInfo, AccountKeyParams, AccountListParams,
-    AccountRef, ApiKey, SyncResult,
+    AccountRef, AccountTransportParams, ApiKey, OAuthStartParams, OAuthStatusParams, SyncResult,
 };
 
 use crate::{Ctx, Failure, output};
@@ -51,6 +51,23 @@ pub enum AccountCommand {
     },
     /// Remove the account, its key and its models.
     Remove { provider: String, alias: String },
+    /// Sign in to an account that uses a Loadout-managed login (e.g. `codex-sub`): opens a
+    /// device-code sign-in; Loadout keeps and refreshes the tokens.
+    Login { provider: String, alias: String },
+    /// Allow or stop routing through a lower-trust transport (e.g. a ChatGPT subscription,
+    /// ADR-012). Turning it on asks for two confirmations.
+    Transport {
+        provider: String,
+        alias: String,
+        #[arg(value_parser = ["on", "off"])]
+        state: String,
+        /// Non-interactive: accept the risk notice.
+        #[arg(long)]
+        i_understand_the_risk: bool,
+        /// Non-interactive: the account alias, as the second confirmation.
+        #[arg(long)]
+        confirm: Option<String>,
+    },
     /// Record the subscription plan, monthly price and next renewal date (for the usage
     /// view and subscription value statistics).
     Plan {
@@ -83,6 +100,106 @@ fn read_key(input: &KeyInput, what: &str) -> Result<Option<String>, Failure> {
     Ok((!key.is_empty()).then_some(key))
 }
 
+const RISK_NOTICE: &str = "\
+WARNING — subscription transport (ADR-012)
+  * This is not an official API. Requests go to an undocumented endpoint of the
+    subscription service with a login Loadout obtained for you.
+  * The provider's terms may not allow it. The provider can limit, suspend or close
+    the account, without notice. You take that risk; Loadout cannot undo it.
+  * Loadout identifies itself honestly, limits each account to a few concurrent
+    requests, and keeps it out of loadout/default — but cannot make this safe.
+  Details: docs/providers/codex-subscription.md";
+
+fn ask(prompt: &str) -> Result<String, Failure> {
+    use std::io::Write;
+    print!("{prompt}");
+    std::io::stdout()
+        .flush()
+        .map_err(|e| Failure::new(format!("writing to the console: {e}")))?;
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .map_err(|e| Failure::new(format!("reading the answer: {e}")))?;
+    Ok(line.trim().to_owned())
+}
+
+/// The two confirmation steps (ADR-012 §1); returns the confirmed alias.
+fn confirm_transport(
+    alias: &str,
+    accepted: bool,
+    confirm: Option<String>,
+) -> Result<String, Failure> {
+    eprintln!("{RISK_NOTICE}\n");
+    if !accepted && ask("Type \"I understand\" to continue: ")? != "I understand" {
+        return Err(Failure::new("not confirmed; nothing changed"));
+    }
+    let typed = match confirm {
+        Some(c) => c,
+        None => ask(&format!("Type the account alias ({alias}) to turn it on: "))?,
+    };
+    if typed != alias {
+        return Err(Failure::new("the alias did not match; nothing changed"));
+    }
+    Ok(typed)
+}
+
+async fn login(ctx: &Ctx, provider: String, alias: String) -> Result<(), Failure> {
+    let mut ipc = ctx.connect().await?;
+    let start = ipc
+        .call::<api::AccountOAuthStart>(&OAuthStartParams {
+            provider: provider.clone(),
+            alias: alias.clone(),
+        })
+        .await?;
+    if !ctx.json {
+        println!("Open {} in your browser", start.verification_url);
+        println!("and enter the code:  {}", start.user_code);
+        println!(
+            "Waiting for the sign-in (up to {} minutes)…",
+            start.expires_in_secs / 60
+        );
+    }
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let status = ipc
+            .call::<api::AccountOAuthStatus>(&OAuthStatusParams {
+                login_id: start.login_id.clone(),
+            })
+            .await?;
+        match status.state.as_str() {
+            "pending" => continue,
+            "done" => {
+                if ctx.json {
+                    return output::json(&status);
+                }
+                let a = status.account.ok_or_else(|| Failure::new("no account"))?;
+                println!(
+                    "Signed in: {}/{}{} ({} models).",
+                    a.provider,
+                    a.alias,
+                    a.display_name
+                        .map(|n| format!(" — {n}"))
+                        .unwrap_or_default(),
+                    a.models
+                );
+                if !a.transport_opt_in {
+                    println!(
+                        "Requests are not routed through it yet. To allow that: loadout account transport {} {} on",
+                        a.provider, a.alias
+                    );
+                }
+                return Ok(());
+            }
+            _ => {
+                return Err(Failure::new(format!(
+                    "sign-in failed: {}",
+                    status.message.unwrap_or_default()
+                )));
+            }
+        }
+    }
+}
+
 pub fn print_sync(sync: &SyncResult) {
     println!(
         "Models: {} total ({} new, {} updated, {} no longer offered).",
@@ -106,7 +223,11 @@ fn print_accounts(list: &[AccountInfo]) {
         .map(|a| {
             vec![
                 format!("{}/{}", a.provider, a.alias),
-                a.account_type.clone(),
+                if a.transport_opt_in {
+                    format!("{} (transport on)", a.account_type)
+                } else {
+                    a.account_type.clone()
+                },
                 if a.enabled { "enabled" } else { "disabled" }.to_owned(),
                 if a.has_key { "yes" } else { "no" }.to_owned(),
                 format!("{}/{}", a.enabled_models, a.models),
@@ -225,6 +346,42 @@ pub async fn run(ctx: &Ctx, cmd: AccountCommand) -> Result<(), Failure> {
                 return output::json(&info);
             }
             println!("Saved the plan of {}/{}.", info.provider, info.alias);
+            Ok(())
+        }
+        AccountCommand::Login { provider, alias } => login(ctx, provider, alias).await,
+        AccountCommand::Transport {
+            provider,
+            alias,
+            state,
+            i_understand_the_risk,
+            confirm,
+        } => {
+            let enabled = state == "on";
+            let confirm = if enabled {
+                Some(confirm_transport(&alias, i_understand_the_risk, confirm)?)
+            } else {
+                None
+            };
+            let mut ipc = ctx.connect().await?;
+            let info = ipc
+                .call::<api::AccountSetTransport>(&AccountTransportParams {
+                    provider,
+                    alias,
+                    enabled,
+                    confirm,
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&info);
+            }
+            if info.transport_opt_in {
+                println!(
+                    "Routing through {}/{} is on. Use exact names such as {}/{}/<model>; it is not part of loadout/default.",
+                    info.provider, info.alias, info.provider, info.alias
+                );
+            } else {
+                println!("Routing through {}/{} is off.", info.provider, info.alias);
+            }
             Ok(())
         }
         AccountCommand::Remove { provider, alias } => {

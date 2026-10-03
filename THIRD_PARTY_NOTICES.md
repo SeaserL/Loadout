@@ -41,3 +41,15 @@ License: Apache-2.0
 Reuse: DERIVED (protocol method and field names only)
 Local files: crates/providers/src/codex.rs
 ```
+
+```text
+Component: Codex subscription transport protocol knowledge (ExecPlan 010)
+Source: https://github.com/router-for-me/CLIProxyAPI
+Upstream path: sdk/auth/codex_device.go, internal/auth/codex/{openai_auth.go,jwt_parser.go},
+               internal/runtime/executor/codex_executor_*.go, internal/runtime/executor/helps/codex_quota.go,
+               internal/registry/models/codex_client_models.json
+Upstream revision: d7914afdedca7af95ee974a42453dc49fc1388ce (2026-10-03)
+License: MIT
+Reuse: DERIVED (interface knowledge only: endpoints, field names, error types; no code copied)
+Local files: crates/providers/src/codex_subscription.rs
+```

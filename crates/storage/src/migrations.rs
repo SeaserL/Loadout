@@ -21,6 +21,8 @@ const MIGRATIONS: &[M<'static>] = &[
         .down(include_str!("../migrations/0004_latency_pools/down.sql")),
     M::up(include_str!("../migrations/0005_client_policies/up.sql"))
         .down(include_str!("../migrations/0005_client_policies/down.sql")),
+    M::up(include_str!("../migrations/0006_transport_opt_in/up.sql"))
+        .down(include_str!("../migrations/0006_transport_opt_in/down.sql")),
 ];
 
 /// Schema version after applying every migration.

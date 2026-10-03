@@ -113,7 +113,9 @@ ANTHROPIC_API_KEY=lo-…
 
 ## 提供方
 
-每个提供方的认证方式、接口、用量来源与风险说明见 [docs/providers](docs/providers/README.md)。订阅登录（Codex、Claude Code、Gemini CLI、Kimi Code CLI）**只用于读取用量**，不会用来转发请求（[ADR-009](docs/adr/ADR-009-subscription-credential-scope.md)）。
+每个提供方的认证方式、接口、用量来源与风险说明见 [docs/providers](docs/providers/README.md)。官方 CLI 的订阅登录（Codex、Claude Code、Gemini CLI、Kimi Code CLI）**只用于读取用量**，不会用来转发请求（[ADR-009](docs/adr/ADR-009-subscription-credential-scope.md)）。
+
+例外：ChatGPT 订阅可以由 Loadout 单独登录（`loadout account login codex-sub <别名>`），并在两步风险确认（`loadout account transport codex-sub <别名> on`）后用于转发。这不是官方 API，有被限制或封号的风险，详见 [codex-subscription.md](docs/providers/codex-subscription.md) 与 [ADR-012](docs/adr/ADR-012-subscription-transport-opt-in.md)。Claude 订阅不提供这种用法；Claude 模型请使用 Console API key。
 
 ## 安全与隐私
 

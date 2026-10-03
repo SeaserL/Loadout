@@ -19,6 +19,8 @@ pub struct Account {
     pub renew_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// When the user confirmed a lower-trust transport for this account (ADR-012).
+    pub transport_opt_in_at: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -49,7 +51,8 @@ pub struct AccountRepo<'a> {
 }
 
 const COLUMNS: &str = "id, provider_id, alias, display_name, account_type, enabled, position, \
-                       subscription_plan, price_monthly_usd, renew_at, created_at, updated_at";
+                       subscription_plan, price_monthly_usd, renew_at, created_at, updated_at, \
+                       transport_opt_in_at";
 
 fn map_account(row: &Row<'_>) -> rusqlite::Result<Account> {
     Ok(Account {
@@ -65,6 +68,7 @@ fn map_account(row: &Row<'_>) -> rusqlite::Result<Account> {
         renew_at: row.get(9)?,
         created_at: row.get(10)?,
         updated_at: row.get(11)?,
+        transport_opt_in_at: row.get(12)?,
     })
 }
 
@@ -107,6 +111,7 @@ impl<'a> AccountRepo<'a> {
                 renew_at: None,
                 created_at: now,
                 updated_at: now,
+                transport_opt_in_at: None,
             };
             tx.execute(
                 "INSERT INTO accounts (id, provider_id, alias, display_name, account_type, enabled,
@@ -205,6 +210,16 @@ impl<'a> AccountRepo<'a> {
         })
     }
 
+    /// Records (or clears, with `None`) the user's lower-trust transport confirmation.
+    pub fn set_transport_opt_in(&self, id: &str, at: Option<i64>) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE accounts SET transport_opt_in_at = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, at, now_ms()],
+            )? > 0)
+        })
+    }
+
     // ---- credentials (metadata only; secrets live in the OS store, ADR-004) ----
 
     pub fn add_credential(
@@ -250,6 +265,73 @@ impl<'a> AccountRepo<'a> {
                  FROM credentials WHERE account_id = ?1 ORDER BY created_at",
             )?;
             let rows = stmt.query_map(params![account_id], map_credential)?;
+            Ok(rows.collect::<Result<_, _>>()?)
+        })
+    }
+
+    /// Replaces the account's OAuth tokens (`scope` `access` / `refresh`) in one transaction.
+    /// Returns the secret refs no longer referenced, which the caller deletes from the OS
+    /// store *after* this succeeds.
+    pub fn set_oauth_tokens(
+        &self,
+        account_id: &str,
+        source: &str,
+        access_ref: &str,
+        refresh_ref: Option<&str>,
+        expires_at: Option<i64>,
+    ) -> Result<Vec<String>, StorageError> {
+        let now = now_ms();
+        self.db.with_tx(|tx| {
+            let mut stmt = tx.prepare(
+                "SELECT secret_ref FROM credentials
+                 WHERE account_id = ?1 AND credential_type = 'oauth' AND secret_ref IS NOT NULL",
+            )?;
+            let old: Vec<String> = stmt
+                .query_map(params![account_id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
+            drop(stmt);
+            tx.execute(
+                "DELETE FROM credentials WHERE account_id = ?1 AND credential_type = 'oauth'",
+                params![account_id],
+            )?;
+            let insert = |scope: &str, secret_ref: &str, expires: Option<i64>| {
+                tx.execute(
+                    "INSERT INTO credentials (id, account_id, credential_type, source, secret_ref,
+                                              scope, expires_at, created_at, updated_at)
+                     VALUES (?1, ?2, 'oauth', ?3, ?4, ?5, ?6, ?7, ?7)",
+                    params![
+                        Uuid::new_v4().to_string(),
+                        account_id,
+                        source,
+                        secret_ref,
+                        scope,
+                        expires,
+                        now
+                    ],
+                )
+            };
+            insert("access", access_ref, expires_at)?;
+            if let Some(r) = refresh_ref {
+                insert("refresh", r, None)?;
+            }
+            Ok(old
+                .into_iter()
+                .filter(|r| r != access_ref && Some(r.as_str()) != refresh_ref)
+                .collect())
+        })
+    }
+
+    /// OAuth access credentials expiring before `before` (unix ms), with their accounts.
+    pub fn oauth_expiring(&self, before: i64) -> Result<Vec<Credential>, StorageError> {
+        self.db.with_conn(|c| {
+            let mut stmt = c.prepare(
+                "SELECT id, account_id, credential_type, source, secret_ref, scope, expires_at
+                 FROM credentials
+                 WHERE credential_type = 'oauth' AND scope = 'access'
+                   AND expires_at IS NOT NULL AND expires_at < ?1
+                 ORDER BY expires_at",
+            )?;
+            let rows = stmt.query_map(params![before], map_credential)?;
             Ok(rows.collect::<Result<_, _>>()?)
         })
     }

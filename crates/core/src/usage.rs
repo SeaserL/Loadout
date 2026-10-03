@@ -72,13 +72,9 @@ impl ControlPlane {
                     if !a.enabled {
                         continue;
                     }
-                    let key = db
-                        .accounts()
-                        .credentials(&a.id)
-                        .map_err(storage)?
-                        .into_iter()
-                        .find_map(|c| c.secret_ref)
-                        .and_then(|r| read_secret(secrets.as_ref(), &r));
+                    let key =
+                        crate::control::key_ref(db.accounts().credentials(&a.id).map_err(storage)?)
+                            .and_then(|r| read_secret(secrets.as_ref(), &r));
                     out.push(UsageTarget {
                         provider: p.clone(),
                         account: a,
@@ -459,6 +455,7 @@ mod tests {
             upstream_model: Arc::from("m"),
             protocol: Protocol::Chat,
             trust: TrustLevel::OfficialApi,
+            opted_in: false,
             context_window: None,
             max_output_tokens: None,
             capabilities: Capabilities::DEFAULT_MODEL,

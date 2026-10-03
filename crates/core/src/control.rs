@@ -40,6 +40,8 @@ pub(crate) struct ControlPlane {
     pub last_probe: std::sync::Mutex<HashMap<String, i64>>,
     /// Client policies and usage counters shared with the gateway (ExecPlan 006).
     pub policies: Arc<loadout_gateway::ClientPolicies>,
+    /// OAuth sign-ins in progress and refresh state (ADR-012).
+    pub(crate) oauth: crate::oauth::OAuthState,
     version: AtomicU64,
     rebuild: tokio::sync::Mutex<()>,
 }
@@ -63,7 +65,16 @@ pub(crate) fn storage(e: StorageError) -> ErrorBody {
     }
 }
 
-fn provider_error(e: ProviderError) -> ErrorBody {
+/// The secret an account authenticates with: an API key or an OAuth access token (never the
+/// refresh token).
+pub(crate) fn key_ref(creds: Vec<loadout_storage::Credential>) -> Option<String> {
+    creds
+        .into_iter()
+        .filter(|c| c.scope.as_deref() != Some("refresh"))
+        .find_map(|c| c.secret_ref)
+}
+
+pub(crate) fn provider_error(e: ProviderError) -> ErrorBody {
     match e {
         ProviderError::Config(m) => ErrorBody::invalid_params(m),
         ProviderError::MissingKey => ErrorBody::invalid_params("an API key is required"),
@@ -87,6 +98,7 @@ fn auth_name(a: AuthMethod) -> &'static str {
         AuthMethod::ApiKey => "api_key",
         AuthMethod::OptionalApiKey => "optional_api_key",
         AuthMethod::ExternalManaged => "external_managed",
+        AuthMethod::OAuth => "oauth",
     }
 }
 
@@ -123,6 +135,7 @@ impl ControlPlane {
             latency: Arc::default(),
             last_probe: std::sync::Mutex::default(),
             policies: Arc::default(),
+            oauth: crate::oauth::OAuthState::default(),
             version: AtomicU64::new(0),
             rebuild: tokio::sync::Mutex::new(()),
         }
@@ -404,12 +417,12 @@ impl ControlPlane {
         a: &Account,
     ) -> Result<AccountInfo, ErrorBody> {
         let models = db.account_models().list(&a.id).map_err(storage)?;
-        let has_key = db
-            .accounts()
-            .credentials(&a.id)
-            .map_err(storage)?
+        let creds = db.accounts().credentials(&a.id).map_err(storage)?;
+        let has_key = creds.iter().any(|c| c.secret_ref.is_some());
+        let login_expires_at_ms = creds
             .iter()
-            .any(|c| c.secret_ref.is_some());
+            .find(|c| c.credential_type == "oauth" && c.scope.as_deref() == Some("access"))
+            .and_then(|c| c.expires_at);
         Ok(AccountInfo {
             provider: provider.slug.clone(),
             alias: a.alias.clone(),
@@ -420,11 +433,16 @@ impl ControlPlane {
             has_key,
             enabled_models: models.iter().filter(|m| m.enabled).count(),
             models: models.len(),
+            transport_opt_in: a.transport_opt_in_at.is_some(),
+            login_expires_at_ms,
         })
     }
 
     /// All model ids of a provider (across accounts), for alias ambiguity checks.
-    fn provider_model_ids(db: &Database, provider: &Provider) -> Result<Vec<String>, ErrorBody> {
+    pub(crate) fn provider_model_ids(
+        db: &Database,
+        provider: &Provider,
+    ) -> Result<Vec<String>, ErrorBody> {
         let mut ids = Vec::new();
         for a in db.accounts().list(Some(&provider.id)).map_err(storage)? {
             ids.extend(
@@ -462,6 +480,12 @@ impl ControlPlane {
                 .map(|k| k.trim().to_owned())
                 .filter(|k| !k.is_empty());
             let d = module.descriptor();
+            if d.auth == AuthMethod::OAuth {
+                return Err(ErrorBody::invalid_params(format!(
+                    "{} accounts sign in through Loadout: `loadout account login {} {}`",
+                    d.display_name, provider.slug, alias_c
+                )));
+            }
             if d.auth == AuthMethod::ApiKey && key.is_none() {
                 return Err(ErrorBody::invalid_params(format!(
                     "{} accounts need an API key",
@@ -671,12 +695,7 @@ impl ControlPlane {
                 .get(&p.kind)
                 .ok_or_else(|| ErrorBody::internal("unknown provider kind"))?;
             let a = Self::load_account(&db, &p, &a_alias)?;
-            let key = db
-                .accounts()
-                .credentials(&a.id)
-                .map_err(storage)?
-                .into_iter()
-                .find_map(|c| c.secret_ref)
+            let key = key_ref(db.accounts().credentials(&a.id).map_err(storage)?)
                 .and_then(|r| read_secret(secrets.as_ref(), &r));
             let others: Vec<String> = db
                 .accounts()

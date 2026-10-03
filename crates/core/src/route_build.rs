@@ -77,27 +77,28 @@ pub(crate) const RESERVED_VIRTUAL_NAMES: &[&str] = &[
     "throughput",
 ];
 
+/// One account model of a table: key, target ids, degraded, opted-in (lower trust).
+type AccountModelEntry = (Arc<str>, Vec<TargetId>, bool, bool);
+
 /// Account models of a table in table order, each with its target ids.
-fn account_models(table: &RouteTable) -> Vec<(Arc<str>, Vec<TargetId>, bool)> {
-    let mut out: Vec<(Arc<str>, Vec<TargetId>, bool)> = Vec::new();
+fn account_models(table: &RouteTable) -> Vec<AccountModelEntry> {
+    let mut out: Vec<AccountModelEntry> = Vec::new();
     for t in table.targets() {
         let key = account_model_key(&t.id);
         let degraded = t.health.is_degraded();
-        match out.iter_mut().find(|(k, _, _)| &**k == key) {
-            Some((_, ids, d)) => {
+        match out.iter_mut().find(|(k, ..)| &**k == key) {
+            Some((_, ids, d, o)) => {
                 ids.push(t.id.clone());
                 *d |= degraded;
+                *o |= t.opted_in;
             }
-            None => out.push((Arc::from(key), vec![t.id.clone()], degraded)),
+            None => out.push((Arc::from(key), vec![t.id.clone()], degraded, t.opted_in)),
         }
     }
     out
 }
 
-fn expand(
-    items: &[RankedItem<usize>],
-    models: &[(Arc<str>, Vec<TargetId>, bool)],
-) -> Vec<TargetId> {
+fn expand(items: &[RankedItem<usize>], models: &[AccountModelEntry]) -> Vec<TargetId> {
     items
         .iter()
         .flat_map(|i| models[i.key].1.iter().cloned())
@@ -114,14 +115,20 @@ fn add_virtuals(
     let ranked: Vec<RankedItem<usize>> = models
         .iter()
         .enumerate()
-        .map(|(i, (key, _, degraded))| RankedItem {
+        .map(|(i, (key, _, degraded, _))| RankedItem {
             key: i,
             rank: latency.rank(key),
             degraded: *degraded,
             base_order: i,
         })
         .collect();
-    let mut all = ranked.clone();
+    // Opted-in lower-trust targets are only reachable by exact name or a user pool
+    // (ADR-012 §1).
+    let mut all: Vec<_> = ranked
+        .iter()
+        .filter(|i| !models[i.key].3)
+        .cloned()
+        .collect();
     order_by_latency(&mut all);
     let realtime: Vec<_> = all
         .iter()
@@ -144,7 +151,7 @@ fn add_virtuals(
             .iter()
             .enumerate()
             .filter_map(|(pos, id)| {
-                let i = models.iter().position(|(k, _, _)| &**k == id.as_str())?;
+                let i = models.iter().position(|(k, ..)| &**k == id.as_str())?;
                 Some(RankedItem {
                     base_order: pos,
                     ..ranked[i].clone()
@@ -201,6 +208,13 @@ pub(crate) fn build(
             ));
             continue;
         }
+        if descriptor.auth == AuthMethod::OAuth && key.is_none() {
+            report.warnings.push(format!(
+                "{}/{}: not signed in; its models are not routable",
+                row.provider.slug, row.account_alias
+            ));
+            continue;
+        }
 
         let mut protocols = parse_protocols(&row.model.protocols_json);
         if protocols.is_empty() {
@@ -215,6 +229,11 @@ pub(crate) fn build(
             let Some(trust) = module.trust(&config, protocol) else {
                 continue;
             };
+            // Lower-trust transports need the account owner's confirmation (ADR-012).
+            let opted_in = !trust.allowed_for_inference();
+            if opted_in && !row.transport_opt_in {
+                continue;
+            }
             let endpoint = match module.endpoint(&config, protocol, key) {
                 Ok(e) => e,
                 Err(e) => {
@@ -237,6 +256,7 @@ pub(crate) fn build(
                 upstream_model: Arc::from(row.model.upstream_model_id.as_str()),
                 protocol,
                 trust,
+                opted_in,
                 context_window: row.model.context_window.and_then(|c| u32::try_from(c).ok()),
                 max_output_tokens: row
                     .model

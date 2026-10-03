@@ -12,6 +12,8 @@ pub enum AuthMethod {
     OptionalApiKey,
     /// Credentials are managed by an official CLI; Loadout only reads them (ADR-009).
     ExternalManaged,
+    /// Loadout runs its own OAuth login and owns the tokens (ADR-012).
+    OAuth,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

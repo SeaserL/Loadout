@@ -96,6 +96,19 @@
 ## 已知限制（v0.1.1）
 
 - 只支持 Windows 10/11 x64；安装为 PowerShell 脚本（无签名安装器、无自动更新）。
-- 订阅登录只读取用量，不转发请求（ADR-009）；Command Code 的额度无法通过 API key 读取，显示为估算值。
+- 官方 CLI 的订阅登录只读取用量，不转发请求（ADR-009）；`codex-sub` 是逐账号 opt-in 的例外（ADR-012）；Command Code 的额度无法通过 API key 读取，显示为估算值。
 - 延迟阈值为初始值，需要你的真实数据校准；`balanced` / `quality` / `economy` 等产品文档中的打分式路由在 v1 中未实现（ADR-003）。
 - 每日限额与"今天"的统计按 UTC 日计算（北京时间 08:00 重置）。
+
+## Codex 订阅 Transport（ADR-012，可选，使用你自己的 ChatGPT 账号）
+
+> 有封号风险：只在你接受风险时测试，低频使用，不要并发压测。
+
+- [ ] `loadout account login codex-sub main`：显示地址和代码；浏览器中批准后，CLI 显示 "Signed in"、显示名为邮箱，并已同步模型。
+- [ ] 登录后 `loadout model list` 中的 `codex-sub/main/*` 还不能使用：请求返回 "transport not allowed" 一类的错误。
+- [ ] `loadout account transport codex-sub main on`：显示风险说明；输入错误的确认文字时不生效；输入 "I understand" 和别名后生效，`account list` 显示 "(transport on)"。
+- [ ] 用 Responses 客户端（如 Codex CLI 指向 Loadout）或 Chat 客户端发一条简单对话，流式和非流式各一次都正常；`loadout logs` 中的路由为 `codex-sub/main/<model>`。
+- [ ] `loadout/default` 不会选到 `codex-sub`。
+- [ ] 如果请求被拒（如 403），记录错误信息。只有在你接受更高风险时，才试 `loadout provider set codex-sub client_identity=codex` 并重试。
+- [ ] `loadout account transport codex-sub main off` 后不再路由。
+- [ ] 官方 Codex CLI 自身的登录不受影响（两份登录互相独立）。

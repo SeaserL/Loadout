@@ -263,6 +263,53 @@ pub struct AccountInfo {
     pub has_key: bool,
     pub models: usize,
     pub enabled_models: usize,
+    /// The owner confirmed a lower-trust transport for this account (ADR-012).
+    #[serde(default)]
+    pub transport_opt_in: bool,
+    /// Expiry of a Loadout-managed OAuth login (refreshed automatically).
+    #[serde(default)]
+    pub login_expires_at_ms: Option<i64>,
+}
+
+/// Starts a Loadout-managed device-code login (ADR-012). The account is created (or its
+/// tokens replaced) once the user approves in the browser.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OAuthStartParams {
+    pub provider: String,
+    pub alias: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OAuthStart {
+    pub login_id: String,
+    /// Open this page and enter `user_code`.
+    pub verification_url: String,
+    pub user_code: String,
+    pub expires_in_secs: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OAuthStatusParams {
+    pub login_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OAuthStatus {
+    /// `pending`, `done` or `failed`.
+    pub state: String,
+    pub account: Option<AccountInfo>,
+    pub message: Option<String>,
+}
+
+/// Turns a lower-trust transport on or off. Turning it on needs `confirm` equal to the
+/// account alias (the second confirmation step, ADR-012 §1).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountTransportParams {
+    pub provider: String,
+    pub alias: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub confirm: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -681,6 +728,24 @@ method!(
     AccountInfo
 );
 method!(AccountRemove, "account.remove", AccountRef, Revoked);
+method!(
+    AccountOAuthStart,
+    "account.oauth_start",
+    OAuthStartParams,
+    OAuthStart
+);
+method!(
+    AccountOAuthStatus,
+    "account.oauth_status",
+    OAuthStatusParams,
+    OAuthStatus
+);
+method!(
+    AccountSetTransport,
+    "account.set_transport",
+    AccountTransportParams,
+    AccountInfo
+);
 method!(ModelSync, "model.sync", AccountRef, SyncResult);
 method!(ModelAdd, "model.add", ModelAddParams, ModelInfo);
 method!(ModelList, "model.list", ModelListParams, Vec<ModelInfo>);

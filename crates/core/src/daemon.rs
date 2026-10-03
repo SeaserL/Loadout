@@ -133,6 +133,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         },
         sessions: Arc::default(),
         policies: control.policies.clone(),
+        account_slots: Arc::default(),
     });
     drop(telemetry);
 
@@ -181,6 +182,15 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         spawn_restartable("latency", shutdown.clone(), Backoff::default(), move || {
             crate::latency::run(control.clone(), token.clone())
         });
+    }
+    {
+        let (control, token) = (control.clone(), shutdown.clone());
+        spawn_restartable(
+            "oauth-refresh",
+            shutdown.clone(),
+            Backoff::default(),
+            move || crate::oauth::refresh_loop(control.clone(), token.clone()),
+        );
     }
     let state = Arc::new(DaemonState {
         db: db.clone(),

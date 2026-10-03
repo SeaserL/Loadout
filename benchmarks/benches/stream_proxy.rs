@@ -136,6 +136,7 @@ async fn gateway(upstream: SocketAddr) -> (SocketAddr, String, CancellationToken
         upstream_model: Arc::from("m"),
         protocol: Protocol::Chat,
         trust: TrustLevel::Local,
+        opted_in: false,
         context_window: None,
         max_output_tokens: None,
         capabilities: Capabilities::DEFAULT_MODEL,

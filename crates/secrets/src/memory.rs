@@ -17,6 +17,15 @@ impl InMemorySecretStore {
         Self::default()
     }
 
+    /// Number of stored secrets (lets tests check that replaced secrets are deleted).
+    pub fn len(&self) -> usize {
+        self.lock().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lock().is_empty()
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<SecretRef, Secret>> {
         // A poisoned map is still structurally valid; recover it rather than propagate panics.
         self.entries.lock().unwrap_or_else(|e| e.into_inner())

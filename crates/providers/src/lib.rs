@@ -8,6 +8,7 @@
 mod anthropic_compatible;
 mod claude_code;
 mod codex;
+mod codex_subscription;
 mod commandcode;
 mod common;
 mod deepseek;
@@ -22,6 +23,7 @@ mod registry;
 pub use anthropic_compatible::AnthropicCompatible;
 pub use claude_code::ClaudeCode;
 pub use codex::Codex;
+pub use codex_subscription::CodexSubscription;
 pub use commandcode::CommandCode;
 pub use deepseek::DeepSeek;
 pub use gemini_cli::GeminiCli;

@@ -32,6 +32,7 @@ use loadout_router::{
     ResolutionKind, RouteTarget, SelectRequest, account_model_key, now_ms, select,
 };
 use serde_json::Value;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::timeout_at;
 
 use crate::plane::DataPlane;
@@ -266,7 +267,20 @@ pub(crate) async fn handle(
     let mut attempts = 0u32;
 
     for target in &candidates.attempts {
-        let body = if target.protocol == ingress {
+        let permit = match target.module.account_concurrency() {
+            Some(limit) => match plane.account_slots.try_acquire(&target.account_id, limit) {
+                Some(p) => Some(p),
+                None => {
+                    skipped.push(format!(
+                        "{}: account concurrency limit",
+                        target.exact_name()
+                    ));
+                    continue;
+                }
+            },
+            None => None,
+        };
+        let mut body = if target.protocol == ingress {
             let mut body = json.clone();
             let inject =
                 hints::rewrite_for_passthrough(ingress, &mut body, &target.upstream_model, &hints);
@@ -281,6 +295,19 @@ pub(crate) async fn handle(
                 }
             }
         };
+        if target.module.upstream_stream_only()
+            && let Prepared::Passthrough { body, .. } = &mut body
+            && let Some(obj) = body.as_object_mut()
+        {
+            obj.insert("stream".into(), Value::Bool(true));
+        }
+        match &mut body {
+            Prepared::Passthrough { body, .. } | Prepared::Converted(body) => {
+                target
+                    .module
+                    .prepare_request(&target.config, target.protocol, body);
+            }
+        }
         attempts += 1;
         let attempt = Attempt {
             plane: &plane,
@@ -291,7 +318,7 @@ pub(crate) async fn handle(
             ctx: &ctx,
             attempt_no: attempts,
         };
-        match attempt.run(body).await {
+        match attempt.run(body, permit).await {
             Outcome::Committed(resp) => {
                 if let Some(s) = session {
                     plane
@@ -395,12 +422,13 @@ fn route_header(target: &RouteTarget) -> Option<HeaderValue> {
 }
 
 impl Attempt<'_> {
-    async fn run(&self, prepared: Prepared) -> Outcome {
+    async fn run(&self, prepared: Prepared, permit: Option<OwnedSemaphorePermit>) -> Outcome {
         let (body, mode, upstream_stream, renderer) = match prepared {
+            // A stream-only upstream answers non-streaming clients through the aggregator.
             Prepared::Passthrough { body, inject } => (
                 body,
                 "passthrough",
-                self.hints.stream,
+                self.hints.stream || self.target.module.upstream_stream_only(),
                 Renderer::passthrough(self.ingress, inject),
             ),
             Prepared::Converted(body) => (
@@ -473,7 +501,8 @@ impl Attempt<'_> {
         if !upstream_stream {
             return self.passthrough_complete(resp, status, sent_at).await;
         }
-        self.stream(resp, renderer, mode, sent_at, deadline).await
+        self.stream(resp, renderer, mode, sent_at, deadline, permit)
+            .await
     }
 
     /// Non-streaming passthrough: forward the body unchanged.
@@ -543,6 +572,7 @@ impl Attempt<'_> {
         mode: &'static str,
         sent_at: Instant,
         deadline: tokio::time::Instant,
+        permit: Option<OwnedSemaphorePermit>,
     ) -> Outcome {
         let mut upstream: ByteStream = Box::pin(resp.bytes_stream());
         let mut parser = SseParser::new();
@@ -644,6 +674,7 @@ impl Attempt<'_> {
                 attempt_no: self.attempt_no,
             },
             ctx: RecordSnapshot::from(self.ctx),
+            _permit: permit,
         };
         let upstream = if ended { None } else { Some(upstream) };
         tokio::spawn(pump.run(upstream, parser, decoder, renderer, meter, tx));
@@ -723,6 +754,8 @@ struct Pump {
     target: Arc<RouteTarget>,
     ctx_record: CompletionInfo,
     ctx: RecordSnapshot,
+    /// Account concurrency slot, held until the stream ends.
+    _permit: Option<OwnedSemaphorePermit>,
 }
 
 impl Pump {

@@ -290,6 +290,7 @@ fn build_target(reg: &HealthRegistry, s: &TargetSpec) -> Arc<RouteTarget> {
         upstream_model: Arc::from(s.model),
         protocol: s.protocol,
         trust: TrustLevel::Local,
+        opted_in: false,
         context_window: None,
         max_output_tokens: None,
         capabilities: Capabilities::DEFAULT_MODEL,
@@ -320,6 +321,10 @@ impl Harness {
     async fn new(specs: Vec<TargetSpec>) -> Self {
         let health = Arc::new(HealthRegistry::default());
         let targets = specs.iter().map(|s| build_target(&health, s)).collect();
+        Self::with_targets(health, targets).await
+    }
+
+    async fn with_targets(health: Arc<HealthRegistry>, targets: Vec<Arc<RouteTarget>>) -> Self {
         let routes = Arc::new(RouteTableHandle::new(RouteTable::new(1, targets)));
         let records = Arc::new(Records::default());
         let routes_store = Arc::new(Routes::default());
@@ -335,6 +340,7 @@ impl Harness {
             },
             sessions: Arc::default(),
             policies: policies.clone(),
+            account_slots: Arc::default(),
         };
         let key = generate_client_key();
         let keys = Arc::new(ClientKeyIndex::new([(
@@ -1063,4 +1069,96 @@ async fn client_policy_default_model_filter_and_rate_limit() {
             .iter()
             .any(|r| r.error_category == Some("client_limit"))
     );
+}
+
+/// Wraps the OpenAI-compatible module with the hooks a stream-only subscription upstream
+/// uses (ExecPlan 010 §2.1).
+#[derive(Debug, Default)]
+struct StreamOnly(OpenAiCompatible);
+
+impl ProviderModule for StreamOnly {
+    fn descriptor(&self) -> &'static loadout_provider_sdk::ProviderDescriptor {
+        self.0.descriptor()
+    }
+    fn endpoint(
+        &self,
+        config: &ProviderConfig,
+        protocol: Protocol,
+        key: Option<&Secret>,
+    ) -> Result<loadout_provider_sdk::Endpoint, loadout_provider_sdk::ProviderError> {
+        self.0.endpoint(config, protocol, key)
+    }
+    fn prepare_request(&self, _config: &ProviderConfig, _protocol: Protocol, body: &mut Value) {
+        body["prepared"] = Value::Bool(true);
+        if let Some(o) = body.as_object_mut() {
+            o.remove("temperature");
+        }
+    }
+    fn upstream_stream_only(&self) -> bool {
+        true
+    }
+    fn account_concurrency(&self) -> Option<u32> {
+        Some(1)
+    }
+}
+
+#[tokio::test]
+async fn stream_only_upstream_serves_non_streaming_clients_and_prepares_bodies() {
+    let (mock, base) = start_mock().await;
+    mock.push(
+        "/v1/responses",
+        Reply::Sse(responses_stream_text("r1", "Hello")),
+    );
+    let health = Arc::new(HealthRegistry::default());
+    let mut target = Arc::into_inner(build_target(
+        &health,
+        &spec("sub", "main", 0, "m", Protocol::Responses, &base),
+    ))
+    .expect("unique");
+    target.module = Arc::new(StreamOnly::default());
+    target.trust = TrustLevel::PrivateEndpoint;
+    target.opted_in = true;
+    let h = Harness::with_targets(health, vec![Arc::new(target)]).await;
+
+    let resp = h
+        .post(
+            "/v1/responses",
+            json!({"model": "sub/main/m", "input": "hi", "temperature": 0.5}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    let v: Value = resp.json().await.expect("json");
+    assert_eq!(v["output"][0]["content"][0]["text"], "Hello");
+
+    let seen = mock.seen();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].body["stream"], true, "upstream always streams");
+    assert_eq!(seen[0].body["prepared"], true);
+    assert!(seen[0].body.get("temperature").is_none());
+    assert_eq!(
+        seen[0].headers["accept"], "text/event-stream",
+        "streaming accept header"
+    );
+}
+
+#[tokio::test]
+async fn lower_trust_targets_need_opt_in() {
+    let (_mock, base) = start_mock().await;
+    let health = Arc::new(HealthRegistry::default());
+    let mut target = Arc::into_inner(build_target(
+        &health,
+        &spec("sub", "main", 0, "m", Protocol::Chat, &base),
+    ))
+    .expect("unique");
+    target.trust = TrustLevel::PrivateEndpoint;
+    let h = Harness::with_targets(health, vec![Arc::new(target)]).await;
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "sub/main/m", "messages": [{"role": "user", "content": "x"}]}),
+        )
+        .await;
+    assert_ne!(resp.status(), 200);
+    let text = resp.text().await.expect("text");
+    assert!(text.contains("not allowed for inference"), "{text}");
 }

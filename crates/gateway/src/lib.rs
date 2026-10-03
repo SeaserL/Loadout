@@ -20,7 +20,8 @@ pub use auth::{
 };
 pub use error::{ApiError, ApiFlavor, ErrorCategory};
 pub use plane::{
-    DataPlane, NullSink, RequestRecord, ResponseRouteStore, TelemetrySink, UpstreamLimits,
+    AccountSlots, DataPlane, NullSink, RequestRecord, ResponseRouteStore, TelemetrySink,
+    UpstreamLimits,
 };
 pub use policy::{ClientPolicies, ClientPolicy, ClientUsageToday, PolicyViolation};
 pub use server::{Gateway, GatewayConfig};

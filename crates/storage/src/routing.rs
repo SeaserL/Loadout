@@ -15,8 +15,10 @@ pub struct RoutableModel {
     pub account_position: i64,
     pub account_type: String,
     pub model: AccountModel,
-    /// API key reference, if the account has one.
+    /// API key (or OAuth access token) reference, if the account has one.
     pub secret_ref: Option<String>,
+    /// The user confirmed lower-trust transports for this account (ADR-012).
+    pub transport_opt_in: bool,
 }
 
 impl Database {
@@ -29,8 +31,11 @@ impl Database {
                         p.created_at, p.updated_at,
                         a.id, a.alias, a.position, a.account_type,
                         (SELECT secret_ref FROM credentials
-                          WHERE account_id = a.id AND credential_type = 'api_key'
+                          WHERE account_id = a.id
+                            AND (credential_type = 'api_key'
+                                 OR (credential_type = 'oauth' AND scope = 'access'))
                           ORDER BY created_at DESC LIMIT 1),
+                        a.transport_opt_in_at IS NOT NULL,
                         {}
                  FROM account_models m
                  JOIN accounts a ON a.id = m.account_id
@@ -51,7 +56,8 @@ impl Database {
                     account_position: r.get(10)?,
                     account_type: r.get(11)?,
                     secret_ref: r.get(12)?,
-                    model: map_account_model(r, 13)?,
+                    transport_opt_in: r.get(13)?,
+                    model: map_account_model(r, 14)?,
                 })
             })?;
             Ok(rows.collect::<Result<_, _>>()?)

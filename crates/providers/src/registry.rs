@@ -6,8 +6,8 @@ use std::sync::Arc;
 use loadout_provider_sdk::ProviderModule;
 
 use crate::{
-    Anthropic, AnthropicCompatible, ClaudeCode, Codex, CommandCode, DeepSeek, GeminiCli, KimiCode,
-    Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter,
+    Anthropic, AnthropicCompatible, ClaudeCode, Codex, CodexSubscription, CommandCode, DeepSeek,
+    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter,
 };
 
 /// All compiled-in provider modules, keyed by `kind`.
@@ -47,6 +47,8 @@ impl Registry {
         r.register(Arc::new(Codex));
         r.register(Arc::new(ClaudeCode));
         r.register(Arc::new(GeminiCli));
+        // Opt-in subscription transport (ADR-012).
+        r.register(Arc::new(CodexSubscription::default()));
         r
     }
 
@@ -90,9 +92,12 @@ mod tests {
                 assert!(slugs.insert(s), "duplicate fixed slug {s}");
             }
             for t in m.descriptor().transports {
+                // Lower-trust transports exist only behind a Loadout-managed, per-account
+                // opt-in login (ADR-012).
                 assert!(
-                    t.trust.allowed_for_inference(),
-                    "{} transport must be tier A (ADR-009)",
+                    t.trust.allowed_for_inference()
+                        || m.descriptor().auth == loadout_provider_sdk::AuthMethod::OAuth,
+                    "{} transport must be tier A or opt-in (ADR-009, ADR-012)",
                     m.descriptor().kind
                 );
             }

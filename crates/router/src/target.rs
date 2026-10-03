@@ -54,6 +54,9 @@ pub struct RouteTarget {
     pub upstream_model: Arc<str>,
     pub protocol: Protocol,
     pub trust: TrustLevel,
+    /// The account owner confirmed this lower-trust transport (ADR-012); such targets are
+    /// routable, but never part of the built-in virtual models.
+    pub opted_in: bool,
     pub context_window: Option<u32>,
     pub max_output_tokens: Option<u32>,
     pub capabilities: Capabilities,

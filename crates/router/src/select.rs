@@ -79,7 +79,7 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
         // Ingress protocol first (passthrough), then the rest in stable order.
         group.sort_by_key(|t| t.protocol != req.ingress);
         for t in group {
-            let reason = if !t.trust.allowed_for_inference() {
+            let reason = if !t.trust.allowed_for_inference() && !t.opted_in {
                 Some("transport not allowed for inference")
             } else if stateful
                 && (t.protocol != Protocol::Responses || req.ingress != Protocol::Responses)
@@ -180,6 +180,7 @@ mod tests {
             upstream_model: Arc::from(model),
             protocol,
             trust: TrustLevel::OfficialApi,
+            opted_in: false,
             context_window: Some(1000),
             max_output_tokens: None,
             capabilities: Capabilities::DEFAULT_MODEL,

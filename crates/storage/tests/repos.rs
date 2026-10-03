@@ -238,3 +238,90 @@ fn replacing_credentials_returns_old_refs() {
     assert_eq!(creds.len(), 1);
     assert_eq!(creds[0].secret_ref.as_deref(), Some("new"));
 }
+
+#[test]
+fn oauth_tokens_rotate_and_route_with_opt_in() {
+    let (db, pid) = db_with_provider();
+    let acc = db
+        .accounts()
+        .create(&NewAccount {
+            provider_id: &pid,
+            alias: "chatgpt",
+            display_name: None,
+            account_type: "subscription",
+        })
+        .expect("acc");
+    assert_eq!(acc.transport_opt_in_at, None);
+    let old = db
+        .accounts()
+        .set_oauth_tokens(
+            &acc.id,
+            "loadout-oauth",
+            "acc-1",
+            Some("ref-1"),
+            Some(1_000),
+        )
+        .expect("tokens");
+    assert!(old.is_empty());
+    db.account_models()
+        .sync_catalog(&acc.id, &[model("m1")])
+        .expect("sync");
+
+    let rows = db.routable_models().expect("rows");
+    assert_eq!(
+        rows[0].secret_ref.as_deref(),
+        Some("acc-1"),
+        "access token routes"
+    );
+    assert!(!rows[0].transport_opt_in);
+
+    // A refresh that keeps the refresh token releases only the old access token.
+    let old = db
+        .accounts()
+        .set_oauth_tokens(
+            &acc.id,
+            "loadout-oauth",
+            "acc-2",
+            Some("ref-1"),
+            Some(5_000),
+        )
+        .expect("rotate");
+    assert_eq!(old, vec!["acc-1"]);
+    let expiring = db.accounts().oauth_expiring(6_000).expect("expiring");
+    assert_eq!(expiring.len(), 1);
+    assert_eq!(expiring[0].secret_ref.as_deref(), Some("acc-2"));
+    assert!(
+        db.accounts()
+            .oauth_expiring(5_000)
+            .expect("none")
+            .is_empty()
+    );
+    let mut scopes: Vec<_> = db
+        .accounts()
+        .credentials(&acc.id)
+        .expect("creds")
+        .into_iter()
+        .filter_map(|c| c.scope)
+        .collect();
+    scopes.sort();
+    assert_eq!(scopes, ["access", "refresh"]);
+
+    assert!(
+        db.accounts()
+            .set_transport_opt_in(&acc.id, Some(42))
+            .expect("opt in")
+    );
+    assert_eq!(
+        db.accounts()
+            .get(&pid, "chatgpt")
+            .expect("get")
+            .expect("acc")
+            .transport_opt_in_at,
+        Some(42)
+    );
+    assert!(db.routable_models().expect("rows")[0].transport_opt_in);
+    db.accounts()
+        .set_transport_opt_in(&acc.id, None)
+        .expect("opt out");
+    assert!(!db.routable_models().expect("rows")[0].transport_opt_in);
+}

@@ -2,12 +2,14 @@
 
 //! What the data plane needs from the rest of the daemon, as narrow interfaces.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use loadout_protocol::{Protocol, Usage};
 use loadout_provider_sdk::{BoxFuture, HttpClient};
 use loadout_router::{RouteTableHandle, SessionAffinity};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::ClientPolicies;
 
@@ -87,6 +89,25 @@ impl Default for UpstreamLimits {
     }
 }
 
+/// Per-account concurrency permits for modules that declare a limit (ADR-012 §1). Only
+/// in-memory state, so it is allowed on the request path.
+#[derive(Debug, Default)]
+pub struct AccountSlots(Mutex<HashMap<Arc<str>, Arc<Semaphore>>>);
+
+impl AccountSlots {
+    /// A permit for one more request on `account`, or `None` when `limit` are in flight.
+    pub fn try_acquire(&self, account: &Arc<str>, limit: u32) -> Option<OwnedSemaphorePermit> {
+        let semaphore = self
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(account.clone())
+            .or_insert_with(|| Arc::new(Semaphore::new(limit as usize)))
+            .clone();
+        semaphore.try_acquire_owned().ok()
+    }
+}
+
 /// Everything the proxy handlers share.
 #[derive(Clone)]
 pub struct DataPlane {
@@ -99,6 +120,8 @@ pub struct DataPlane {
     pub sessions: Arc<SessionAffinity>,
     /// Per-client policies and usage counters (ExecPlan 006).
     pub policies: Arc<ClientPolicies>,
+    /// Per-account concurrency limits (ADR-012).
+    pub account_slots: Arc<AccountSlots>,
 }
 
 impl DataPlane {
@@ -112,6 +135,7 @@ impl DataPlane {
             limits: UpstreamLimits::default(),
             sessions: Arc::default(),
             policies: Arc::default(),
+            account_slots: Arc::default(),
         }
     }
 
@@ -130,5 +154,26 @@ impl std::fmt::Debug for DataPlane {
         f.debug_struct("DataPlane")
             .field("limits", &self.limits)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn account_slots_limit_concurrency_per_account() {
+        let slots = AccountSlots::default();
+        let (a, b): (Arc<str>, Arc<str>) = (Arc::from("a"), Arc::from("b"));
+        let first = slots.try_acquire(&a, 2).expect("1st");
+        let second = slots.try_acquire(&a, 2).expect("2nd");
+        assert!(slots.try_acquire(&a, 2).is_none(), "limit reached");
+        assert!(
+            slots.try_acquire(&b, 2).is_some(),
+            "other accounts unaffected"
+        );
+        drop(first);
+        assert!(slots.try_acquire(&a, 2).is_some(), "released on drop");
+        drop(second);
     }
 }

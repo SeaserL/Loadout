@@ -13,6 +13,7 @@ mod dispatcher;
 mod error;
 mod latency;
 pub mod logging;
+mod oauth;
 mod paths;
 mod route_build;
 pub mod settings;

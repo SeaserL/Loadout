@@ -329,6 +329,26 @@ impl Dispatcher {
                 changed(s);
                 encode_result::<api::ProviderSetSettings>(&info)
             }
+            api::AccountOAuthStart::NAME => {
+                let p = decode_params::<api::AccountOAuthStart>(params)?;
+                encode_result::<api::AccountOAuthStart>(&c.oauth_start(p.provider, p.alias).await?)
+            }
+            api::AccountOAuthStatus::NAME => {
+                let p = decode_params::<api::AccountOAuthStatus>(params)?;
+                let status = c.oauth_status(&p.login_id)?;
+                if status.state == "done" {
+                    changed(s);
+                }
+                encode_result::<api::AccountOAuthStatus>(&status)
+            }
+            api::AccountSetTransport::NAME => {
+                let p = decode_params::<api::AccountSetTransport>(params)?;
+                let info = c
+                    .set_transport(p.provider, p.alias, p.enabled, p.confirm)
+                    .await?;
+                changed(s);
+                encode_result::<api::AccountSetTransport>(&info)
+            }
             api::AccountAdd::NAME => {
                 let p = decode_params::<api::AccountAdd>(params)?;
                 let (account, sync) = c

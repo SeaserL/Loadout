@@ -134,6 +134,28 @@ pub trait ProviderModule: Send + Sync + 'static {
         messages::EncodeOptions::default()
     }
 
+    /// Last change to an upstream request body before it is sent, for both passthrough and
+    /// converted requests (ExecPlan 010 §2.1). Runs on the request path: no I/O.
+    fn prepare_request(&self, _config: &ProviderConfig, _protocol: Protocol, _body: &mut Value) {}
+
+    /// The upstream only answers streaming requests; non-streaming clients get a response
+    /// aggregated from the stream.
+    fn upstream_stream_only(&self) -> bool {
+        false
+    }
+
+    /// Concurrent requests allowed per account (`None`: unlimited).
+    fn account_concurrency(&self) -> Option<u32> {
+        None
+    }
+
+    // ---- auth driver ----
+
+    /// Loadout-managed OAuth login (`AuthMethod::OAuth` modules).
+    fn oauth(&self) -> Option<&dyn crate::oauth::OAuthFlow> {
+        None
+    }
+
     /// Maps an upstream HTTP error; override to recognize provider-specific quota errors.
     fn classify(&self, status: u16, headers: &HeaderMap, body: &str) -> UpstreamFailure {
         classify(status, headers, body)

@@ -40,6 +40,7 @@ fn table(reg: &HealthRegistry) -> RouteTable {
                     upstream_model: Arc::from(format!("model-{model}").as_str()),
                     protocol,
                     trust: TrustLevel::OfficialApi,
+                    opted_in: false,
                     context_window: Some(128_000),
                     max_output_tokens: None,
                     capabilities: Capabilities::DEFAULT_MODEL,
