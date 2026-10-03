@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-29
+- **Amended by**: [ADR-012](ADR-012-subscription-transport-opt-in.md)（Codex 订阅 Transport 可逐账号 opt-in；Claude 维持只读用量）
 
 ## Context
 

@@ -13,6 +13,7 @@
 | [009](ADR-009-subscription-credential-scope.md) | Subscription Credential Scope in v1 | Accepted |
 | [010](ADR-010-model-addressing.md) | Model Addressing | Accepted |
 | [011](ADR-011-local-gateway-security.md) | Local Gateway Security | Accepted |
+| [012](ADR-012-subscription-transport-opt-in.md) | Opt-in Subscription Transport (Codex) | Accepted |
 
 ## Status 含义
 

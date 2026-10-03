@@ -310,6 +310,12 @@ Do not copy code.
 | **OpenAI Codex** | Apache-2.0 | **A for Codex-specific work** | Official Codex configuration, app-server/RPC, authentication, local state conventions | official `codex-rs` code/docs; app-server/account behavior | **Prefer over community reverse engineering whenever possible** |
 | **Gemini CLI** | Apache-2.0 | **A for Gemini implementation / C for unsupported service use** | Official config/auth storage and CLI architecture | `packages/core`, `packages/cli`, official auth/config code | **Code reusable; service/OAuth use must separately obey Google terms** |
 | **New API** | AGPL-3.0 + additional attribution terms | **C** | Model/channel UX; weights/priorities; quota/cost management; management console data model; plugin concepts | `relay/`, `router/`, `oauth/`, `plugins/`, `model/`, `service/` | **Concept only — do not copy implementation into Apache Loadout** |
+| **Cli-Proxy-API-Management-Center** | MIT | **B** | Official CLIProxyAPI web panel: Dashboard / Config / Providers / Auth files / Quota / Logs IA | `src/pages`, quota cards, YAML diff-before-save | **Reference UX; port small components with notice** |
+| **Quotio Desktop** (xiaocoss/quotio-desktop) | MIT | **B** | Quota cards: per-window bars, % remaining colour bands, reset countdown, health dot strip | `assets/*.png`, quota components | **Reference UX** |
+| **cc-switch** (farion1231/cc-switch) | verify per file | **C** | One-click switching of Claude Code / Codex / Gemini CLI provider config; client config export | config writers per agent | **Concept only until license verified** |
+| **all-api-hub** | AGPL-3.0 | **C** | Browser extension: relay-site balances, check-ins, price comparison, export to clients | — | **Concept only** |
+| **sub2api** | verify | **C** | Operator-side subscription pooling and resale | — | **Out of scope (multi-tenant resale); concept only** |
+| **Antigravity Manager** (lbjlaq; Draculabo) | lbjlaq: verify; Draculabo: CC BY-NC-SA 4.0 | **C** | Account rotation on quota threshold; tray; local proxy | — | **Do not copy (non-commercial licence); web-session / OAuth piggybacking is banned by ADR-009/012** |
 
 ---
 
@@ -395,6 +401,20 @@ Subscription Bridge
 ```
 
 look here first.
+
+**Scope limits (ADR-012, 2026-10-04).** Codex subscription transport may port the following:
+
+- OAuth (device code / PKCE) and refresh;
+- the Responses body normalization;
+- error classification and quota-header parsing.
+
+Never port any of these:
+
+- the Claude "cloak" (system-prompt replacement, billing header, request signing, fake device ids, tool renaming);
+- uTLS / TLS fingerprint spoofing;
+- the Claude Code header impersonation profile.
+
+Reviewed revision: `d7914afdedca7af95ee974a42453dc49fc1388ce` (2026-10-03).
 
 Do **not** begin by reading CliRelay's entire repository; CliRelay is an enhanced fork of this project.
 
