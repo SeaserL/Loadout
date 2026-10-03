@@ -52,8 +52,13 @@ const COOLDOWN_MAX: Duration = Duration::from_secs(300);
 const RATE_LIMIT_BASE: Duration = Duration::from_secs(30);
 const RATE_LIMIT_MAX: Duration = Duration::from_secs(600);
 const QUOTA_DEFAULT: Duration = Duration::from_secs(3600);
-/// Rejected credentials stay blocked this long, then one request probes again.
+/// Rejected credentials stay blocked this long, then one request probes again. A second
+/// rejection in a row (or an upstream saying the account is disabled) is terminal.
 const AUTH_RETRY: Duration = Duration::from_secs(3600);
+/// `until_ms` of a terminal state: no automatic recovery. Only a success (an explicit
+/// `account.check` or bench probe) or [`TargetHealth::reset`] (new credentials, the account
+/// re-enabled) clears it.
+const TERMINAL_UNTIL: i64 = i64::MAX;
 
 /// Wall-clock milliseconds, the time base for breaker deadlines.
 pub fn now_ms() -> i64 {
@@ -84,7 +89,10 @@ pub struct TargetHealth {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HealthSnapshot {
     pub state: HealthState,
+    /// End of a blocking state; `None` when available or when the state is terminal.
     pub until_ms: Option<i64>,
+    /// `AUTH_FAILED` without automatic recovery (see [`TargetHealth::is_terminal`]).
+    pub terminal: bool,
     pub consecutive_failures: u32,
     pub in_flight: u32,
     pub successes: u64,
@@ -164,42 +172,82 @@ impl TargetHealth {
     /// Updates the breaker for a failure that should affect routing. Request-level errors
     /// (invalid request) must not be recorded here.
     pub fn record_failure(&self, kind: FailureKind, message: &str, now_ms: i64) {
+        if kind == FailureKind::InvalidRequest {
+            return;
+        }
+        let repeated_auth = self.state() == HealthState::AuthFailed;
+        if self.is_terminal() && !matches!(kind, FailureKind::Auth | FailureKind::AccountDisabled) {
+            // A terminal state is never downgraded to a recoverable one by a later failure
+            // (e.g. of a request that was already in flight); its reason is kept.
+            self.consecutive_failures.fetch_add(1, Ordering::AcqRel);
+            self.count_failure(now_ms);
+            return;
+        }
         let failures = self.consecutive_failures.fetch_add(1, Ordering::AcqRel) + 1;
         let (state, wait) = match kind {
-            FailureKind::Auth => (HealthState::AuthFailed, AUTH_RETRY),
+            // Rejected twice in a row (the half-open retry or a concurrent request failed
+            // too), or the upstream says the account is gone: stop until the user acts.
+            FailureKind::Auth if repeated_auth => (HealthState::AuthFailed, None),
+            FailureKind::AccountDisabled => (HealthState::AuthFailed, None),
+            FailureKind::Auth => (HealthState::AuthFailed, Some(AUTH_RETRY)),
             FailureKind::RateLimited { retry_after } => (
                 HealthState::RateLimited,
-                retry_after.unwrap_or_else(|| backoff(RATE_LIMIT_BASE, RATE_LIMIT_MAX, failures)),
+                Some(
+                    retry_after
+                        .unwrap_or_else(|| backoff(RATE_LIMIT_BASE, RATE_LIMIT_MAX, failures)),
+                ),
             ),
             FailureKind::QuotaExhausted { reset_after } => (
                 HealthState::QuotaExhausted,
-                reset_after.unwrap_or(QUOTA_DEFAULT),
+                Some(reset_after.unwrap_or(QUOTA_DEFAULT)),
             ),
             FailureKind::Server
             | FailureKind::Timeout
             | FailureKind::Connect
             | FailureKind::Other => (
                 HealthState::Cooldown,
-                backoff(COOLDOWN_BASE, COOLDOWN_MAX, failures),
+                Some(backoff(COOLDOWN_BASE, COOLDOWN_MAX, failures)),
             ),
-            FailureKind::ModelNotFound => (HealthState::Cooldown, COOLDOWN_MAX),
+            FailureKind::ModelNotFound => (HealthState::Cooldown, Some(COOLDOWN_MAX)),
             FailureKind::InvalidRequest => return,
         };
-        self.push_outcome(true);
+        let until = match wait {
+            Some(w) => now_ms.saturating_add(w.as_millis() as i64),
+            None => TERMINAL_UNTIL,
+        };
         self.state.store(state as u8, Ordering::Release);
-        self.until_ms.store(
-            now_ms.saturating_add(wait.as_millis() as i64),
-            Ordering::Release,
-        );
-        self.failures.fetch_add(1, Ordering::Relaxed);
-        self.last_failure_ms.store(now_ms, Ordering::Relaxed);
+        self.until_ms.store(until, Ordering::Release);
+        self.count_failure(now_ms);
         if let Ok(mut e) = self.last_error.lock() {
             *e = Some(message.to_owned());
         }
     }
 
-    /// Marks quota exhausted until a known reset (from a Usage driver).
+    fn count_failure(&self, now_ms: i64) {
+        self.push_outcome(true);
+        self.failures.fetch_add(1, Ordering::Relaxed);
+        self.last_failure_ms.store(now_ms, Ordering::Relaxed);
+    }
+
+    /// Blocks the target until the user acts (e.g. an OAuth login that can no longer be
+    /// refreshed).
+    pub fn mark_auth_terminal(&self, message: &str, now_ms: i64) {
+        self.record_failure(FailureKind::AccountDisabled, message, now_ms);
+    }
+
+    /// `AUTH_FAILED` with no automatic recovery: cleared only by a success (an explicit
+    /// check or probe) or [`Self::reset`].
+    pub fn is_terminal(&self) -> bool {
+        self.state() == HealthState::AuthFailed
+            && self.until_ms.load(Ordering::Acquire) == TERMINAL_UNTIL
+    }
+
+    /// Marks quota exhausted until a known reset (from a Usage driver). Does not override a
+    /// terminal state.
     pub fn mark_quota_exhausted(&self, until_ms: i64) {
+        if self.is_terminal() {
+            return;
+        }
         self.state
             .store(HealthState::QuotaExhausted as u8, Ordering::Release);
         self.until_ms.store(until_ms, Ordering::Release);
@@ -222,9 +270,11 @@ impl TargetHealth {
 
     pub fn snapshot(&self) -> HealthSnapshot {
         let nonzero = |v: i64| (v != 0).then_some(v);
+        let until = self.until_ms.load(Ordering::Acquire);
         HealthSnapshot {
             state: self.state(),
-            until_ms: nonzero(self.until_ms.load(Ordering::Acquire)),
+            until_ms: nonzero(until).filter(|u| *u != TERMINAL_UNTIL),
+            terminal: self.is_terminal(),
             consecutive_failures: self.consecutive_failures.load(Ordering::Acquire),
             in_flight: self.in_flight.load(Ordering::Acquire),
             successes: self.successes.load(Ordering::Relaxed),
@@ -344,9 +394,48 @@ mod tests {
         let h = TargetHealth::default();
         h.record_failure(FailureKind::Auth, "401", 0);
         assert!(!h.is_available(60_000));
+        assert!(!h.is_terminal(), "a first rejection retries after an hour");
+        assert!(h.is_available(3_600_000));
         h.reset();
         assert!(h.is_available(60_000));
         assert_eq!(h.snapshot().last_error.as_deref(), Some("401"));
+    }
+
+    #[test]
+    fn repeated_auth_failures_are_terminal_until_success_or_reset() {
+        let h = TargetHealth::default();
+        h.record_failure(FailureKind::Auth, "401", 0);
+        // The half-open retry an hour later is rejected again.
+        h.record_failure(FailureKind::Auth, "401 again", 3_600_000);
+        assert!(h.is_terminal());
+        assert!(!h.is_available(i64::MAX - 1), "no automatic recovery");
+        let snap = h.snapshot();
+        assert_eq!(snap.state, HealthState::AuthFailed);
+        assert!(snap.terminal);
+        assert_eq!(snap.until_ms, None);
+
+        // Later failures of other kinds neither downgrade the state nor replace the reason.
+        h.record_failure(FailureKind::Server, "500", 4_000_000);
+        h.mark_quota_exhausted(5_000_000);
+        assert!(h.is_terminal());
+        assert_eq!(h.snapshot().last_error.as_deref(), Some("401 again"));
+
+        h.record_success(6_000_000);
+        assert!(!h.is_terminal());
+        assert_eq!(h.state(), HealthState::Healthy);
+
+        h.mark_auth_terminal("login expired", 7_000_000);
+        assert!(h.is_terminal());
+        h.reset();
+        assert!(!h.is_terminal() && h.is_available(7_000_000));
+    }
+
+    #[test]
+    fn disabled_accounts_are_terminal_at_once() {
+        let h = TargetHealth::default();
+        h.record_failure(FailureKind::AccountDisabled, "suspended", 0);
+        assert!(h.is_terminal());
+        assert!(!h.is_available(1_000_000_000));
     }
 
     #[test]

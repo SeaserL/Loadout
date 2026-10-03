@@ -143,7 +143,7 @@ impl ControlPlane {
     }
 
     /// One target per account model, in table order.
-    fn unique_models<'a>(
+    pub(crate) fn unique_models<'a>(
         targets: impl Iterator<Item = &'a Arc<RouteTarget>>,
     ) -> Vec<Arc<RouteTarget>> {
         let mut out: Vec<Arc<RouteTarget>> = Vec::new();
@@ -158,7 +158,7 @@ impl ControlPlane {
         out
     }
 
-    async fn probe_all(
+    pub(crate) async fn probe_all(
         &self,
         targets: Vec<Arc<RouteTarget>>,
     ) -> Vec<(Arc<RouteTarget>, ProbeOutcome)> {

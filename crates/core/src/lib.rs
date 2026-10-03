@@ -5,6 +5,7 @@
 
 mod backup;
 mod bench;
+mod check;
 mod clients;
 mod control;
 mod daemon;

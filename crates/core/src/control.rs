@@ -582,15 +582,32 @@ impl ControlPlane {
     ) -> Result<AccountInfo, ErrorBody> {
         let db = self.db.clone();
         let (p2, a2) = (provider.clone(), alias.clone());
-        blocking(move || {
+        let account_id = blocking(move || {
             let p = Self::load_provider(&db, &p2)?;
             let a = Self::load_account(&db, &p, &a2)?;
             db.accounts().set_enabled(&a.id, enabled).map_err(storage)?;
-            Ok(())
+            Ok(a.id)
         })
         .await?;
         self.rebuild_routes().await?;
+        if enabled {
+            // The user re-enabled the account: give it a fresh start, including terminal
+            // auth failures.
+            self.reset_account_health(&account_id, false);
+        }
         self.account(&provider, &alias).await
+    }
+
+    /// Clears the circuit breakers of an account's targets (`only_auth`: only those in
+    /// `AUTH_FAILED`).
+    pub(crate) fn reset_account_health(&self, account_id: &str, only_auth: bool) {
+        for t in self.routes.load().targets() {
+            if *t.account_id == *account_id
+                && (!only_auth || t.health.state() == loadout_router::HealthState::AuthFailed)
+            {
+                t.health.reset();
+            }
+        }
     }
 
     pub async fn set_account_key(
@@ -621,11 +638,7 @@ impl ControlPlane {
         })
         .await?;
         // New credentials: forget auth failures of this account's targets.
-        for t in self.routes.load().targets() {
-            if *t.account_id == *account_id {
-                t.health.reset();
-            }
-        }
+        self.reset_account_health(&account_id, false);
         self.rebuild_routes().await?;
         self.account(&provider, &alias).await
     }

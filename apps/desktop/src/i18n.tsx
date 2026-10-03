@@ -495,6 +495,19 @@ const en = {
   "logs.rows": "Rows",
   "settings.confirmStopTitle": "Stop the gateway?",
   "settings.appearanceHint": "Theme and language are remembered on this PC for this app only.",
+  // Demo: checks
+  "acc.check": "Check this account's key",
+  "acc.check.ok": "{name}: the key works ({n} models listed).",
+  "acc.check.okNoList": "{name}: the key works.",
+  "acc.check.cleared": "The auth failure was cleared; requests are routed to it again.",
+  "acc.check.invalid_key": "{name}: the key was rejected.",
+  "acc.check.account_disabled": "{name}: the account is disabled, suspended or banned.",
+  "acc.check.rate_limited": "{name}: rate limited right now.",
+  "acc.check.no_credit": "{name}: out of credit or quota.",
+  "acc.check.unreachable": "{name}: the provider could not be reached.",
+  "acc.check.unsupported": "{name}: this provider cannot be checked with a model list call.",
+  "acc.check.missing_key": "{name}: no API key is stored.",
+  "acc.check.error": "{name}: the provider returned an error.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -956,6 +969,19 @@ const zh: Record<MessageKey, string> = {
   "logs.rows": "条数",
   "settings.confirmStopTitle": "停止网关？",
   "settings.appearanceHint": "主题和语言只保存在本机的这个应用里。",
+  // Demo: checks
+  "acc.check": "检测该账号的 key",
+  "acc.check.ok": "{name}：key 有效（列出 {n} 个模型）。",
+  "acc.check.okNoList": "{name}：key 有效。",
+  "acc.check.cleared": "已解除认证失败状态，请求会重新路由到该账号。",
+  "acc.check.invalid_key": "{name}：key 无效或已失效。",
+  "acc.check.account_disabled": "{name}：账号已被停用、暂停或封禁。",
+  "acc.check.rate_limited": "{name}：当前被限流。",
+  "acc.check.no_credit": "{name}：余额或额度不足。",
+  "acc.check.unreachable": "{name}：无法连接到服务商。",
+  "acc.check.unsupported": "{name}：该服务商不支持通过模型列表检测。",
+  "acc.check.missing_key": "{name}：没有保存 API key。",
+  "acc.check.error": "{name}：服务商返回了错误。",
 };
 
 /** Chinese descriptions of the daemon's settings (the daemon sends English). */

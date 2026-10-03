@@ -11,11 +11,13 @@ import {
   ScanSearch,
   Search,
   ShieldAlert,
+  Stethoscope,
   Trash,
   Zap,
 } from "lucide-react";
 import {
   api,
+  type AccountCheckResult,
   type AccountInfo,
   type AccountUsage,
   type ModelInfo,
@@ -42,7 +44,21 @@ import {
 } from "../components";
 import { ago, date, num, resetIn, usd } from "../format";
 import { useAction, usePoll } from "../hooks";
-import { t, tv } from "../i18n";
+import { t, tv, type MessageKey } from "../i18n";
+
+/** Toast text and tone for an `account.check` result (ExecPlan 014). */
+function checkMessage(name: string, r: AccountCheckResult): [string, "ok" | "bad"] {
+  const known = ["invalid_key", "account_disabled", "rate_limited", "no_credit", "unreachable", "unsupported", "missing_key"];
+  let text =
+    r.status === "ok"
+      ? r.models_listed != null
+        ? t("acc.check.ok", { name, n: r.models_listed })
+        : t("acc.check.okNoList", { name })
+      : t((known.includes(r.status) ? `acc.check.${r.status}` : "acc.check.error") as MessageKey, { name });
+  if (r.status !== "ok" && r.message) text += ` ${r.message}`;
+  if (r.cleared) text += ` ${t("acc.check.cleared")}`;
+  return [text, r.status === "ok" ? "ok" : "bad"];
+}
 
 type Dialog =
   | { kind: "add" }
@@ -348,6 +364,7 @@ function AccountCard(props: {
   const a = props.account;
   const u = props.usage;
   const confirm = useConfirm();
+  const toast = useToast();
   // Official-CLI subscription logins only show usage; Loadout sign-ins can route.
   const usageOnly = a.account_type === "subscription" && !props.signIn;
   const routable = !usageOnly && (!props.signIn || a.transport_opt_in);
@@ -371,6 +388,20 @@ function AccountCard(props: {
           {routable && (
             <IconButton label={t("acc.bench")} disabled={props.busy || !a.enabled} onClick={() => props.onBench(a)}>
               <Zap size={16} />
+            </IconButton>
+          )}
+          {!usageOnly && (
+            <IconButton
+              label={t("acc.check")}
+              disabled={props.busy}
+              onClick={() =>
+                props.onAction(async () => {
+                  const [text, tone] = checkMessage(name, await api.checkAccount(a.provider, a.alias));
+                  toast(text, tone);
+                })
+              }
+            >
+              <Stethoscope size={16} />
             </IconButton>
           )}
           {!usageOnly && (

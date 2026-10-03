@@ -504,6 +504,12 @@ impl Dispatcher {
                 let p = decode_params::<api::StatsSummary>(params)?;
                 encode_result::<api::StatsSummary>(&c.stats(p.since_ms, p.group_by).await?)
             }
+            api::AccountCheck::NAME => {
+                let p = decode_params::<api::AccountCheck>(params)?;
+                let r = c.check_account(p.provider, p.alias, p.models).await?;
+                changed(s);
+                encode_result::<api::AccountCheck>(&r)
+            }
             other => Err(ErrorBody::new(
                 ErrorCode::MethodNotFound,
                 format!("unknown method {other}"),

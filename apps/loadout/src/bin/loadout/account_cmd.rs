@@ -83,6 +83,92 @@ pub enum AccountCommand {
         #[arg(long)]
         renews: Option<String>,
     },
+    /// Test the account's key with the provider's model list call: ok, invalid key, account
+    /// disabled, rate limited, no credit or unreachable. A successful check also lifts an
+    /// `AUTH_FAILED` state.
+    Check {
+        provider: String,
+        alias: String,
+        /// Also send a 1-token request to every enabled model (uses a little quota) and
+        /// check that its response stream ends cleanly.
+        #[arg(long)]
+        models: bool,
+    },
+}
+
+fn check_summary(status: &str) -> &'static str {
+    match status {
+        "ok" => "the key works",
+        "invalid_key" => "the key was rejected",
+        "account_disabled" => "the account is disabled, suspended or banned",
+        "rate_limited" => "rate limited right now",
+        "no_credit" => "out of credit or quota",
+        "unreachable" => "the provider could not be reached",
+        "unsupported" => "this provider has no model list call",
+        "missing_key" => "no API key is stored",
+        _ => "the provider returned an error",
+    }
+}
+
+async fn check(ctx: &Ctx, provider: String, alias: String, models: bool) -> Result<(), Failure> {
+    let mut ipc = ctx.connect().await?;
+    let r = ipc
+        .call::<api::AccountCheck>(&api::AccountCheckParams {
+            provider,
+            alias,
+            models,
+        })
+        .await?;
+    if ctx.json {
+        return output::json(&r);
+    }
+    let detail = match (&r.http_status, &r.message) {
+        (Some(code), Some(m)) => format!(" (HTTP {code}: {m})"),
+        (None, Some(m)) => format!(" ({m})"),
+        _ => String::new(),
+    };
+    println!(
+        "{}: {} — {}{detail}",
+        r.account,
+        r.status,
+        check_summary(&r.status)
+    );
+    if let Some(n) = r.models_listed {
+        println!("The provider lists {n} models.");
+    }
+    if r.cleared {
+        println!("Cleared the account's AUTH_FAILED state; requests are routed to it again.");
+    }
+    if models {
+        if r.models.is_empty() {
+            println!("No enabled models are routed through this account.");
+        } else {
+            let rows: Vec<Vec<String>> = r
+                .models
+                .iter()
+                .map(|m| {
+                    vec![
+                        m.name.clone(),
+                        m.protocol.clone(),
+                        if m.ok { "ok" } else { "error" }.to_owned(),
+                        m.ttft_ms.map_or_else(|| "-".into(), |t| format!("{t} ms")),
+                        m.stream.clone().unwrap_or_else(|| "-".into()),
+                        m.error.clone().unwrap_or_default(),
+                    ]
+                })
+                .collect();
+            output::table(
+                &["MODEL", "PROTOCOL", "RESULT", "TTFT", "STREAM", "ERROR"],
+                &rows,
+            );
+        }
+    }
+    let models_ok = r.models.iter().all(|m| m.ok);
+    if (r.status == "ok" || r.status == "unsupported") && models_ok {
+        Ok(())
+    } else {
+        Err(Failure::new("the check found a problem"))
+    }
 }
 
 fn read_key(input: &KeyInput, what: &str) -> Result<Option<String>, Failure> {
@@ -349,6 +435,11 @@ pub async fn run(ctx: &Ctx, cmd: AccountCommand) -> Result<(), Failure> {
             Ok(())
         }
         AccountCommand::Login { provider, alias } => login(ctx, provider, alias).await,
+        AccountCommand::Check {
+            provider,
+            alias,
+            models,
+        } => check(ctx, provider, alias, models).await,
         AccountCommand::Transport {
             provider,
             alias,

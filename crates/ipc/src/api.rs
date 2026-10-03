@@ -846,3 +846,57 @@ pub mod events {
     /// Providers, accounts or models changed (the route table was rebuilt).
     pub const ROUTES_CHANGED: &str = "routes.changed";
 }
+
+// ---- account checks (ExecPlan 014) ----------------------------------------------------------
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountCheckParams {
+    pub provider: String,
+    pub alias: String,
+    /// Also send a 1-token request to every enabled model of the account (uses a little
+    /// quota).
+    #[serde(default)]
+    pub models: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountCheckResult {
+    /// `provider/account`.
+    pub account: String,
+    /// Result of the catalog (model list) call: `ok`, `invalid_key`, `account_disabled`,
+    /// `rate_limited`, `no_credit`, `unreachable`, `upstream_error`, `unsupported` (the
+    /// provider has no catalog call) or `missing_key`.
+    pub status: String,
+    pub http_status: Option<u16>,
+    /// Sanitized upstream message or hint.
+    pub message: Option<String>,
+    /// Models the catalog listed (status `ok`).
+    pub models_listed: Option<usize>,
+    pub duration_ms: u64,
+    /// The account's auth failures (including terminal ones) were cleared by this check.
+    pub cleared: bool,
+    /// Per-model probes (only with `models: true`).
+    pub models: Vec<ModelCheck>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelCheck {
+    /// `provider/account/model`.
+    pub name: String,
+    pub protocol: String,
+    /// The model answered (possibly without visible output within the token budget).
+    pub ok: bool,
+    pub ttft_ms: Option<u64>,
+    pub duration_ms: u64,
+    pub error: Option<String>,
+    /// `clean`, `truncated`, `malformed` or `empty`; `None` when no stream was received.
+    pub stream: Option<String>,
+}
+
+method!(
+    /// Tests an account's credentials off the hot path (ExecPlan 014).
+    AccountCheck,
+    "account.check",
+    AccountCheckParams,
+    AccountCheckResult
+);

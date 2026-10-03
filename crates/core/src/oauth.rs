@@ -11,7 +11,7 @@ use std::time::Duration;
 use loadout_ipc::ErrorBody;
 use loadout_ipc::api::{AccountInfo, OAuthStart, OAuthStatus};
 use loadout_provider_sdk::oauth::{PollOutcome, RefreshError, TokenSet};
-use loadout_provider_sdk::{AuthMethod, FailureKind, ProviderModule};
+use loadout_provider_sdk::{AuthMethod, ProviderModule};
 use loadout_router::{now_ms, validate_alias};
 use loadout_secrets::{SecretRef, SecretStore};
 use loadout_storage::{Database, NewAccount, Provider};
@@ -237,6 +237,8 @@ impl ControlPlane {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .remove(&account_id);
+        // A new login clears auth failures, including terminal ones.
+        self.reset_account_health(&account_id, true);
         // The model list needs the new token; a failure leaves the account usable for a
         // later `model sync`.
         if let Err(e) = self
@@ -342,7 +344,12 @@ impl ControlPlane {
                 continue;
             }
             match self.refresh_account(&cred.account_id).await {
-                Ok(()) => changed = true,
+                Ok(()) => {
+                    // A fresh access token: earlier rejections (e.g. of the expired token)
+                    // no longer apply.
+                    self.reset_account_health(&cred.account_id, true);
+                    changed = true;
+                }
                 Err(RefreshError::LoginInvalid(message)) => {
                     tracing::warn!(account = %cred.account_id, %message, "OAuth login is no longer valid");
                     self.oauth
@@ -352,8 +359,8 @@ impl ControlPlane {
                         .insert(cred.account_id.clone());
                     for t in self.routes.load().targets() {
                         if *t.account_id == *cred.account_id {
-                            t.health
-                                .record_failure(FailureKind::Auth, &message, now_ms());
+                            // Terminal: only a new sign-in brings the account back.
+                            t.health.mark_auth_terminal(&message, now_ms());
                         }
                     }
                 }

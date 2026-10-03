@@ -21,6 +21,30 @@ const FIRST_TOKEN_TIMEOUT: Duration = Duration::from_secs(60);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(90);
 const ERROR_BODY_LIMIT: usize = 16 * 1024;
 
+/// How a probe's response stream ended (ExecPlan 014).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StreamHealth {
+    /// A finish event or the protocol's end marker arrived.
+    Clean,
+    /// Events arrived, but the stream ended without a finish event.
+    Truncated,
+    /// An event could not be decoded.
+    Malformed,
+    /// A success status without any stream event.
+    Empty,
+}
+
+impl StreamHealth {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Clean => "clean",
+            Self::Truncated => "truncated",
+            Self::Malformed => "malformed",
+            Self::Empty => "empty",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ProbeOutcome {
     pub ts_ms: i64,
@@ -29,6 +53,8 @@ pub(crate) struct ProbeOutcome {
     pub duration_ms: u64,
     pub output_tokens: Option<u64>,
     pub error: Option<String>,
+    /// `None` when no stream was received (HTTP error, timeout before the response).
+    pub stream: Option<StreamHealth>,
 }
 
 impl ProbeOutcome {
@@ -77,7 +103,8 @@ fn encode(target: &RouteTarget) -> serde_json::Value {
 pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutcome {
     let ts_ms = now_ms();
     let started = Instant::now();
-    let result = tokio::time::timeout(TOTAL_TIMEOUT, run(http, target, started)).await;
+    let mut stream = None;
+    let result = tokio::time::timeout(TOTAL_TIMEOUT, run(http, target, started, &mut stream)).await;
     let duration_ms = started.elapsed().as_millis() as u64;
     let outcome = |ok, ttft_ms, output_tokens, error| ProbeOutcome {
         ts_ms,
@@ -86,6 +113,7 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
         duration_ms,
         output_tokens,
         error,
+        stream,
     };
     match result {
         Ok(Ok(Measured {
@@ -99,12 +127,12 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
             // The upstream works but gave no visible output within the token budget (e.g. a
             // reasoning model): not a routing failure, just no measurement.
             target.health.record_success(now_ms());
-            outcome(
-                false,
-                None,
-                output_tokens,
-                Some(format!("no output within {PROBE_MAX_TOKENS} tokens")),
-            )
+            let error = if stream == Some(StreamHealth::Empty) {
+                "empty response stream".to_owned()
+            } else {
+                format!("no output within {PROBE_MAX_TOKENS} tokens")
+            };
+            outcome(false, None, output_tokens, Some(error))
         }
         Ok(Err(failure)) => {
             target
@@ -135,6 +163,7 @@ async fn run(
     http: &HttpClient,
     target: &RouteTarget,
     started: Instant,
+    health: &mut Option<StreamHealth>,
 ) -> Result<Measured, UpstreamFailure> {
     let body = serde_json::to_vec(&encode(target))
         .map_err(|e| UpstreamFailure::new(FailureKind::Other, None, e.to_string()))?;
@@ -180,6 +209,8 @@ async fn run(
     let mut decoder = decoder_for(target.protocol);
     let mut ttft_ms = None;
     let mut output_tokens = None;
+    let mut finished = false;
+    *health = Some(StreamHealth::Empty);
     loop {
         let next = if ttft_ms.is_none() {
             tokio::time::timeout_at(deadline, stream.next())
@@ -196,9 +227,13 @@ async fn run(
             Some(Err(e)) => return Err(UpstreamFailure::from_reqwest(&e)),
         };
         for event in &events {
-            let canonical = decoder
-                .feed(event)
-                .map_err(|e| UpstreamFailure::new(FailureKind::Server, None, e.to_string()))?;
+            if *health == Some(StreamHealth::Empty) {
+                *health = Some(StreamHealth::Truncated);
+            }
+            let canonical = decoder.feed(event).map_err(|e| {
+                *health = Some(StreamHealth::Malformed);
+                UpstreamFailure::new(FailureKind::Server, None, e.to_string())
+            })?;
             for c in &canonical {
                 if c.is_content() && ttft_ms.is_none() {
                     ttft_ms = Some(started.elapsed().as_millis() as u64);
@@ -207,6 +242,7 @@ async fn run(
                     CanonicalEvent::Usage(u) if u.output_tokens.is_some() => {
                         output_tokens = u.output_tokens;
                     }
+                    CanonicalEvent::Finish(_) => finished = true,
                     CanonicalEvent::Error { message, .. } => {
                         return Err(UpstreamFailure::new(
                             FailureKind::Server,
@@ -221,6 +257,9 @@ async fn run(
         if ended || decoder.is_done() {
             break;
         }
+    }
+    if finished || decoder.is_done() {
+        *health = Some(StreamHealth::Clean);
     }
     Ok(Measured {
         ttft_ms,
@@ -251,6 +290,7 @@ mod tests {
             duration_ms: 200,
             output_tokens: Some(1),
             error: None,
+            stream: Some(StreamHealth::Clean),
         };
         let s = ok.sample().expect("sample");
         assert_eq!((s.ttft_ms, s.source), (120, SampleSource::Probe));

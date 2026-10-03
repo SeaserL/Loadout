@@ -25,7 +25,9 @@ pub use catalog::CatalogModel;
 pub use descriptor::{AuthMethod, Drivers, ProviderDescriptor, TransportSpec};
 pub use discovery::{Discovered, config_dir, find_executable};
 pub use error::ProviderError;
-pub use failure::{FailureKind, UpstreamFailure, classify, error_message};
+pub use failure::{
+    FailureKind, UpstreamFailure, classify, error_message, looks_like_account_disabled,
+};
 pub use http::{HttpClient, HttpConfig};
 pub use module::{
     BoxFuture, DriverContext, Endpoint, ProviderConfig, ProviderModule, USAGE_SOURCE_SETTING,

@@ -67,7 +67,7 @@ fn error_response(
 
 fn category_for(kind: FailureKind) -> ErrorCategory {
     match kind {
-        FailureKind::Auth => ErrorCategory::Auth,
+        FailureKind::Auth | FailureKind::AccountDisabled => ErrorCategory::Auth,
         FailureKind::RateLimited { .. } => ErrorCategory::RateLimit,
         FailureKind::QuotaExhausted { .. } => ErrorCategory::Quota,
         FailureKind::Server | FailureKind::Other => ErrorCategory::Upstream5xx,
@@ -86,6 +86,10 @@ fn stream_failure(kind: Option<&str>, message: &str) -> UpstreamFailure {
         FailureKind::RateLimited { retry_after: None }
     } else if k.contains("quota") || k.contains("insufficient") || m.contains("quota") {
         FailureKind::QuotaExhausted { reset_after: None }
+    } else if (k.contains("authentication") || k.contains("permission"))
+        && loadout_provider_sdk::looks_like_account_disabled(&m)
+    {
+        FailureKind::AccountDisabled
     } else if k.contains("authentication") || k.contains("permission") {
         FailureKind::Auth
     } else if k.contains("invalid_request") {
