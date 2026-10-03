@@ -36,12 +36,14 @@ pub struct RequestEvent {
     pub estimated_cost_usd: Option<f64>,
     /// `EXACT`, `ESTIMATED` or `UNKNOWN`.
     pub usage_confidence: Option<String>,
+    /// Compact routing decision (skips, failed attempts, outcome); metadata only.
+    pub decision: Option<String>,
 }
 
 pub(crate) const COLUMNS: &str = "ts, client_id, requested_model, route_target, provider, account, \
      upstream_model, protocol_in, protocol_out, mode, stream, status, error_category, \
      http_status, attempts, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, \
-     reasoning_tokens, ttft_ms, duration_ms, output_tps, estimated_cost_usd, usage_confidence";
+     reasoning_tokens, ttft_ms, duration_ms, output_tps, estimated_cost_usd, usage_confidence, decision";
 
 pub(crate) fn map_event(r: &Row<'_>) -> rusqlite::Result<RequestEvent> {
     Ok(RequestEvent {
@@ -70,6 +72,7 @@ pub(crate) fn map_event(r: &Row<'_>) -> rusqlite::Result<RequestEvent> {
         output_tps: r.get(22)?,
         estimated_cost_usd: r.get(23)?,
         usage_confidence: r.get(24)?,
+        decision: r.get(25)?,
     })
 }
 
@@ -80,7 +83,7 @@ pub(crate) fn insert_batch(conn: &mut Connection, events: &[RequestEvent]) -> ru
         let mut stmt = tx.prepare_cached(&format!(
             "INSERT INTO request_events ({COLUMNS}) VALUES
              (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
-              ?19, ?20, ?21, ?22, ?23, ?24, ?25)"
+              ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)"
         ))?;
         for e in events {
             stmt.execute(params![
@@ -109,6 +112,7 @@ pub(crate) fn insert_batch(conn: &mut Connection, events: &[RequestEvent]) -> ru
                 e.output_tps,
                 e.estimated_cost_usd,
                 e.usage_confidence,
+                e.decision,
             ])?;
         }
     }

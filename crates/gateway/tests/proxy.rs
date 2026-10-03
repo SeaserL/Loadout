@@ -332,7 +332,11 @@ impl Harness {
     }
 
     async fn with_targets(health: Arc<HealthRegistry>, targets: Vec<Arc<RouteTarget>>) -> Self {
-        let routes = Arc::new(RouteTableHandle::new(RouteTable::new(1, targets)));
+        Self::with_table(health, RouteTable::new(1, targets)).await
+    }
+
+    async fn with_table(health: Arc<HealthRegistry>, table: RouteTable) -> Self {
+        let routes = Arc::new(RouteTableHandle::new(table));
         let records = Arc::new(Records::default());
         let routes_store = Arc::new(Routes::default());
         let policies = Arc::new(ClientPolicies::default());
@@ -661,6 +665,10 @@ async fn rate_limited_account_fails_over_to_next_account() {
     assert_eq!(r.attempts, 2);
     assert_eq!(r.account.as_deref(), Some("b"));
     assert_eq!(
+        r.decision.as_deref(),
+        Some("acme/a/m: 429 rate_limit → acme/b/m: ok")
+    );
+    assert_eq!(
         h.health.get("acme-a-m:chat").expect("health").state(),
         HealthState::RateLimited
     );
@@ -678,6 +686,12 @@ async fn rate_limited_account_fails_over_to_next_account() {
         .await;
     assert_eq!(resp.headers()["x-loadout-route"], "acme/b/m");
     assert_eq!(mock_a.seen().len(), 1);
+    resp.text().await.expect("text");
+    assert_eq!(
+        h.records(2).await[1].decision.as_deref(),
+        Some("acme/a/m: skipped (rate limited) → acme/b/m: ok"),
+        "metadata only: no upstream error text"
+    );
 }
 
 #[tokio::test]
@@ -1014,6 +1028,12 @@ async fn unknown_model_and_models_listing() {
         "one name per account model"
     );
     assert_eq!(list["data"][0]["id"], "acme/main/m1");
+    let extra = &list["data"][0]["loadout"];
+    assert_eq!(extra["kind"], "exact");
+    assert_eq!(extra["tier"], "UNMEASURED");
+    assert_eq!(extra["state"], "UNKNOWN");
+    assert_eq!(extra["input_price"], 1.0);
+    assert_eq!(extra["output_price"], 2.0);
 
     let anthropic: Value = h
         .http
@@ -1245,4 +1265,57 @@ async fn lower_trust_targets_need_opt_in() {
     assert_ne!(resp.status(), 200);
     let text = resp.text().await.expect("text");
     assert!(text.contains("not allowed for inference"), "{text}");
+}
+
+#[tokio::test]
+async fn models_listing_puts_virtuals_and_pools_first_with_details() {
+    let (_mock, base) = start_mock().await;
+    let health = Arc::new(HealthRegistry::default());
+    let a = build_target(&health, &spec("acme", "a", 0, "m", Protocol::Chat, &base));
+    let b = build_target(&health, &spec("acme", "b", 1, "m", Protocol::Chat, &base));
+    a.health.record_failure(
+        loadout_provider_sdk::FailureKind::Auth,
+        "x",
+        loadout_router::now_ms(),
+    );
+    let (a_id, b_id) = (a.id.clone(), b.id.clone());
+    let table = RouteTable::new(1, vec![a, b])
+        .with_virtual("default", &[a_id.clone(), b_id.clone()])
+        .with_virtual("realtime", &[])
+        .with_pool("coding", &[b_id, a_id]);
+    let h = Harness::with_table(health, table).await;
+
+    let list: Value = h
+        .http
+        .get(format!("http://{}/v1/models", h.addr))
+        .bearer_auth(&h.key)
+        .send()
+        .await
+        .expect("send")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(list["object"], "list");
+    let ids: Vec<&str> = list["data"]
+        .as_array()
+        .expect("data")
+        .iter()
+        .map(|m| m["id"].as_str().expect("id"))
+        .collect();
+    assert_eq!(
+        ids,
+        vec!["loadout/default", "loadout/coding", "acme/a/m", "acme/b/m"],
+        "built-in virtuals, then pools, then exact names; empty virtuals hidden"
+    );
+    let default = &list["data"][0];
+    assert_eq!(default["object"], "model");
+    assert_eq!(default["loadout"]["kind"], "virtual");
+    assert_eq!(default["loadout"]["state"], "AVAILABLE");
+    assert_eq!(
+        default["loadout"]["head"], "acme/b/m",
+        "first available target"
+    );
+    assert_eq!(default["loadout"]["targets"], 2);
+    assert_eq!(list["data"][1]["loadout"]["kind"], "pool");
+    assert_eq!(list["data"][2]["loadout"]["state"], "AUTH_FAILED");
 }

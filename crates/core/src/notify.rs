@@ -388,6 +388,7 @@ mod tests {
             enabled_models: 1,
             transport_opt_in: true,
             login_expires_at_ms: expires,
+            quota_reserve: None,
         }
     }
 

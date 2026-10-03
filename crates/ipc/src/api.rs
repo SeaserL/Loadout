@@ -558,6 +558,17 @@ pub struct StatsEntry {
     pub cost_usd: f64,
     pub avg_ttft_ms: Option<f64>,
     pub avg_tps: Option<f64>,
+    /// Cached input tokens read / written (included in `input_tokens`).
+    #[serde(default)]
+    pub cache_read_tokens: i64,
+    #[serde(default)]
+    pub cache_write_tokens: i64,
+    /// `cache_read_tokens / input_tokens`; `None` without input tokens.
+    #[serde(default)]
+    pub cache_hit_rate: Option<f64>,
+    /// Estimated net USD saved by prompt caching (models with cache prices only).
+    #[serde(default)]
+    pub cache_savings_usd: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -578,6 +589,10 @@ pub struct RequestSummary {
     pub ttft_ms: Option<i64>,
     pub duration_ms: i64,
     pub cost_usd: Option<f64>,
+    /// Routing decision, e.g. `a/b/m: skipped (quota) → c/d/m: 429 rate_limit → e/f/m: ok`.
+    /// Metadata only.
+    #[serde(default)]
+    pub decision: Option<String>,
 }
 
 // ---- usage (ExecPlan 003) ----------------------------------------------------------------

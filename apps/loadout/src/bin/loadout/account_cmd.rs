@@ -187,7 +187,6 @@ async fn check(ctx: &Ctx, provider: String, alias: String, models: bool) -> Resu
     }
 }
 
-
 /// The `account.set_reserve` value for the CLI options: `Ok(None)` = nothing to set (show),
 /// `Ok(Some(None))` = clear.
 fn reserve_value(

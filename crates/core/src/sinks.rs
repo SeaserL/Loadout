@@ -48,6 +48,7 @@ impl TelemetrySink for StorageTelemetry {
             output_tps: r.output_tps,
             estimated_cost_usd: r.estimated_cost_usd,
             usage_confidence: Some(r.usage_confidence.to_owned()),
+            decision: r.decision,
         };
         self.sender.send(TelemetryEvent::Request(Box::new(event)));
     }

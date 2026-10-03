@@ -172,6 +172,12 @@ fn configure_with_cli_and_proxy_through_the_daemon() {
             .any(|l| l["mode"] == "converted" && l["protocol_in"] == "messages")
     );
     assert!(logs.iter().any(|l| l["mode"] == "passthrough"));
+    // The routing decision is stored and returned (ExecPlan 015).
+    assert!(
+        logs.iter()
+            .all(|l| l["decision"] == "mock/main/mock-model: ok"),
+        "{logs:?}"
+    );
 
     let routes = d.json(&["route", "status"], None);
     assert_eq!(routes[0]["name"], "mock/main/mock-model");

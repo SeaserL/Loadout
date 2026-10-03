@@ -7,6 +7,7 @@
 //! that point fails over to the next candidate. Once output arrives the response is
 //! committed and streamed; later upstream failures end the stream with an error event.
 
+mod decision;
 mod meter;
 mod render;
 
@@ -37,6 +38,7 @@ use tokio::time::timeout_at;
 
 use crate::plane::DataPlane;
 use crate::{ApiError, ApiFlavor, ClientId, ErrorCategory, PolicyViolation};
+use decision::{Trail, select_reason};
 use meter::{Meter, RecordCtx};
 use render::Renderer;
 
@@ -115,6 +117,8 @@ struct Attempt<'a> {
     client_headers: &'a HeaderMap,
     ctx: &'a RecordCtx,
     attempt_no: u32,
+    /// Decision steps before this attempt.
+    trail: &'a Trail,
 }
 
 pub(crate) async fn handle(
@@ -218,6 +222,14 @@ pub(crate) async fn handle(
         },
     );
 
+    // Decision trail (metadata only): targets selection excluded, then each attempt.
+    let mut trail = Trail::default();
+    for (id, why) in &candidates.skipped {
+        if let Some(t) = table.target(id) {
+            trail.skipped(t, select_reason(t, why));
+        }
+    }
+
     if candidates.attempts.is_empty() {
         let (category, message) = if resolution.kind == ResolutionKind::Virtual
             && resolution.candidates.is_empty()
@@ -259,9 +271,9 @@ pub(crate) async fn handle(
                 ),
             )
         };
-        plane
-            .telemetry
-            .record(ctx.failure(None, 0, category.code(), category.status().as_u16()));
+        let mut record = ctx.failure(None, 0, category.code(), category.status().as_u16());
+        record.decision = trail.finish(None);
+        plane.telemetry.record(record);
         return error_response(flavor, category, message);
     }
 
@@ -279,6 +291,7 @@ pub(crate) async fn handle(
                         "{}: account concurrency limit",
                         target.exact_name()
                     ));
+                    trail.skipped(target, "busy");
                     continue;
                 }
             },
@@ -295,6 +308,7 @@ pub(crate) async fn handle(
                 Ok(c) => Prepared::Converted(encode(c, target)),
                 Err(e) => {
                     skipped.push(format!("{}: {e}", target.exact_name()));
+                    trail.skipped(target, "cannot convert");
                     continue;
                 }
             }
@@ -321,6 +335,7 @@ pub(crate) async fn handle(
             client_headers: &parts.headers,
             ctx: &ctx,
             attempt_no: attempts,
+            trail: &trail,
         };
         match attempt.run(body, permit).await {
             Outcome::Committed(resp) => {
@@ -331,8 +346,12 @@ pub(crate) async fn handle(
                 }
                 return resp;
             }
-            Outcome::Skipped(why) => skipped.push(why),
+            Outcome::Skipped(why) => {
+                skipped.push(why);
+                trail.skipped(target, "encode failed");
+            }
             Outcome::Failed(failure) => {
+                trail.failed(target, &failure);
                 tracing::info!(
                     target = %target.exact_name(),
                     kind = failure.kind.code(),
@@ -371,12 +390,14 @@ pub(crate) async fn handle(
             None,
         ),
     };
-    plane.telemetry.record(ctx.failure(
+    let mut record = ctx.failure(
         target.as_deref(),
         attempts,
         category.code(),
         category.status().as_u16(),
-    ));
+    );
+    record.decision = trail.finish(None);
+    plane.telemetry.record(record);
     error_response(flavor, category, message)
 }
 
@@ -549,13 +570,16 @@ impl Attempt<'_> {
                     .put(id.to_owned(), self.target.id.to_string());
             }
         }
-        let mut record = self.ctx.completed(
+        let mut record = self.trail.stamp(
+            self.ctx.completed(
+                self.target,
+                "passthrough",
+                self.attempt_no,
+                &meter,
+                "ok",
+                None,
+            ),
             self.target,
-            "passthrough",
-            self.attempt_no,
-            &meter,
-            "ok",
-            None,
         );
         record.ttft_ms = None;
         self.plane.telemetry.record(record);
@@ -684,6 +708,7 @@ impl Attempt<'_> {
                 attempt_no: self.attempt_no,
             },
             ctx: RecordSnapshot::from(self.ctx),
+            trail: self.trail.clone(),
             _permit: permit,
         };
         let upstream = if ended { None } else { Some(upstream) };
@@ -715,7 +740,7 @@ impl Attempt<'_> {
             Protocol::Messages => messages::encode_response(&r, &self.hints.model),
             Protocol::Responses => responses::encode_response(&r, &self.hints.model),
         };
-        self.plane.telemetry.record(self.ctx.completed(
+        let record = self.ctx.completed(
             self.target,
             mode,
             self.attempt_no,
@@ -726,7 +751,10 @@ impl Attempt<'_> {
                 "ok"
             },
             upstream_error.as_ref().map(|_| "upstream_error"),
-        ));
+        );
+        self.plane
+            .telemetry
+            .record(self.trail.stamp(record, self.target));
         let mut response = axum::Json(body).into_response();
         if let Some(v) = route_header(self.target) {
             response.headers_mut().insert("x-loadout-route", v);
@@ -764,6 +792,8 @@ struct Pump {
     target: Arc<RouteTarget>,
     ctx_record: CompletionInfo,
     ctx: RecordSnapshot,
+    /// Decision steps before the committed attempt.
+    trail: Trail,
     /// Account concurrency slot, held until the stream ends.
     _permit: Option<OwnedSemaphorePermit>,
 }
@@ -832,13 +862,16 @@ impl Pump {
                 status = "client_closed";
             }
         }
-        self.plane.telemetry.record(self.ctx.0.completed(
+        let record = self.ctx.0.completed(
             &self.target,
             self.ctx_record.mode,
             self.ctx_record.attempt_no,
             &meter,
             status,
             error_category,
-        ));
+        );
+        self.plane
+            .telemetry
+            .record(self.trail.stamp(record, &self.target));
     }
 }

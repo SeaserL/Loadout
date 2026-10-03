@@ -64,7 +64,18 @@ pub struct StatsRow {
     pub cost_usd: f64,
     pub avg_ttft_ms: Option<f64>,
     pub avg_tps: Option<f64>,
+    /// Cached input tokens read / written (part of `input_tokens`).
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    /// Net USD saved by cache reads (minus any cache-write premium), using the account
+    /// model's current prices; only counts requests whose model has a cache price set.
+    pub cache_savings_usd: f64,
 }
+
+/// Per-request cache savings in USD: cache reads billed below the input price, minus the
+/// premium paid for cache writes. `NULL` when the model has no input price.
+const CACHE_SAVINGS_SQL: &str = "(COALESCE(cache_read_tokens, 0) * (am_in - COALESCE(am_cr, am_in)) \
+     - COALESCE(cache_write_tokens, 0) * (COALESCE(am_cw, am_in) - am_in)) / 1000000.0";
 
 fn like_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
@@ -143,8 +154,17 @@ impl Database {
                         COALESCE(SUM(output_tokens), 0),
                         COALESCE(SUM(estimated_cost_usd), 0.0),
                         AVG(ttft_ms),
-                        AVG(output_tps)
+                        AVG(output_tps),
+                        COALESCE(SUM(cache_read_tokens), 0),
+                        COALESCE(SUM(cache_write_tokens), 0),
+                        COALESCE(SUM({CACHE_SAVINGS_SQL}), 0.0)
                    FROM request_events
+                   LEFT JOIN (SELECT id AS am_id, input_price AS am_in,
+                                     cache_read_price AS am_cr, cache_write_price AS am_cw
+                                FROM account_models)
+                     -- route_target is the target id: account model id, ':', protocol
+                     ON am_id = substr(route_target, 1,
+                                       length(route_target) - length(protocol_out) - 1)
                   WHERE ts >= ?1
                   GROUP BY key
                   ORDER BY {order}"
@@ -159,6 +179,9 @@ impl Database {
                     cost_usd: r.get(5)?,
                     avg_ttft_ms: r.get(6)?,
                     avg_tps: r.get(7)?,
+                    cache_read_tokens: r.get(8)?,
+                    cache_write_tokens: r.get(9)?,
+                    cache_savings_usd: r.get(10)?,
                 })
             })?;
             Ok(rows.collect::<Result<_, _>>()?)
@@ -272,5 +295,55 @@ mod tests {
         assert_eq!(by_client.len(), 1);
         assert_eq!(by_client[0].input_tokens, 20);
         assert!(StatsGroup::parse("route").is_some() && StatsGroup::parse("x").is_none());
+    }
+
+    #[test]
+    fn cache_tokens_and_savings_use_model_prices() {
+        let db = Database::open_in_memory().expect("db");
+        db.lock()
+            .execute_batch(
+                "INSERT INTO providers (id, slug, kind, display_name, created_at, updated_at)
+                     VALUES ('prov', 'p', 'openai-compatible', 'P', 0, 0);
+                 INSERT INTO accounts (id, provider_id, alias, account_type, created_at, updated_at)
+                     VALUES ('acc', 'prov', 'main', 'api_key', 0, 0);
+                 INSERT INTO account_models (id, account_id, upstream_model_id, input_price,
+                         output_price, cache_read_price, cache_write_price, source, created_at,
+                         updated_at)
+                     VALUES ('am1', 'acc', 'm1', 3.0, 15.0, 0.3, 3.75, 'manual', 0, 0);",
+            )
+            .expect("seed");
+        let cached = RequestEvent {
+            route_target: Some("am1:messages".into()),
+            protocol_out: Some("messages".into()),
+            input_tokens: Some(1_000_000),
+            cache_read_tokens: Some(800_000),
+            cache_write_tokens: Some(100_000),
+            decision: Some("p/main/m1: ok".into()),
+            ..event(1, "a", "p/main/m1", "ok", 0.0)
+        };
+        // No matching account model: tokens count, savings do not.
+        let unpriced = RequestEvent {
+            route_target: Some("gone:chat".into()),
+            protocol_out: Some("chat".into()),
+            cache_read_tokens: Some(5),
+            ..event(2, "a", "p/main/m1", "ok", 0.0)
+        };
+        crate::request_events::insert_batch(&mut db.lock(), &[cached, unpriced]).expect("insert");
+
+        let rows = db.request_stats(0, StatsGroup::Model).expect("stats");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].cache_read_tokens, 800_005);
+        assert_eq!(rows[0].cache_write_tokens, 100_000);
+        // 0.8M × (3.0 − 0.3) − 0.1M × (3.75 − 3.0), per million.
+        assert!((rows[0].cache_savings_usd - (2.16 - 0.075)).abs() < 1e-9);
+
+        let logged = db
+            .find_requests(&RequestFilter {
+                limit: 10,
+                ..RequestFilter::default()
+            })
+            .expect("find");
+        assert_eq!(logged[1].decision.as_deref(), Some("p/main/m1: ok"));
+        assert_eq!(logged[0].decision, None);
     }
 }

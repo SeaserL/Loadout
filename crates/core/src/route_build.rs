@@ -161,9 +161,14 @@ fn add_virtuals(
         if pool.ordering == "latency" {
             order_by_latency(&mut members);
         }
-        table = table.with_virtual(&pool.name, &expand(&members, &models));
+        table = table.with_pool(&pool.name, &expand(&members, &models));
     }
-    table
+    let tiers = models
+        .iter()
+        .zip(&ranked)
+        .map(|((key, ..), item)| (key.clone(), item.rank.tier))
+        .collect();
+    table.with_tiers(tiers)
 }
 
 pub(crate) fn build(

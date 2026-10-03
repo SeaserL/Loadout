@@ -45,8 +45,22 @@ function dailyPoints(rows: StatsEntry[], days: number): StackedPoint[] {
 }
 
 function sum(rows: StatsEntry[]) {
-  const total = { requests: 0, errors: 0, input: 0, output: 0, cost: 0, ttftWeighted: 0, ttftCount: 0 };
+  const total = {
+    requests: 0,
+    errors: 0,
+    input: 0,
+    output: 0,
+    cost: 0,
+    ttftWeighted: 0,
+    ttftCount: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cacheSavings: 0,
+  };
   for (const r of rows) {
+    total.cacheRead += r.cache_read_tokens ?? 0;
+    total.cacheWrite += r.cache_write_tokens ?? 0;
+    total.cacheSavings += r.cache_savings_usd ?? 0;
     total.requests += r.requests;
     total.errors += r.errors;
     total.input += r.input_tokens;
@@ -162,7 +176,35 @@ export function Stats() {
                 <ShareBar value={c.value} max={tokenTotal} tone={c.tone} />
               </div>
             ))}
-            <div className="small muted">{t("stats.cacheNote")}</div>
+            {[
+              { label: t("stats.cacheRead"), value: total.cacheRead, key: "cache-read" },
+              { label: t("stats.cacheWrite"), value: total.cacheWrite, key: "cache-write" },
+            ].map((c) => (
+              <div className="composition-row" key={c.key}>
+                <div className="row">
+                  <span>{c.label}</span>
+                  <span className="spacer" />
+                  <span className="num">{c.value.toLocaleString()}</span>
+                  <span className="muted num" style={{ minWidth: 48, textAlign: "right" }}>
+                    {total.input > 0 ? `${((c.value / total.input) * 100).toFixed(1)}%` : "-"}
+                  </span>
+                </div>
+                <ShareBar value={c.value} max={total.input} tone="input" />
+              </div>
+            ))}
+            <div className="row">
+              <span className="strong">{t("stats.cacheHitRate")}</span>
+              <span className="spacer" />
+              <span className="num">
+                {total.input > 0 ? `${Math.min(100, (total.cacheRead / total.input) * 100).toFixed(1)}%` : "-"}
+              </span>
+            </div>
+            <div className="row">
+              <span className="strong">{t("stats.cacheSavings")}</span>
+              <span className="spacer" />
+              <span className="num">{usd(total.cacheSavings)}</span>
+            </div>
+            <div className="small muted">{t("stats.cacheTrackedNote")}</div>
           </div>
         </Card>
       </div>

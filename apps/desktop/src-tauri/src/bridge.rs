@@ -63,9 +63,7 @@ pub const ALLOWED_METHODS: &[&str] = &[
     api::DiscoveryScan::NAME,
     api::DiscoveryImport::NAME,
     api::PriceCompare::NAME,
-
     api::AccountCheck::NAME,
-
     api::AccountSetReserve::NAME,
 ];
 

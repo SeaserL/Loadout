@@ -183,6 +183,13 @@ pub async fn stats(ctx: &Ctx, by: GroupBy, days: u32) -> Result<(), Failure> {
                 r.avg_ttft_ms
                     .map_or_else(|| "-".into(), |v| format!("{v:.0} ms")),
                 r.avg_tps.map_or_else(|| "-".into(), |v| format!("{v:.0}")),
+                r.cache_hit_rate
+                    .map_or_else(|| "-".into(), |v| format!("{:.1}%", v * 100.0)),
+                if r.cache_savings_usd != 0.0 {
+                    format!("${:.4}", r.cache_savings_usd)
+                } else {
+                    "-".into()
+                },
             ]
         })
         .collect();
@@ -195,13 +202,26 @@ pub async fn stats(ctx: &Ctx, by: GroupBy, days: u32) -> Result<(), Failure> {
             "COST",
             "AVG TTFT",
             "AVG TOK/S",
+            "CACHE HIT",
+            "CACHE SAVED",
         ],
         &table,
     );
+    let input: i64 = rows.iter().map(|r| r.input_tokens).sum();
+    let cache_read: i64 = rows.iter().map(|r| r.cache_read_tokens).sum();
+    let saved: f64 = rows.iter().map(|r| r.cache_savings_usd).sum();
+    if input > 0 {
+        println!();
+        println!(
+            "Prompt cache: {cache_read} of {input} input tokens read from cache ({:.1}%), \
+             estimated saving ${saved:.4} (models with cache prices only).",
+            cache_read as f64 / input as f64 * 100.0
+        );
+    }
     Ok(())
 }
 
-pub async fn logs(ctx: &Ctx, filter: RecentParams) -> Result<(), Failure> {
+pub async fn logs(ctx: &Ctx, filter: RecentParams, verbose: bool) -> Result<(), Failure> {
     let mut ipc = ctx.connect().await?;
     let list = ipc.call::<api::RequestsRecent>(&filter).await?;
     if ctx.json {
@@ -213,12 +233,17 @@ pub async fn logs(ctx: &Ctx, filter: RecentParams) -> Result<(), Failure> {
     }
     let rows: Vec<Vec<String>> = list
         .iter()
-        .map(|r| {
+        .enumerate()
+        .map(|(i, r)| {
             let status = match &r.error_category {
                 Some(c) => format!("{} ({c})", r.status),
                 None => r.status.clone(),
             };
-            vec![
+            let mut row = Vec::with_capacity(10);
+            if verbose {
+                row.push((i + 1).to_string());
+            }
+            row.extend([
                 output::timestamp(r.ts_ms),
                 r.client.clone().unwrap_or_else(|| "-".into()),
                 r.requested_model.clone(),
@@ -237,22 +262,31 @@ pub async fn logs(ctx: &Ctx, filter: RecentParams) -> Result<(), Failure> {
                 ),
                 r.ttft_ms.map_or_else(|| "-".into(), |t| format!("{t} ms")),
                 format!("{} ms", r.duration_ms),
-            ]
+            ]);
+            row
         })
         .collect();
-    output::table(
-        &[
-            "TIME",
-            "CLIENT",
-            "MODEL",
-            "ROUTE",
-            "PROTOCOL",
-            "STATUS",
-            "TOKENS IN/OUT",
-            "TTFT",
-            "TOTAL",
-        ],
-        &rows,
-    );
+    let mut headers = vec![
+        "TIME",
+        "CLIENT",
+        "MODEL",
+        "ROUTE",
+        "PROTOCOL",
+        "STATUS",
+        "TOKENS IN/OUT",
+        "TTFT",
+        "TOTAL",
+    ];
+    if verbose {
+        headers.insert(0, "#");
+    }
+    output::table(&headers, &rows);
+    if verbose {
+        println!();
+        println!("Routing decisions (metadata only):");
+        for (i, r) in list.iter().enumerate() {
+            println!("  {:>3}  {}", i + 1, r.decision.as_deref().unwrap_or("-"));
+        }
+    }
     Ok(())
 }

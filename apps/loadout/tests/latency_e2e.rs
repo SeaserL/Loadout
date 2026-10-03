@@ -230,7 +230,7 @@ fn tiers_virtual_models_pools_and_sessions() {
     assert_eq!(client.route("loadout/mine", Some("s-1")), SLOW);
     assert_eq!(client.route("loadout/mine", Some("s-2")), FAST);
 
-    let models: Vec<String> = client.rt.block_on(async {
+    let models: Vec<(String, String)> = client.rt.block_on(async {
         let v: Value = client
             .http
             .get(format!("http://{}/v1/models", client.gateway))
@@ -245,17 +245,29 @@ fn tiers_virtual_models_pools_and_sessions() {
             .as_array()
             .expect("data")
             .iter()
-            .map(|m| m["id"].as_str().expect("id").to_owned())
+            .map(|m| {
+                (
+                    m["id"].as_str().expect("id").to_owned(),
+                    m["loadout"]["kind"].as_str().expect("kind").to_owned(),
+                )
+            })
             .collect()
     });
-    for name in [
-        "loadout/realtime",
-        "loadout/fast",
-        "loadout/default",
-        "loadout/mine",
+    for (name, kind) in [
+        ("loadout/realtime", "virtual"),
+        ("loadout/fast", "virtual"),
+        ("loadout/default", "virtual"),
+        ("loadout/mine", "pool"),
     ] {
-        assert!(models.contains(&name.to_owned()), "{name} in {models:?}");
+        assert!(
+            models.contains(&(name.to_owned(), kind.to_owned())),
+            "{name} ({kind}) in {models:?}"
+        );
     }
+    // Built-in virtual models and pools come before exact names.
+    let first_exact = models.iter().position(|(_, k)| k == "exact");
+    let last_named = models.iter().rposition(|(_, k)| k != "exact");
+    assert!(first_exact > last_named, "{models:?}");
 
     assert_eq!(d.json(&["pool", "remove", "mine"], None)["revoked"], true);
     assert_eq!(

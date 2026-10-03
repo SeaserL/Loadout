@@ -540,6 +540,18 @@ const en = {
   "acc.reserveWindows": "Per window",
   "acc.reserveWindowsHint": "For example 5h=10, weekly=20. Overrides the value above for those windows.",
   "acc.errReserve": "Use percentages from 0 to 99, and windows as name=number separated by commas.",
+
+
+  // Demo: transparency
+  "logs.decision": "Routing decision",
+  "logs.showDecision": "Show routing decision",
+  "logs.noDecision": "No routing decision recorded for this request.",
+  "stats.cacheRead": "Cache read",
+  "stats.cacheWrite": "Cache write",
+  "stats.cacheHitRate": "Cache hit rate",
+  "stats.cacheSavings": "Estimated cache savings",
+  "stats.cacheTrackedNote":
+    "Cache reads and writes are part of input tokens. Savings use each model's current cache prices (\"Models\" page); models without a cache price count as no saving.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1046,6 +1058,18 @@ const zh: Record<MessageKey, string> = {
   "acc.reserveWindows": "按窗口设置",
   "acc.reserveWindowsHint": "例如 5h=10, weekly=20，对这些窗口覆盖上面的值。",
   "acc.errReserve": "百分比需在 0 到 99 之间，窗口格式为 名称=数字，用逗号分隔。",
+
+
+  // Demo: transparency
+  "logs.decision": "路由决策",
+  "logs.showDecision": "显示路由决策",
+  "logs.noDecision": "这条请求没有记录路由决策。",
+  "stats.cacheRead": "缓存读取",
+  "stats.cacheWrite": "缓存写入",
+  "stats.cacheHitRate": "缓存命中率",
+  "stats.cacheSavings": "缓存预计节省",
+  "stats.cacheTrackedNote":
+    "缓存读写包含在输入 token 中。节省金额按各模型当前的缓存价格（“模型”页面）估算；未设置缓存价格的模型不计入节省。",
 };
 
 /** Chinese descriptions of the daemon's settings (the daemon sends English). */
