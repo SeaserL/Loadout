@@ -9,7 +9,8 @@ mod bridge;
 use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, State, WindowEvent};
+use tauri::window::Color;
+use tauri::{AppHandle, Manager, State, Theme, WebviewWindow, WindowEvent};
 
 pub use bridge::{ALLOWED_METHODS, Bridge, UiError};
 
@@ -107,6 +108,35 @@ fn set_tray_language(items: State<'_, TrayItems>, lang: String) -> Result<(), Ui
     Ok(())
 }
 
+/// Window background per theme; matches `--bg` in the web UI's styles.css.
+fn theme_background(dark: bool) -> Color {
+    if dark {
+        Color(11, 13, 17, 255)
+    } else {
+        Color(246, 247, 245, 255)
+    }
+}
+
+/// Called by the web UI when the theme changes, so the native window background (shown
+/// before the page paints and while resizing) and the title bar match the page.
+/// `preference` is `light`, `dark` or `system`; `dark` is the theme actually shown.
+#[tauri::command]
+fn set_window_theme(window: WebviewWindow, preference: String, dark: bool) -> Result<(), UiError> {
+    let to_ui = |e: tauri::Error| UiError {
+        code: "window".into(),
+        message: e.to_string(),
+    };
+    let theme = match preference.as_str() {
+        "light" => Some(Theme::Light),
+        "dark" => Some(Theme::Dark),
+        _ => None,
+    };
+    window.set_theme(theme).map_err(to_ui)?;
+    window
+        .set_background_color(Some(theme_background(dark)))
+        .map_err(to_ui)
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let [open_label, start_label, stop_label, quit_label] = tray_labels("zh-CN");
     let open = MenuItem::with_id(app, "open", open_label, true, None::<&str>)?;
@@ -194,10 +224,16 @@ pub fn run() {
             daemon_stop,
             autostart_get,
             autostart_set,
-            set_tray_language
+            set_tray_language,
+            set_window_theme
         ])
         .setup(|app| {
             build_tray(app.handle())?;
+            // Paint the window in the system theme until the page applies the user's choice.
+            if let Some(w) = app.get_webview_window("main") {
+                let dark = matches!(w.theme(), Ok(Theme::Dark));
+                let _ = w.set_background_color(Some(theme_background(dark)));
+            }
             // ADR-002: the app starts the daemon when it is not running.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

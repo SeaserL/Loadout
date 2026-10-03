@@ -41,3 +41,16 @@ License: Apache-2.0
 Reuse: DERIVED (protocol method and field names only)
 Local files: crates/providers/src/codex.rs
 ```
+
+```text
+Component: EasyCLIProxyAPI desktop UI design
+Source: https://github.com/router-for-me/EasyCLIProxyAPI
+Upstream path: src/styles.css, src/theme.ts, src/App.tsx (design tokens, layout, theme switching);
+               screenshots of the released app
+Upstream revision: main as of 2026-10-04
+License: MIT
+Reuse: DERIVED (visual design only: colour and spacing values, sidebar / card / quota-bar
+       layout patterns; no code, styles, logos or text copied)
+Local files: apps/desktop/src/{styles.css,theme.ts,components.tsx,App.tsx,pages/*}
+Notes: ExecPlan 009
+```

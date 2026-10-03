@@ -62,3 +62,29 @@ export function tierLabel(tier: string): string {
       return t("tier.UNMEASURED");
   }
 }
+
+/** "3 d 4 h" / "2 h 5 min" / "12 min" style length of time. */
+export function duration(ms: number | null | undefined): string {
+  if (ms == null || ms < 0) return "-";
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return t("common.durMin", { n: min });
+  const h = Math.floor(min / 60);
+  if (h < 24) return t("common.durHours", { h, m: min % 60 });
+  return t("common.durDays", { d: Math.floor(h / 24), h: h % 24 });
+}
+
+/** Short reset countdown for quota bars: "2 h 50 min", "4 d 19 h". */
+export function resetIn(ms: number | null | undefined): string | null {
+  if (ms == null) return null;
+  const diff = ms - Date.now();
+  return diff <= 0 ? t("common.now") : duration(diff);
+}
+
+/** Compact token count: 1.25M, 35.4k, 980. */
+export function tokens(n: number | null | undefined): string {
+  if (n == null) return "-";
+  if (Math.abs(n) >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (Math.abs(n) >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+  return String(Math.round(n));
+}

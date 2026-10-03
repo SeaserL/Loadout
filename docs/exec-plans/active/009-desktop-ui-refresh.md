@@ -70,7 +70,16 @@
 
 ## 6. Progress
 
-- [ ] Stage 1 — tokens, theme, shell, shared components
-- [ ] Stage 2 — dashboard, accounts
+- [x] Stage 1 — tokens, theme, shell, shared components（2026-10-04）
+  - `styles.css` 重写：`:root` / `:root[data-theme=dark]` 两套 token（暖白 `#f6f7f5`、白卡片、`#e2e8e3` 边框、12px 圆角、teal `#0f766e` / 深色 `#5dd3c7`）；`theme.ts` 管理浅色 / 深色 / 自动，localStorage（try/catch），跟随系统变化。
+  - 新 Tauri 命令 `set_window_theme`（`lib.rs`）：同步窗口背景色与标题栏主题；启动时先按系统主题设置窗口背景，避免白闪。不涉及 daemon IPC 与 bridge 允许列表。
+  - `components.tsx`：Switch、Segmented、IconButton、Badge（pill）、Kpi、FilterBar、QuotaBar、CopyField、Toast（`useToast` / `useCopy`）、带焦点陷阱与 Esc 的 Modal、`ConfirmProvider` + `useConfirm()`（Promise 式，替换全部 `window.confirm()`）、LockedPage、ThemeSwitch。
+  - 外壳：240px 浅色侧边栏、lucide 图标导航；daemon 未运行时导航项显示锁、页面显示锁定占位与"启动网关"按钮；底部为 daemon 状态、主题切换、语言切换。
+  - 教训：页面占位的 `.locked` 类与导航项的 `locked` 状态类同名，导航项被套上了 `flex-direction: column`。状态类与组件类不要重名，占位改为 `.locked-panel`。
+- [x] Stage 2 — dashboard, accounts（2026-10-04）
+  - 首页：运行状态卡（状态 pill、地址 / PID / 版本 / 已运行 / 数据目录，停止 / 重启 / 刷新；重启 = 现有 `daemon_stop` + `daemon_start`）、接入地址卡（OpenAI / Responses / Anthropic 三行 + 复制按钮 + client key 提示）、KPI 磁贴、虚拟模型与账号额度两张卡。
+  - 账号页：provider 网格（点击筛选）+ 搜索；每个 provider 一节（保留 ExecPlan 008 的"用量来源"下拉框），账号为卡片：启用开关、测速（对该账号已启用模型调用现有 `bench.run`）/ 同步 / 密钥 / 套餐图标按钮，删除走确认框；额度窗口用 QuotaBar（剩余 % 绿 / 黄 / 红 + 重置倒计时）。
+  - "Codex 订阅"卡片位置：provider 网格末尾留了代码注释位，ExecPlan 010 在此加入登录卡片。
+  - 视觉检查方法：浏览器面板 + vite dev server，注入临时的 `window.__TAURI_INTERNALS__` 模拟 IPC（fixture 数据，文件在仓库外的 scratchpad），无需在桌面上模拟点击。
 - [ ] Stage 3 — other pages
 - [ ] Stage 4 — polish and verification
