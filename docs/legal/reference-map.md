@@ -305,16 +305,21 @@ Do not copy code.
 | **Claude Code Router (CCR)** | MIT | **A/B** | Local control plane; agent profiles; provider presets; credential pools; condition routing; rewrites; retries; ordered fallbacks; local-login import | provider/config/routing code, desktop workflow, account import, logs | **Direct reference, but avoid duplicating its full product scope** |
 | **LiteLLM OSS** | MIT outside restricted enterprise areas | **A/B** | Canonical API abstraction; provider normalization; routing; retry/fallback; virtual keys; spend tracking; model pricing database | gateway/router code, provider adapters, `model_prices_and_context_window.json`, endpoint support metadata | **Use OSS code only; never assume `enterprise/` is MIT** |
 | **CliRelay** | MIT | **B** | Channel groups; path routing; failover; request logging; per-key quotas; health score; latency tracking; provider-channel management | `auths/`, `internal/`, `sdk/`, `sdkbridge/`, routing-group/channel-health code | **Study management enhancements; proxy core should usually be traced upstream to CLIProxyAPI** |
-| **ccusage** | MIT | **B** | Local agent transcript parsing; token aggregation; API-equivalent cost calculation; cache/reasoning token accounting | local JSONL parsers, pricing snapshot/update logic, dedup strategy | **Direct reference for offline usage analytics** |
+| **ccusage** (moved to ccusage/ccusage, now Rust) | MIT for `apps/ccusage` (GitHub reports "other"; check per path) | **B** | Local agent transcript parsing; token aggregation; API-equivalent cost calculation; cache/reasoning token accounting | local JSONL parsers, pricing snapshot/update logic, dedup strategy | **Direct reference for offline usage analytics** |
 | **Codex Switch** | Apache-2.0 | **B** | Multiple Codex account management; auth profile switching; quota refresh; Tauri credential boundary | Tauri backend, account store, quota refresh, auth import/export safeguards | **Directly compatible; useful for Codex-specific implementation** |
 | **OpenAI Codex** | Apache-2.0 | **A for Codex-specific work** | Official Codex configuration, app-server/RPC, authentication, local state conventions | official `codex-rs` code/docs; app-server/account behavior | **Prefer over community reverse engineering whenever possible** |
 | **Gemini CLI** | Apache-2.0 | **A for Gemini implementation / C for unsupported service use** | Official config/auth storage and CLI architecture | `packages/core`, `packages/cli`, official auth/config code | **Code reusable; service/OAuth use must separately obey Google terms** |
 | **New API** | AGPL-3.0 + additional attribution terms | **C** | Model/channel UX; weights/priorities; quota/cost management; management console data model; plugin concepts | `relay/`, `router/`, `oauth/`, `plugins/`, `model/`, `service/` | **Concept only — do not copy implementation into Apache Loadout** |
 | **Cli-Proxy-API-Management-Center** | MIT | **B** | Official CLIProxyAPI web panel: Dashboard / Config / Providers / Auth files / Quota / Logs IA | `src/pages`, quota cards, YAML diff-before-save | **Reference UX; port small components with notice** |
 | **Quotio Desktop** (xiaocoss/quotio-desktop) | MIT | **B** | Quota cards: per-window bars, % remaining colour bands, reset countdown, health dot strip | `assets/*.png`, quota components | **Reference UX** |
-| **cc-switch** (farion1231/cc-switch) | verify per file | **C** | One-click switching of Claude Code / Codex / Gemini CLI provider config; client config export | config writers per agent | **Concept only until license verified** |
+| **cc-switch** (farion1231/cc-switch) | MIT (repo, 2026-10-04; check file headers) | **A** for client config writing | Client config writers with backup, owned-key floor, atomic `ReplaceFileW`, `ccswitch://` deep links, models.dev prices, usage templates | `src-tauri/src/config.rs`, `live/engine.rs`, `live/patch/*`, `live/floor.rs`, `deeplink/*` | **Port with notice** |
 | **all-api-hub** | AGPL-3.0 | **C** | Browser extension: relay-site balances, check-ins, price comparison, export to clients | — | **Concept only** |
-| **sub2api** | verify | **C** | Operator-side subscription pooling and resale | — | **Out of scope (multi-tenant resale); concept only** |
+| **sub2api** | LGPL-3.0 | **C** | Operator-side subscription pooling and resale | — | **Out of scope (multi-tenant resale); concept only** |
+| **OmniRoute** (diegosouzapw/OmniRoute) | MIT | **B** | Headroom / reset-aware / cache-affinity routing strategies; per-key cooldown and per-model lockout; decision header; webhooks | routing strategies, failure layers | **Concept first; port small parts with notice. Never its TLS stealth (ADR-012)** |
+| **Claude-Code-Usage-Monitor** | MIT | **B** | Official rate limits via Claude Code statusline JSON; source labels; burn-rate forecasts | statusline capture, forecast | **Reference** |
+| **models.dev** (anomalyco/models.dev) | MIT | **A** for price data | Price / limits / modality catalog with `canonical_model_id` | `api.json` | **Bundle a filtered snapshot with notice** |
+| **pydantic genai-prices** | MIT | **B** | Provider `api_pattern` and model match rules; historic prices | `data.json` | **Reimplement matcher in Rust** |
+| Others (2026-10-04 survey) | see docs/research/2026-10-04-feature-landscape.md §7 | **B/C** | 9router, ccs, claude-code-hub, bifrost, uni-api, axonhub, ccstatusline, tokscale, cc-switch-cli, api-key-tester | — | Check licence per path before porting |
 | **Antigravity Manager** (lbjlaq; Draculabo) | lbjlaq: verify; Draculabo: CC BY-NC-SA 4.0 | **C** | Account rotation on quota threshold; tray; local proxy | — | **Do not copy (non-commercial licence); web-session / OAuth piggybacking is banned by ADR-009/012** |
 
 ---
@@ -350,7 +355,12 @@ This is the fast lookup table agents should use before searching the web.
 | Request logging / observability | **CliRelay** | LiteLLM |
 | Complex admin-console patterns | **New API, concept only** | CliRelay |
 | Codex multi-account UX | **Codex Switch** | EasyCLIProxyAPI |
-| Provider pricing/model metadata | **LiteLLM** | official provider docs |
+| Provider pricing/model metadata | **models.dev `api.json` (MIT)** | LiteLLM JSON (MIT); pydantic genai-prices for matching rules |
+| One-click client configuration (Claude Code / Codex / OpenCode) | **cc-switch (MIT)** | EasyCLIProxyAPI `agents/*` (MIT) |
+| Claude Code statusline / official rate-limit capture | **Claude-Code-Usage-Monitor (MIT)** | ccstatusline (MIT) |
+| Quota-aware / reset-aware / cache-affinity routing | **OmniRoute (MIT, concept)** | claude-code-hub (MIT) |
+| Key validity / stream health checks | **cc-switch-cli (MIT)** | api-key-tester (MIT) |
+| Price comparison UX (normalization, "never treat missing as 0") | **all-api-hub (AGPL, concept only)** | octopus (AGPL, concept only) |
 
 ---
 
