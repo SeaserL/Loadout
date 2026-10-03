@@ -411,7 +411,7 @@ const en = {
   "dash.goAccounts": "Add an account",
 
   // ExecPlan 009: accounts
-  "acc.accountCount": "{n} accounts",
+  "acc.accountCount": "Accounts: {n}",
   "acc.showOnly": "Show only {name}",
   "acc.showAll": "Show all providers",
   "acc.search": "Search accounts",

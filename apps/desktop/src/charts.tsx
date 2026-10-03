@@ -25,6 +25,11 @@ function niceMax(n: number): number {
   return 10 * p;
 }
 
+/** Axis ticks are round numbers: "500k", "1.5M" rather than "500.0k", "1.50M". */
+function axisLabel(v: number): string {
+  return tokens(v).replace(/\.0+(?=[kMB])/, "").replace(/(\.\d*?)0+(?=[kMB])/, "$1");
+}
+
 const HEIGHT = 240;
 const PAD_LEFT = 48;
 const PAD_BOTTOM = 24;
@@ -51,7 +56,7 @@ export function StackedBars(props: { points: StackedPoint[] }) {
             <g key={v}>
               <line className="grid-line" x1={PAD_LEFT} x2={width} y1={y(v)} y2={y(v)} />
               <text x={PAD_LEFT - 8} y={y(v) + 4} textAnchor="end">
-                {tokens(v)}
+                {axisLabel(v)}
               </text>
             </g>
           ))}

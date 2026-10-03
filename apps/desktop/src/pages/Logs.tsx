@@ -98,8 +98,7 @@ export function Logs() {
                   <th>{t("logs.protocol")}</th>
                   <th>{t("logs.status")}</th>
                   <th className="num">{t("logs.tokens")}</th>
-                  <th className="num">TTFT</th>
-                  <th className="num">{t("logs.total")}</th>
+                  <th className="num">TTFT / {t("logs.total")}</th>
                   <th className="num">{t("logs.cost")}</th>
                 </tr>
               </thead>
@@ -110,7 +109,7 @@ export function Logs() {
                       {shortTime(r.ts_ms)}
                     </td>
                     <td className="small">{r.client ?? "-"}</td>
-                    <td>
+                    <td style={{ minWidth: 200 }}>
                       <div className="mono break">{r.requested_model}</div>
                       {r.route && r.route !== r.requested_model && (
                         <div className="mono small muted break">→ {r.route}</div>
@@ -130,8 +129,10 @@ export function Logs() {
                     <td className="num">
                       {num(r.input_tokens)} / {num(r.output_tokens)}
                     </td>
-                    <td className="num">{ms(r.ttft_ms)}</td>
-                    <td className="num">{ms(r.duration_ms)}</td>
+                    <td className="num">
+                      <div>{ms(r.ttft_ms)}</div>
+                      <div className="small muted">{ms(r.duration_ms)}</div>
+                    </td>
                     <td className="num">{usd(r.cost_usd)}</td>
                   </tr>
                 ))}

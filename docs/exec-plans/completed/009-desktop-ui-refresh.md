@@ -1,7 +1,8 @@
 # ExecPlan 009: Desktop UI Refresh
 
-- **Status**: Active
+- **Status**: Completed
 - **Created**: 2026-10-04
+- **Completed**: 2026-10-04
 - **Phase**: 系统测试反馈（桌面端美观度与实用性）
 
 ---
@@ -65,8 +66,8 @@
 ## 5. Definition of Done
 
 - [ ] §2 全部完成
-- [ ] 构建、许可证检查通过；无新的 clippy 警告
-- [ ] 本文件 Progress 更新，移入 `completed/`
+- [x] 构建、许可证检查通过；无新的 clippy 警告
+- [x] 本文件 Progress 更新，移入 `completed/`
 
 ## 6. Progress
 
@@ -89,4 +90,12 @@
   - 客户端：新增"接入应用"卡（两个 Base URL + 复制），吊销走确认框；新密钥对话框用 CopyField。
   - 设置：自动启动与布尔设置项改为 Switch；外观卡加入主题切换；停止网关走确认框。
   - 教训：表格里的长模型名需要 `overflow-wrap: anywhere` 才不会把表格撑出卡片，但不能全局加（模型页的名称会被拆得很碎），改为按列使用 `.break`。
-- [ ] Stage 4 — polish and verification
+- [x] Stage 4 — polish and verification（2026-10-04）
+  - 窄窗口：窗口最小宽度 920px 时侧边栏收为 204px、主题切换只显示图标、双列卡片改为单列；宽表格在卡片内横向滚动，页面本身不出现横向滚动。
+  - 主题切换时临时关闭所有 transition（`.theme-switching`），否则各控件按各自的 transition 渐变，切换瞬间颜色不一致。
+  - 验证：`npm run build`（含 tsc）、`cargo build -p loadout-desktop`、`cargo clippy -p loadout-desktop --all-targets -- -D warnings`、`cargo fmt --all -- --check`、`python scripts\third_party_licenses.py --check`（0 violations；lucide-react 为 ISC）均通过。
+  - 视觉检查：
+    - 各页面浅色 / 深色、确认框、对话框、锁定占位、英文界面、920px 宽度：浏览器面板 + 模拟 IPC，键盘检查了焦点陷阱（Tab 循环、Esc 关闭并把焦点还给触发按钮）。
+    - 真实 `loadout-app`：连接隔离 daemon（临时数据目录、端口 0、唯一 pipe / instance id / secret 前缀、`--home-dir` 指向临时目录），用 PrintWindow 截图首页，没有向桌面发送任何鼠标键盘输入；结束后停止 daemon、删除临时目录，没有留下 `loadout-e2e-*` 凭据。
+  - 未做：真实 app 内的页面切换与深色截图（需要模拟输入，按"不在用户桌面上做 GUI 自动化"的约定跳过，以浏览器预览代替）。
+  - 许可：没有拷贝 EasyCLIProxyAPI 的代码、样式文件或 logo；只借鉴了配色 / 间距取值与布局模式，已按 reference-map §11 在 `THIRD_PARTY_NOTICES.md` 记为 DERIVED。

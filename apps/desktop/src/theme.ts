@@ -36,6 +36,9 @@ let lastApplied: string | undefined;
 function apply() {
   const theme = resolve(preference);
   const root = document.documentElement;
+  // Switch colours at once instead of letting every control fade separately.
+  root.classList.add("theme-switching");
+  window.setTimeout(() => root.classList.remove("theme-switching"), 50);
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
   const key = `${preference}:${theme}`;

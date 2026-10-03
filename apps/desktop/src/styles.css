@@ -108,6 +108,10 @@ a {
   outline-offset: 2px;
 }
 
+.theme-switching * {
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -270,7 +274,9 @@ a {
 
 .theme-switch button {
   flex: 1;
-  gap: 5px;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 6px;
 }
 
 .lang-select {
@@ -303,6 +309,21 @@ main {
   overflow: auto;
   padding: 28px 32px 48px;
   min-width: 0;
+}
+
+/* The window's minimum width is 920px: give the content more room there. */
+@media (max-width: 1080px) {
+  .app {
+    grid-template-columns: 204px minmax(0, 1fr);
+  }
+
+  main {
+    padding: 24px 20px 40px;
+  }
+
+  .theme-switch span {
+    display: none;
+  }
 }
 
 main > .notice {
