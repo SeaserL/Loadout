@@ -13,7 +13,9 @@ mod output;
 mod pool_cmd;
 mod provider_cmd;
 mod scan_cmd;
+mod setup_cmd;
 mod status_cmd;
+mod statusline_cmd;
 mod usage_cmd;
 
 use std::path::PathBuf;
@@ -85,6 +87,11 @@ enum Command {
         #[command(subcommand)]
         command: Option<scan_cmd::ScanCommand>,
     },
+    /// Point Claude Code, Codex or OpenCode at Loadout (backs up their config first).
+    #[command(subcommand)]
+    Setup(setup_cmd::SetupCommand),
+    /// One-line status for Claude Code's status line (reads Claude Code's JSON on stdin).
+    Statusline,
     /// Quota, balance and plan of every account, plus what Loadout routed to it.
     Usage {
         /// Only this provider.
@@ -254,6 +261,8 @@ fn main() -> ExitCode {
             Command::Stats { by, days } => status_cmd::stats(&ctx, by, days).await,
             Command::Usage { provider, refresh } => usage_cmd::run(&ctx, provider, refresh).await,
             Command::Scan { command } => scan_cmd::run(&ctx, command).await,
+            Command::Setup(cmd) => setup_cmd::run(&ctx, cmd).await,
+            Command::Statusline => statusline_cmd::run(&ctx).await,
         }
     });
     match result {
