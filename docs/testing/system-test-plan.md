@@ -32,6 +32,8 @@
 ## 2. 订阅用量（只读）
 
 - [ ] Accounts → **Scan this PC**：列出已安装 / 已登录的 Codex、Claude Code、Gemini CLI、Kimi Code。
+- [ ] 只用 Claude 桌面应用（没有单独安装 `claude` CLI）时，扫描能识别 Claude Code（登录方式 desktop-app），导入后显示 5h / Weekly 用量（来源 LOCAL_FILES）。
+- [ ] Claude Code 卡片的“用量来源”切到“本地文件（不联网）”或“关闭”后，**Refresh usage** 行为随之改变；`loadout provider set claude-code usage_source=bogus` 被拒绝并列出可选值。
 - [ ] 分别 Import：Accounts 页出现对应账号（标记 "usage only"），额度窗口在几秒内出现（Codex 通过官方 `codex app-server`，可能需要 10–20 秒）。
 - [ ] 官方 CLI 的登录过期时显示 "run `claude` once" 一类提示；运行一次官方 CLI 后点 **Refresh usage** 恢复。
 - [ ] **Plan** 填写价格与续费日后，页面显示续费日期与 "value captured"（本月等价 API 花费 ÷ 订阅价格）。

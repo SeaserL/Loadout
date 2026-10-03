@@ -35,6 +35,7 @@ pub const ALLOWED_METHODS: &[&str] = &[
     api::ProviderAdd::NAME,
     api::ProviderList::NAME,
     api::ProviderRemove::NAME,
+    api::ProviderSetSettings::NAME,
     api::AccountAdd::NAME,
     api::AccountList::NAME,
     api::AccountSetEnabled::NAME,

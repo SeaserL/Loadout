@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Subcommand;
-use loadout_ipc::api::{self, ProviderAddParams, SlugParams};
+use loadout_ipc::api::{self, ProviderAddParams, ProviderSettingsParams, SlugParams};
 use serde_json::{Map, Value};
 
 use crate::{Ctx, Failure, output};
@@ -38,6 +38,17 @@ pub enum ProviderCommand {
     List,
     /// Remove a provider with all its accounts, keys and models.
     Remove { slug: String },
+    /// Change provider settings: `loadout provider set claude-code usage_source=local`.
+    ///
+    /// `usage_source` picks where usage is read from: `auto`, `off`, or a source the provider
+    /// lists in `loadout provider kinds` (e.g. `endpoint`, `local`). `KEY=null` removes a
+    /// setting.
+    Set {
+        slug: String,
+        /// Setting as key=value (one or more). JSON values are accepted.
+        #[arg(value_name = "KEY=VALUE", required = true)]
+        settings: Vec<String>,
+    },
 }
 
 fn parse_settings(pairs: &[String], allow_insecure_http: bool) -> Result<Value, Failure> {
@@ -74,10 +85,25 @@ pub async fn run(ctx: &Ctx, cmd: ProviderCommand) -> Result<(), Failure> {
                         k.default_base_url
                             .clone()
                             .unwrap_or_else(|| "(required)".into()),
+                        if k.usage_sources.is_empty() {
+                            String::new()
+                        } else {
+                            format!("auto,{},off", k.usage_sources.join(","))
+                        },
                     ]
                 })
                 .collect();
-            output::table(&["KIND", "NAME", "PROTOCOLS", "AUTH", "BASE URL"], &rows);
+            output::table(
+                &[
+                    "KIND",
+                    "NAME",
+                    "PROTOCOLS",
+                    "AUTH",
+                    "BASE URL",
+                    "USAGE SOURCES",
+                ],
+                &rows,
+            );
             Ok(())
         }
         ProviderCommand::Add {
@@ -126,6 +152,19 @@ pub async fn run(ctx: &Ctx, cmd: ProviderCommand) -> Result<(), Failure> {
                 })
                 .collect();
             output::table(&["SLUG", "KIND", "BASE URL", "ACCOUNTS"], &rows);
+            Ok(())
+        }
+        ProviderCommand::Set { slug, settings } => {
+            let info = ipc
+                .call::<api::ProviderSetSettings>(&ProviderSettingsParams {
+                    slug,
+                    settings: parse_settings(&settings, false)?,
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&info);
+            }
+            println!("Updated {}: {}", info.slug, info.settings);
             Ok(())
         }
         ProviderCommand::Remove { slug } => {

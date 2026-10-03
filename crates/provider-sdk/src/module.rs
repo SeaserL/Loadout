@@ -16,6 +16,9 @@ use crate::{
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// Provider setting that pins the usage source (`auto`, `off` or a module-listed source).
+pub const USAGE_SOURCE_SETTING: &str = "usage_source";
+
 /// A configured provider instance (a row of `providers`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProviderConfig {
@@ -33,6 +36,11 @@ impl ProviderConfig {
 
     pub fn setting_bool(&self, key: &str) -> Option<bool> {
         self.settings.get(key).and_then(Value::as_bool)
+    }
+
+    /// The pinned usage source (`usage_source` setting): `auto` unless set.
+    pub fn usage_source(&self) -> &str {
+        self.setting_str(USAGE_SOURCE_SETTING).unwrap_or("auto")
     }
 
     /// The configured base URL, or the module default.
@@ -148,6 +156,12 @@ pub trait ProviderModule: Send + Sync + 'static {
     }
 
     // ---- usage driver ----
+
+    /// Usage sources the user may pin with the `usage_source` setting, besides the always
+    /// available `auto` and `off` (ExecPlan 008), e.g. `["endpoint", "local"]`.
+    fn usage_sources(&self) -> &'static [&'static str] {
+        &[]
+    }
 
     /// How often the background poller refreshes usage (ExecPlan 003 §4.2).
     fn usage_interval(&self) -> std::time::Duration {

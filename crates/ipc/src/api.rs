@@ -215,6 +215,9 @@ pub struct ProviderKind {
     pub auth: String,
     pub protocols: Vec<String>,
     pub drivers: Vec<String>,
+    /// Values the `usage_source` setting accepts besides `auto` and `off` (ExecPlan 008).
+    #[serde(default)]
+    pub usage_sources: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -235,6 +238,13 @@ pub struct ProviderAddParams {
     #[serde(default)]
     pub settings: serde_json::Value,
     pub display_name: Option<String>,
+}
+
+/// Merges `settings` into the provider's settings; a `null` value removes the key.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderSettingsParams {
+    pub slug: String,
+    pub settings: serde_json::Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -645,6 +655,12 @@ method!(ProviderKinds, "provider.kinds", (), Vec<ProviderKind>);
 method!(ProviderAdd, "provider.add", ProviderAddParams, ProviderInfo);
 method!(ProviderList, "provider.list", (), Vec<ProviderInfo>);
 method!(ProviderRemove, "provider.remove", SlugParams, Revoked);
+method!(
+    ProviderSetSettings,
+    "provider.set_settings",
+    ProviderSettingsParams,
+    ProviderInfo
+);
 method!(AccountAdd, "account.add", AccountAddParams, AccountAdded);
 method!(
     AccountList,

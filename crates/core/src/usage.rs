@@ -64,7 +64,8 @@ impl ControlPlane {
                 let Some(module) = registry.get(&p.kind) else {
                     continue;
                 };
-                if !module.descriptor().drivers.usage {
+                if !module.descriptor().drivers.usage || provider_config(&p).usage_source() == "off"
+                {
                     continue;
                 }
                 for a in db.accounts().list(Some(&p.id)).map_err(storage)? {

@@ -23,6 +23,7 @@ export function Accounts() {
   const providers = usePoll(api.providers, 10000);
   const accounts = usePoll(api.accounts, 10000);
   const usage = usePoll(() => api.usage(false), 10000);
+  const kinds = usePoll(api.providerKinds, 60000);
   const action = useAction();
   const [dialog, setDialog] = useState<Dialog>();
 
@@ -69,6 +70,7 @@ export function Accounts() {
         <ProviderCard
           key={p.slug}
           provider={p}
+          usageSources={kinds.data?.find((k) => k.kind === p.kind)?.usage_sources ?? []}
           accounts={byProvider.get(p.slug) ?? []}
           usageOf={usageOf}
           busy={action.busy}
@@ -107,6 +109,7 @@ export function Accounts() {
 
 function ProviderCard(props: {
   provider: ProviderInfo;
+  usageSources: string[];
   accounts: AccountInfo[];
   usageOf: (a: AccountInfo) => AccountUsage | undefined;
   busy: boolean;
@@ -114,6 +117,7 @@ function ProviderCard(props: {
   onDialog: (d: Dialog) => void;
 }) {
   const p = props.provider;
+  const source = typeof p.settings?.usage_source === "string" ? p.settings.usage_source : "auto";
   return (
     <Card
       title={
@@ -122,7 +126,27 @@ function ProviderCard(props: {
         </span>
       }
       actions={
-        <Button
+        <>
+          {props.usageSources.length > 0 && (
+            <label className="row small" title={t("acc.usageSourceHint")}>
+              {t("acc.usageSource")}
+              <select
+                value={source}
+                disabled={props.busy}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  props.onAction(() => api.setProviderSettings(p.slug, { usage_source: value }));
+                }}
+              >
+                {["auto", ...props.usageSources, "off"].map((v) => (
+                  <option key={v} value={v}>
+                    {tv("usageSource", v)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <Button
           kind="danger"
           disabled={props.busy}
           onClick={() => {
@@ -133,6 +157,7 @@ function ProviderCard(props: {
         >
           {t("acc.removeProvider")}
         </Button>
+        </>
       }
     >
       {p.base_url && <div className="small muted mono">{p.base_url}</div>}

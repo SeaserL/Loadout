@@ -119,6 +119,13 @@ const en = {
   "acc.noAccounts": "No accounts.",
   "acc.usageOnly": "usage only",
   "acc.usageOnlyHint": "Subscription logins are used for usage display only (ADR-009)",
+  "acc.usageSource": "Usage source",
+  "acc.usageSourceHint":
+    "Where usage is read from. \"Local files\" never connects to the network or reads a login token (lowest risk); \"Endpoint\" calls the provider's undocumented usage API with the official CLI's login.",
+  "usageSource.auto": "Automatic",
+  "usageSource.endpoint": "Endpoint (network)",
+  "usageSource.local": "Local files (no network)",
+  "usageSource.off": "Off",
   "acc.modelsRouted": "{on}/{all} models routed",
   "acc.sync": "Sync models",
   "acc.changeKey": "Change key",
@@ -463,6 +470,13 @@ const zh: Record<MessageKey, string> = {
   "acc.noAccounts": "没有账号。",
   "acc.usageOnly": "仅用量",
   "acc.usageOnlyHint": "订阅登录只用于显示用量（ADR-009）",
+  "acc.usageSource": "用量来源",
+  "acc.usageSourceHint":
+    "从哪里读取用量。“本地文件”不联网、不读取登录 token（风险最低）；“接口”使用官方 CLI 的登录调用服务商未公开的用量接口。",
+  "usageSource.auto": "自动",
+  "usageSource.endpoint": "接口（联网）",
+  "usageSource.local": "本地文件（不联网）",
+  "usageSource.off": "关闭",
   "acc.modelsRouted": "{on}/{all} 个模型参与路由",
   "acc.sync": "同步模型",
   "acc.changeKey": "更换密钥",
@@ -756,7 +770,10 @@ export function tr(key: MessageKey, params: Record<string, ReactNode>): ReactNod
 }
 
 /** Translation of a known value (state, tier, …), or the value itself. */
-export function tv(prefix: "state" | "tier" | "accountType" | "status", value: string): string {
+export function tv(
+  prefix: "state" | "tier" | "accountType" | "status" | "usageSource",
+  value: string,
+): string {
   const key = `${prefix}.${value}` as MessageKey;
   return key in en ? t(key) : value;
 }

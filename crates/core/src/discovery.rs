@@ -214,6 +214,87 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn claude_desktop_app_import_and_usage_source_setting() {
+        let home = tempfile::tempdir().expect("tempdir");
+        let desktop = home.path().join("AppData").join("Roaming").join("Claude");
+        std::fs::create_dir_all(&desktop).expect("mkdir");
+        let now = loadout_router::now_ms();
+        std::fs::write(
+            desktop.join("plan-usage-history.json"),
+            serde_json::json!({"version": 2, "samples": [
+                {"t": now - 60_000, "org": "org-id", "u": {"fh": 25, "sd": 60}}
+            ]})
+            .to_string(),
+        )
+        .expect("write");
+        let c = control(home.path());
+
+        let found = c.scan().await.expect("scan");
+        let claude = found
+            .iter()
+            .find(|t| t.kind == "claude-code")
+            .unwrap_or_else(|| panic!("claude-code not in {found:?}"));
+        assert!(claude.logged_in && !claude.inference);
+        c.import("claude-code".into(), None).await.expect("import");
+
+        let kinds = c.kinds();
+        let kind = kinds
+            .iter()
+            .find(|k| k.kind == "claude-code")
+            .expect("kind");
+        assert_eq!(kind.usage_sources, ["endpoint", "local"]);
+
+        // Pin the no-network source (also keeps this test off the real endpoint when the
+        // machine has a CLI login).
+        let info = c
+            .set_provider_settings(
+                "claude-code".into(),
+                serde_json::json!({"usage_source": "local"}),
+            )
+            .await
+            .expect("set");
+        assert_eq!(info.settings["usage_source"], "local");
+        let usage = c
+            .usage_list(Some("claude-code".into()), true)
+            .await
+            .expect("usage");
+        assert_eq!(usage.len(), 1);
+        assert_eq!(usage[0].source.as_deref(), Some("LOCAL_FILES"));
+        assert_eq!(usage[0].windows.len(), 2);
+
+        let err = c
+            .set_provider_settings(
+                "claude-code".into(),
+                serde_json::json!({"usage_source": "scrape"}),
+            )
+            .await
+            .expect_err("unknown source");
+        assert!(
+            err.message.contains("auto, off, endpoint, local"),
+            "{}",
+            err.message
+        );
+        assert!(
+            c.set_provider_settings("claude-code".into(), serde_json::json!([]))
+                .await
+                .is_err()
+        );
+        assert!(
+            c.set_provider_settings("missing".into(), serde_json::json!({}))
+                .await
+                .is_err()
+        );
+        let info = c
+            .set_provider_settings(
+                "claude-code".into(),
+                serde_json::json!({"usage_source": null}),
+            )
+            .await
+            .expect("remove key");
+        assert!(info.settings.get("usage_source").is_none());
+    }
+
+    #[tokio::test]
     async fn import_requires_a_login() {
         let home = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir_all(home.path().join(".gemini")).expect("mkdir");

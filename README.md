@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File scripts\package.ps1   # 生成 dist\Loa
 ### 桌面端
 
 1. **Accounts & usage → Add account**：选择提供方（OpenCode Go、Command Code、Kimi Code、OpenRouter、DeepSeek、OpenAI、Anthropic、Ollama，或任意 OpenAI / Anthropic 兼容端点），填入 API key，模型列表会自动同步。
-   **Scan this PC** 可发现本机已登录的 Codex / Claude Code / Gemini CLI / Kimi Code，导入后显示其额度。
+   **Scan this PC** 可发现本机已登录的 Codex / Claude Code / Gemini CLI / Kimi Code，导入后显示其额度。Claude Code 也能从 Claude 桌面应用识别；每个订阅提供方卡片上的“用量来源”可切换为“本地文件（不联网）”以降低风险（CLI：`loadout provider set claude-code usage_source=local`）。
 2. **Client keys → New client key**：为每个应用创建一把 key（只显示一次）。
 3. 应用里设置：Base URL `http://127.0.0.1:8317/v1`，API key 为上面的 client key，模型名见下文。
 4. **Routes → Measure unmeasured routes**：测一次延迟，`loadout/realtime` 与 `loadout/fast` 才会有可用路由（真实请求也会持续计入）。

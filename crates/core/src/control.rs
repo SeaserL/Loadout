@@ -183,6 +183,7 @@ impl ControlPlane {
                         .filter(|(_, on)| *on)
                         .map(|(n, _)| (*n).to_owned())
                         .collect(),
+                    usage_sources: m.usage_sources().iter().map(|s| (*s).to_owned()).collect(),
                 }
             })
             .collect()
@@ -265,6 +266,80 @@ impl ControlPlane {
         })
         .await?;
         Ok(self.provider_info(&p, 0))
+    }
+
+    /// Merges `patch` into a provider's settings (`null` removes a key), validates the result
+    /// and rebuilds routes (ExecPlan 008).
+    pub async fn set_provider_settings(
+        &self,
+        slug: String,
+        patch: Value,
+    ) -> Result<ProviderInfo, ErrorBody> {
+        let Value::Object(patch) = patch else {
+            return Err(ErrorBody::invalid_params("settings must be a JSON object"));
+        };
+        let db = self.db.clone();
+        let s = slug.clone();
+        let p = blocking(move || db.providers().get_by_slug(&s).map_err(storage))
+            .await?
+            .ok_or_else(|| ErrorBody::not_found(format!("no provider {slug:?}")))?;
+        let module = self
+            .registry
+            .get(&p.kind)
+            .ok_or_else(|| ErrorBody::invalid_params(format!("unknown kind {:?}", p.kind)))?
+            .clone();
+        let mut settings = match serde_json::from_str::<Value>(&p.config_json) {
+            Ok(Value::Object(m)) => m,
+            _ => Default::default(),
+        };
+        for (k, v) in patch {
+            if v.is_null() {
+                settings.remove(&k);
+            } else {
+                settings.insert(k, v);
+            }
+        }
+        let settings = Value::Object(settings);
+        if let Some(source) = settings.get(loadout_provider_sdk::USAGE_SOURCE_SETTING) {
+            let allowed = module.usage_sources();
+            if !source
+                .as_str()
+                .is_some_and(|s| matches!(s, "auto" | "off") || allowed.contains(&s))
+            {
+                let mut all = vec!["auto", "off"];
+                all.extend(allowed);
+                return Err(ErrorBody::invalid_params(format!(
+                    "usage_source must be one of {}",
+                    all.join(", ")
+                )));
+            }
+        }
+        let config = loadout_provider_sdk::ProviderConfig {
+            slug: p.slug.clone(),
+            kind: p.kind.clone(),
+            base_url: p.base_url.clone(),
+            settings: settings.clone(),
+        };
+        module.validate(&config).map_err(provider_error)?;
+        let db = self.db.clone();
+        let (s, base_url, json) = (p.slug.clone(), p.base_url.clone(), settings.to_string());
+        let p = blocking(move || {
+            db.providers()
+                .update(&s, base_url.as_deref(), &json)
+                .map_err(storage)?;
+            db.providers()
+                .get_by_slug(&s)
+                .map_err(storage)?
+                .ok_or_else(|| ErrorBody::not_found(format!("no provider {s:?}")))
+        })
+        .await?;
+        self.rebuild_routes().await?;
+        let accounts = self.list_providers().await?;
+        let n = accounts
+            .iter()
+            .find(|x| x.slug == p.slug)
+            .map_or(0, |x| x.accounts);
+        Ok(self.provider_info(&p, n))
     }
 
     pub async fn list_providers(&self) -> Result<Vec<ProviderInfo>, ErrorBody> {

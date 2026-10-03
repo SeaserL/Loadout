@@ -323,6 +323,12 @@ impl Dispatcher {
                 changed(s);
                 encode_result::<api::ProviderRemove>(&api::Revoked { revoked })
             }
+            api::ProviderSetSettings::NAME => {
+                let p = decode_params::<api::ProviderSetSettings>(params)?;
+                let info = c.set_provider_settings(p.slug, p.settings).await?;
+                changed(s);
+                encode_result::<api::ProviderSetSettings>(&info)
+            }
             api::AccountAdd::NAME => {
                 let p = decode_params::<api::AccountAdd>(params)?;
                 let (account, sync) = c

@@ -110,6 +110,8 @@ export interface ProviderKind {
   auth: "api_key" | "optional_api_key" | "external_managed";
   protocols: string[];
   drivers: string[];
+  /** Values `usage_source` accepts besides "auto" and "off". */
+  usage_sources: string[];
 }
 
 export interface ProviderInfo {
@@ -338,6 +340,8 @@ export const api = {
     display_name: string | null;
   }) => call<ProviderInfo>("provider.add", p),
   removeProvider: (slug: string) => call<Revoked>("provider.remove", { slug }),
+  setProviderSettings: (slug: string, settings: Record<string, unknown>) =>
+    call<ProviderInfo>("provider.set_settings", { slug, settings }),
 
   accounts: () => call<AccountInfo[]>("account.list", { provider: null }),
   addAccount: (p: { provider: string; alias: string; api_key: string | null; display_name: string | null }) =>

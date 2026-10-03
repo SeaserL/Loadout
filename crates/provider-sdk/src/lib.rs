@@ -26,6 +26,8 @@ pub use discovery::{Discovered, config_dir, find_executable};
 pub use error::ProviderError;
 pub use failure::{FailureKind, UpstreamFailure, classify, error_message};
 pub use http::{HttpClient, HttpConfig};
-pub use module::{BoxFuture, DriverContext, Endpoint, ProviderConfig, ProviderModule};
+pub use module::{
+    BoxFuture, DriverContext, Endpoint, ProviderConfig, ProviderModule, USAGE_SOURCE_SETTING,
+};
 pub use trust::TrustLevel;
 pub use url::{is_loopback_url, join_url, validate_base_url};
