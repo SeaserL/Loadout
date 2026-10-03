@@ -38,6 +38,9 @@ pub const FAST_MS: &str = "latency.fast_ms";
 pub const AUTO_PROBE: &str = "benchmark.auto_probe";
 pub const PROBE_INTERVAL: &str = "benchmark.probe_interval_hours";
 pub const PROBE_MAX_PRICE: &str = "benchmark.max_probe_output_price";
+pub const NOTIFY_ENABLED: &str = "notify.enabled";
+pub const NOTIFY_QUOTA_PERCENT: &str = "notify.quota_percent";
+pub const NOTIFY_BALANCE_USD: &str = "notify.balance_usd";
 
 pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
@@ -113,6 +116,28 @@ pub const SETTINGS: &[SettingDef] = &[
         restart_required: false,
         validate: validate_price,
     },
+    SettingDef {
+        key: NOTIFY_ENABLED,
+        default: "true",
+        description: "Show desktop notifications for low quota or balance, rejected keys, \
+                      expiring sign-ins and client cost limits",
+        restart_required: false,
+        validate: validate_bool,
+    },
+    SettingDef {
+        key: NOTIFY_QUOTA_PERCENT,
+        default: "10",
+        description: "Notify when any quota window has less than this percent left (0 disables)",
+        restart_required: false,
+        validate: validate_percent,
+    },
+    SettingDef {
+        key: NOTIFY_BALANCE_USD,
+        default: "1",
+        description: "Notify when a USD account balance falls below this amount (0 disables)",
+        restart_required: false,
+        validate: validate_price,
+    },
 ];
 
 pub fn find(key: &str) -> Option<&'static SettingDef> {
@@ -144,6 +169,13 @@ fn validate_reserve(value: &str) -> Result<(), String> {
     match value.parse::<f64>() {
         Ok(v) if (0.0..=50.0).contains(&v) => Ok(()),
         _ => Err("expected a percentage between 0 and 50".into()),
+    }
+}
+
+fn validate_percent(value: &str) -> Result<(), String> {
+    match value.parse::<f64>() {
+        Ok(v) if (0.0..=100.0).contains(&v) => Ok(()),
+        _ => Err("expected a percentage between 0 and 100".into()),
     }
 }
 

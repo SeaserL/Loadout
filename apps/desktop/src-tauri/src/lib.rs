@@ -5,6 +5,7 @@
 //! (ADR-002).
 
 mod bridge;
+mod notifications;
 
 use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -122,7 +123,14 @@ struct TrayItems([MenuItem<tauri::Wry>; 4]);
 
 /// Called by the web UI at startup and whenever the user switches language.
 #[tauri::command]
-fn set_tray_language(items: State<'_, TrayItems>, lang: String) -> Result<(), UiError> {
+fn set_tray_language(
+    items: State<'_, TrayItems>,
+    ui_lang: State<'_, notifications::UiLanguage>,
+    lang: String,
+) -> Result<(), UiError> {
+    if let Ok(mut current) = ui_lang.0.lock() {
+        current.clone_from(&lang);
+    }
     for (item, label) in items.0.iter().zip(tray_labels(&lang)) {
         item.set_text(label).map_err(|e| UiError {
             code: "tray".into(),
@@ -241,7 +249,9 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main(app);
         }))
+        .plugin(tauri_plugin_notification::init())
         .manage(bridge)
+        .manage(notifications::UiLanguage::default())
         .invoke_handler(tauri::generate_handler![
             ipc_call,
             daemon_start,
@@ -271,6 +281,8 @@ pub fn run() {
                 use tauri::Emitter;
                 let _ = handle.emit("daemon-changed", ());
             });
+            // Daemon notifications as Windows toasts (ExecPlan 012).
+            tauri::async_runtime::spawn(notifications::listen(app.handle().clone()));
             Ok(())
         })
         .on_window_event(|window, event| {
