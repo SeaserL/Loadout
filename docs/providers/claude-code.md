@@ -13,7 +13,11 @@ Claude Code is found at any of:
 
 - `claude` on PATH (npm install);
 - `~/.local/bin/claude.exe` (native installer);
-- the copy bundled with the **Claude desktop app**: `%APPDATA%\Claude\claude-code\<version>\<build>\claude.exe` (newest version wins).
+- the copy bundled with the **Claude desktop app**: `<desktop dir>\claude-code\<version>\<build>\claude.exe` (newest version wins).
+
+**Desktop dir.** The desktop app is an MSIX package. Its `%APPDATA%\Claude` is redirected to `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude`, and only processes inside the package see the redirected view. Loadout therefore checks both locations and uses the one whose usage history was written most recently.
+
+Lesson (2026-10-04): a check run from a shell inside the Claude app saw the redirected path and passed, while the user's daemon did not.
 
 Logged in means one of:
 
@@ -52,7 +56,7 @@ Refreshed every 10 minutes with backoff. Loadout sends its own `User-Agent` (it 
 
 ### `local`
 
-The desktop app samples plan usage into `%APPDATA%\Claude\plan-usage-history.json`.
+The desktop app samples plan usage into `<desktop dir>\plan-usage-history.json`.
 
 - Format: `{version: 2, samples: [{t: unix ms, org: <account uuid>, u: {fh: 5h %, sd: 7-day %}}]}`. Samples arrive about every 15 minutes while the app runs. There are no reset times.
 - Loadout uses the newest sample.

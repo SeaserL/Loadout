@@ -55,10 +55,41 @@ fn credentials_path(home: &Path) -> PathBuf {
     config_dir("CLAUDE_CONFIG_DIR", home, ".claude").join(".credentials.json")
 }
 
-/// The Claude desktop app's data directory. Derived from `home` (not `%APPDATA%`) so tests
-/// never see the real user's data.
+/// Where the Claude desktop app may keep its data. The app ships as an MSIX package, so its
+/// `%APPDATA%\Claude` is redirected to `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\
+/// Roaming\Claude`; only processes inside the package see the redirected path, so Loadout
+/// must look at the real one (ExecPlan 008 follow-up). The unpackaged location is kept for
+/// other installs. Derived from `home` (not `%APPDATA%`) so tests never see the real
+/// user's data.
+fn desktop_dirs(home: &Path) -> Vec<PathBuf> {
+    let mut dirs = vec![home.join("AppData").join("Roaming").join("Claude")];
+    if let Ok(packages) = std::fs::read_dir(home.join("AppData").join("Local").join("Packages")) {
+        let mut packaged: Vec<PathBuf> = packages
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("Claude_"))
+            .map(|e| e.path().join("LocalCache").join("Roaming").join("Claude"))
+            .collect();
+        packaged.sort();
+        dirs.extend(packaged);
+    }
+    dirs
+}
+
+/// The desktop app's data directory: the one with usage samples (most recently written),
+/// else the first that exists, else the unpackaged default.
 fn desktop_dir(home: &Path) -> PathBuf {
-    home.join("AppData").join("Roaming").join("Claude")
+    let dirs = desktop_dirs(home);
+    let modified = |d: &PathBuf| {
+        std::fs::metadata(d.join("plan-usage-history.json"))
+            .and_then(|m| m.modified())
+            .ok()
+    };
+    dirs.iter()
+        .filter_map(|d| modified(d).map(|t| (t, d)))
+        .max_by_key(|(t, _)| *t)
+        .map(|(_, d)| d.clone())
+        .or_else(|| dirs.iter().find(|d| d.is_dir()).cloned())
+        .unwrap_or_else(|| dirs[0].clone())
 }
 
 fn desktop_usage_path(home: &Path) -> PathBuf {
@@ -525,6 +556,48 @@ mod tests {
         assert_eq!(found.auth.as_deref(), Some("desktop-app"));
         assert_eq!(found.config_path.as_deref(), Some(desktop.as_path()));
         assert!(!format!("{found:?}").contains(ORG));
+    }
+
+    #[test]
+    fn finds_the_msix_packaged_desktop_app() {
+        let home = tempfile::tempdir().expect("tempdir");
+        // Unpackaged directory without data, packaged one with usage samples.
+        std::fs::create_dir_all(home.path().join("AppData").join("Roaming").join("Claude"))
+            .expect("mkdir");
+        let packaged = home
+            .path()
+            .join("AppData")
+            .join("Local")
+            .join("Packages")
+            .join("Claude_pzs8sxrjxfjjc")
+            .join("LocalCache")
+            .join("Roaming")
+            .join("Claude");
+        std::fs::create_dir_all(packaged.join("claude-code").join("2.1.1").join("b"))
+            .expect("mkdir");
+        std::fs::write(
+            packaged
+                .join("claude-code")
+                .join("2.1.1")
+                .join("b")
+                .join("claude.exe"),
+            "",
+        )
+        .expect("write");
+        std::fs::write(
+            packaged.join("plan-usage-history.json"),
+            json!({"version": 2, "samples": [{"t": now_ms(), "org": ORG, "u": {"fh": 1, "sd": 2}}]})
+                .to_string(),
+        )
+        .expect("write");
+        assert_eq!(desktop_dir(home.path()), packaged);
+        assert!(latest_desktop_sample(&desktop_usage_path(home.path())).is_ok());
+        if std::env::var_os("CLAUDE_CONFIG_DIR").is_some() {
+            return;
+        }
+        let found = ClaudeCode.discover(home.path()).expect("found");
+        assert!(found.installed && found.logged_in);
+        assert_eq!(found.config_path.as_deref(), Some(packaged.as_path()));
     }
 
     #[tokio::test]

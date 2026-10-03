@@ -94,3 +94,9 @@
     - 导入后 Weekly 89%（LOCAL_FILES / ESTIMATED）；5h 窗口因样本约 19 小时前而被正确丢弃；
     - 非法的 `usage_source` 被拒绝。
   - 发现：桌面应用只在运行期间的部分时段写入采样，5h 数据可能缺失。这是该来源固有的局限，已写入文档。
+
+- [x] Follow-up（2026-10-04，v0.2.1）：用户的 daemon 仍然找不到 Claude Code。
+  - 原因：Claude 桌面应用以 MSIX 方式安装，`%APPDATA%\Claude` 被重定向到 `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude`。
+  - 之前的"测试机实测"是从 Claude 应用内部的 shell 启动的，那里能看到重定向后的路径，所以结论是假阳性。
+  - 修复：同时检查打包路径，取用量记录最近写入的那一个，并补了单元测试。
+  - 教训：从 Claude Code 会话里验证"其他进程看到的文件系统"并不可靠，涉及 `%APPDATA%` 的结论要以用户自己启动的进程为准。

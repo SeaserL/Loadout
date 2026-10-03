@@ -10,7 +10,7 @@ Loadout 是一个运行在你自己 Windows 电脑上的 **个人 AI 控制面�
 - 订阅与 API 的 **用量 / 余额 / 续费 / 订阅价值** 一览（Codex、Claude Code、Gemini CLI 只读用量；ChatGPT 订阅可选择单独登录并开启转发，见 ADR-012）
 - 请求日志只存元数据（不存提示词与回复），统计、按 client 限额、配置备份与恢复
 
-状态：**v0.2.0**，系统测试中（新增：Claude 桌面应用用量识别、可选的 Codex 订阅转发、桌面端改版）。
+状态：**v0.2.1**，系统测试中（新增：Claude 桌面应用用量识别、可选的 Codex 订阅转发、桌面端改版）。
 
 ---
 
@@ -18,7 +18,7 @@ Loadout 是一个运行在你自己 Windows 电脑上的 **个人 AI 控制面�
 
 ### 从发布包安装（推荐）
 
-1. 解压 `Loadout-0.2.0-windows-x64.zip`。
+1. 解压 `Loadout-0.2.1-windows-x64.zip`。
 2. 双击 `install.cmd`（或 `powershell -ExecutionPolicy Bypass -File install.ps1`）。可选参数：
    - `-AddToPath`：在新终端里可以直接使用 `loadout` 命令
    - `-Autostart`：登录 Windows 时自动启动网关
