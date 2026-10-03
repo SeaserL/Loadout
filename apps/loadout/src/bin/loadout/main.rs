@@ -11,6 +11,7 @@ mod daemon_cmd;
 mod model_cmd;
 mod output;
 mod pool_cmd;
+mod price_cmd;
 mod provider_cmd;
 mod scan_cmd;
 mod status_cmd;
@@ -75,6 +76,9 @@ enum Command {
     /// Manage pools: your own ordered model lists, used as `loadout/<name>`.
     #[command(subcommand)]
     Pool(pool_cmd::PoolCommand),
+    /// Compare prices of the same model across your accounts.
+    #[command(subcommand)]
+    Price(price_cmd::PriceCommand),
     /// Measure latency now with a tiny request (default: every route without data).
     Bench {
         /// provider/account/model, provider/model or loadout/<name>.
@@ -233,6 +237,7 @@ fn main() -> ExitCode {
             Command::Model(cmd) => model_cmd::run(&ctx, cmd).await,
             Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
             Command::Pool(cmd) => pool_cmd::run(&ctx, cmd).await,
+            Command::Price(cmd) => price_cmd::run(&ctx, cmd).await,
             Command::Backup(cmd) => backup_cmd::run(&ctx, cmd).await,
             Command::Bench { names } => status_cmd::bench(&ctx, names).await,
             Command::Logs {

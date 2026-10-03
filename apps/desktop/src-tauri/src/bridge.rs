@@ -62,6 +62,7 @@ pub const ALLOWED_METHODS: &[&str] = &[
     api::UsageList::NAME,
     api::DiscoveryScan::NAME,
     api::DiscoveryImport::NAME,
+    api::PriceCompare::NAME,
 ];
 
 /// Error returned to the web UI.

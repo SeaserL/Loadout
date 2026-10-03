@@ -84,6 +84,9 @@ struct ModelEntry {
     enabled: bool,
     source: String,
     tier_override: Option<String>,
+    /// `user` or `catalog` (ExecPlan 011); absent in older backups.
+    #[serde(default)]
+    price_source: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -159,6 +162,7 @@ fn read_config(db: &Database) -> Result<ConfigFile, StorageError> {
                     enabled: m.enabled,
                     source: m.source,
                     tier_override: m.tier_override,
+                    price_source: m.price_source,
                 })
                 .collect();
             accounts.push(AccountEntry {
@@ -459,6 +463,20 @@ pub(crate) fn import(db: &Database, path: &str) -> Result<ImportReport, String> 
                         &m.source,
                     )
                     .map_err(s)?;
+                if m.price_source.as_deref() == Some("user")
+                    && model.price_source.as_deref() != Some("user")
+                {
+                    // Re-applying the prices marks them as the user's.
+                    db.account_models()
+                        .set_prices(
+                            &model.id,
+                            m.input_price,
+                            m.output_price,
+                            m.cache_read_price,
+                            m.cache_write_price,
+                        )
+                        .map_err(s)?;
+                }
                 if let Some(tier) = &m.tier_override {
                     db.set_tier_override(&model.id, Some(tier)).map_err(s)?;
                 }

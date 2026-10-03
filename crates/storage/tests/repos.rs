@@ -132,6 +132,69 @@ fn catalog_sync_preserves_user_choices() {
 }
 
 #[test]
+fn catalog_prices_refresh_unless_user_set() {
+    let (db, pid) = db_with_provider();
+    let acc = db
+        .accounts()
+        .create(&NewAccount {
+            provider_id: &pid,
+            alias: "main",
+            display_name: None,
+            account_type: "api_key",
+        })
+        .expect("acc");
+    let repo = db.account_models();
+    let priced = |id: &str, input: f64| ModelInput {
+        input_price: Some(input),
+        output_price: Some(input * 4.0),
+        ..model(id)
+    };
+
+    repo.sync_catalog(
+        &acc.id,
+        &[priced("cat", 1.0), priced("mine", 1.0), model("bare")],
+    )
+    .expect("sync");
+    let get = |id: &str| repo.find(&acc.id, id).expect("find").expect("exists");
+    assert_eq!(get("cat").price_source.as_deref(), Some("catalog"));
+    assert!(get("cat").price_updated_at.is_some());
+    assert_eq!(get("bare").price_source, None, "no prices, no source");
+
+    // The user prices "mine"; the catalog then changes both prices.
+    repo.set_prices(&get("mine").id, Some(0.5), Some(0.6), None, None)
+        .expect("price");
+    assert_eq!(get("mine").price_source.as_deref(), Some("user"));
+    repo.sync_catalog(
+        &acc.id,
+        &[priced("cat", 2.0), priced("mine", 2.0), model("bare")],
+    )
+    .expect("sync");
+    assert_eq!(get("cat").input_price, Some(2.0), "catalog price refreshed");
+    assert_eq!(get("cat").output_price, Some(8.0));
+    assert_eq!(get("mine").input_price, Some(0.5), "user price kept");
+    assert_eq!(get("mine").price_source.as_deref(), Some("user"));
+
+    // A listing without prices leaves stored catalog prices alone.
+    repo.sync_catalog(&acc.id, &[model("cat"), model("mine"), model("bare")])
+        .expect("sync");
+    assert_eq!(get("cat").input_price, Some(2.0));
+
+    // Clearing user prices hands the model back to the catalog.
+    repo.set_prices(&get("mine").id, None, None, None, None)
+        .expect("clear");
+    assert_eq!(get("mine").price_source, None);
+    repo.sync_catalog(&acc.id, &[priced("cat", 2.0), priced("mine", 3.0)])
+        .expect("sync");
+    assert_eq!(get("mine").input_price, Some(3.0));
+
+    // Manual models with prices are the user's.
+    let manual = repo
+        .add_manual(&acc.id, &priced("hand", 1.0))
+        .expect("manual");
+    assert_eq!(manual.price_source.as_deref(), Some("user"));
+}
+
+#[test]
 fn routable_models_join_and_filter() {
     let (db, pid) = db_with_provider();
     let main = db

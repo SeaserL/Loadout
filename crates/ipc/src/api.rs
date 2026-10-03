@@ -846,3 +846,63 @@ pub mod events {
     /// Providers, accounts or models changed (the route table was rebuilt).
     pub const ROUTES_CHANGED: &str = "routes.changed";
 }
+
+// ---- price comparison (ExecPlan 011) ---------------------------------------------------
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct PriceCompareParams {
+    /// Upstream model id or a fragment of its normalized key; `None` compares every model.
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+/// Token mix used to blend prices. `input_tokens` includes cached tokens.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriceTokenMix {
+    /// `model` (your last 30 days on this model), `all` (your last 30 days on every
+    /// model) or `default` (75% input / 25% output, no history).
+    pub source: String,
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+}
+
+/// USD per million tokens; `None` = unknown (never treated as free).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PriceOffer {
+    /// `provider/account/model`.
+    pub name: String,
+    pub provider: String,
+    pub account: String,
+    pub upstream_model: String,
+    /// Both the account and the model are enabled.
+    pub enabled: bool,
+    pub input_price: Option<f64>,
+    pub output_price: Option<f64>,
+    pub cache_read_price: Option<f64>,
+    pub cache_write_price: Option<f64>,
+    /// `user`, `catalog` or `None` (unknown).
+    pub price_source: Option<String>,
+    pub price_updated_at_ms: Option<i64>,
+    /// Cost of one million tokens at the group's token mix; `None` when input or output
+    /// price is unknown.
+    pub blended_per_million: Option<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PriceGroup {
+    /// Normalized model key shared by every offer.
+    pub key: String,
+    pub mix: PriceTokenMix,
+    /// Cheapest first; offers with unknown prices last.
+    pub offers: Vec<PriceOffer>,
+}
+
+method!(
+    PriceCompare,
+    "price.compare",
+    PriceCompareParams,
+    Vec<PriceGroup>
+);
