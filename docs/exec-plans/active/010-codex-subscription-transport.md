@@ -158,7 +158,15 @@ SDK 扩展（ADR-005，均为带默认值的 trait 方法，现有 Provider 不�
   - `loadout account login <provider> <alias>`：显示验证地址和代码，轮询状态。
   - `loadout account transport <provider> <alias> on|off`：先显示风险说明，再依次确认 "I understand" 和别名；脚本可用 `--i-understand-the-risk --confirm <alias>`。
   - `account list` 显示 "(transport on)"。
-- [ ] Stage 6 — desktop（等 ExecPlan 009 合并）
+- [x] Stage 6 — desktop（2026-10-04，ExecPlan 009 合并后）
+  - 账号页的 provider 网格新增"ChatGPT 订阅"登录卡片；空状态页也有登录入口。
+  - 登录对话框：输入别名后获取代码，大字显示代码，提供可复制的验证地址和"打开登录页"按钮，每 2 秒轮询状态。
+  - 打开登录页由新的 Tauri 命令 `open_sign_in_page` 完成，只允许 `https://auth.openai.com/` 前缀，通过 explorer 打开默认浏览器。
+  - 账号卡片：显示"转发已开启 / 未开启转发"、登录有效期或已过期提示，提供重新登录按钮。
+  - 开启转发对话框：先列出风险，再勾选"我了解"，然后输入别名，三步都完成才能开启；关闭转发走统一确认框。
+  - 添加账号对话框不再列出 OAuth 类 provider。
+  - 修正：用量来源一行改为中英文本地化文案（原来直接显示 `LOCAL_FILES` / `ESTIMATED`）。
+  - 用 ExecPlan 009 的 mock IPC 在浏览器预览中完成了"开启转发"和"获取代码"的完整流程；临时文件已删除。
 - [ ] Stage 7 — docs / live test
   - [x] 已完成文档：docs/providers/codex-subscription.md、providers 索引、README、system-test-plan、THIRD_PARTY_NOTICES。
   - [ ] 项目所有者的 live test。

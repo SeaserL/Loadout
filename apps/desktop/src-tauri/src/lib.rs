@@ -67,6 +67,30 @@ fn autostart_set(enabled: bool) -> Result<bool, UiError> {
     Ok(enabled)
 }
 
+/// Sign-in pages the UI may open in the default browser (ADR-012 device-code logins). Only
+/// these prefixes are accepted, so the web UI cannot launch arbitrary programs or URLs.
+const SIGN_IN_PAGES: &[&str] = &["https://auth.openai.com/"];
+
+#[tauri::command]
+fn open_sign_in_page(url: String) -> Result<(), UiError> {
+    let fail = |message: String| UiError {
+        code: "open".into(),
+        message,
+    };
+    if !SIGN_IN_PAGES.iter().any(|p| url.starts_with(p))
+        || url.chars().any(|c| c.is_whitespace() || c == '"')
+    {
+        return Err(fail(format!("refusing to open {url}")));
+    }
+    let explorer = std::path::Path::new(
+        &std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+    )
+    .join("explorer.exe");
+    loadout_platform::spawn_detached(&explorer, &[std::ffi::OsStr::new(&url)])
+        .map(|_| ())
+        .map_err(|e| fail(e.to_string()))
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -225,7 +249,8 @@ pub fn run() {
             autostart_get,
             autostart_set,
             set_tray_language,
-            set_window_theme
+            set_window_theme,
+            open_sign_in_page
         ])
         .setup(|app| {
             build_tray(app.handle())?;

@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState } from "react";
-import { KeyRound, Plus, Receipt, RefreshCw, ScanSearch, Search, Trash, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ExternalLink,
+  KeyRound,
+  LogIn,
+  Plus,
+  Receipt,
+  RefreshCw,
+  ScanSearch,
+  Search,
+  ShieldAlert,
+  Trash,
+  Zap,
+} from "lucide-react";
 import {
   api,
   type AccountInfo,
   type AccountUsage,
   type ModelInfo,
+  type OAuthStart,
   type ProviderInfo,
   type ProviderKind,
 } from "../api";
@@ -14,6 +27,7 @@ import {
   Badge,
   Button,
   Card,
+  CopyField,
   Empty,
   ErrorText,
   Field,
@@ -34,7 +48,12 @@ type Dialog =
   | { kind: "add" }
   | { kind: "scan" }
   | { kind: "key"; account: AccountInfo }
-  | { kind: "plan"; account: AccountInfo; usage?: AccountUsage };
+  | { kind: "plan"; account: AccountInfo; usage?: AccountUsage }
+  | { kind: "login"; alias?: string }
+  | { kind: "transport"; account: AccountInfo };
+
+/** Built-in provider that signs in through Loadout (ADR-012). */
+const SUBSCRIPTION_SLUG = "codex-sub";
 
 export function Accounts() {
   const providers = usePoll(api.providers, 10000);
@@ -126,6 +145,9 @@ export function Accounts() {
                 <Button kind="primary" icon={<Plus size={16} />} onClick={() => setDialog({ kind: "add" })}>
                   {t("acc.add")}
                 </Button>
+                <Button icon={<LogIn size={16} />} onClick={() => setDialog({ kind: "login" })}>
+                  {t("sub.tileTitle")}
+                </Button>
               </div>
             }
           >
@@ -151,7 +173,17 @@ export function Accounts() {
                 <span className="tile-count">{t("acc.accountCount", { n: p.accounts })}</span>
               </button>
             ))}
-            {/* ExecPlan 010 adds the "Codex subscription" sign-in tile here (ADR-012). */}
+            <button
+              type="button"
+              className="provider-tile tile-signin"
+              title={t("sub.tileHint")}
+              onClick={() => setDialog({ kind: "login" })}
+            >
+              <span className="tile-name ellipsis">
+                <LogIn size={14} aria-hidden /> {t("sub.tileTitle")}
+              </span>
+              <span className="small muted">{t("sub.tileHint")}</span>
+            </button>
           </div>
           <div className="row" style={{ marginBottom: 16 }}>
             <label className="search" style={{ flex: 1, maxWidth: 420 }}>
@@ -175,6 +207,7 @@ export function Accounts() {
           key={p.slug}
           provider={p}
           usageSources={kinds.data?.find((k) => k.kind === p.kind)?.usage_sources ?? []}
+          signIn={kinds.data?.find((k) => k.kind === p.kind)?.auth === "oauth"}
           accounts={(byProvider.get(p.slug) ?? []).filter(matches)}
           usageOf={usageOf}
           busy={action.busy}
@@ -196,6 +229,16 @@ export function Accounts() {
       {dialog?.kind === "key" && (
         <KeyDialog account={dialog.account} onClose={() => setDialog(undefined)} onDone={() => void reloadAll()} />
       )}
+      {dialog?.kind === "login" && (
+        <LoginDialog alias={dialog.alias} onClose={() => setDialog(undefined)} onDone={() => void reloadAll()} />
+      )}
+      {dialog?.kind === "transport" && (
+        <TransportDialog
+          account={dialog.account}
+          onClose={() => setDialog(undefined)}
+          onDone={() => void reloadAll()}
+        />
+      )}
       {dialog?.kind === "plan" && (
         <PlanDialog
           account={dialog.account}
@@ -211,6 +254,8 @@ export function Accounts() {
 function ProviderSection(props: {
   provider: ProviderInfo;
   usageSources: string[];
+  /** Accounts sign in through Loadout (ADR-012). */
+  signIn: boolean;
   accounts: AccountInfo[];
   usageOf: (a: AccountInfo) => AccountUsage | undefined;
   busy: boolean;
@@ -278,6 +323,7 @@ function ProviderSection(props: {
               key={a.alias}
               account={a}
               usage={props.usageOf(a)}
+              signIn={props.signIn}
               busy={props.busy}
               onAction={props.onAction}
               onBench={props.onBench}
@@ -293,6 +339,7 @@ function ProviderSection(props: {
 function AccountCard(props: {
   account: AccountInfo;
   usage: AccountUsage | undefined;
+  signIn: boolean;
   busy: boolean;
   onAction: (f: () => Promise<unknown>) => void;
   onBench: (a: AccountInfo) => void;
@@ -301,7 +348,10 @@ function AccountCard(props: {
   const a = props.account;
   const u = props.usage;
   const confirm = useConfirm();
-  const subscription = a.account_type === "subscription";
+  // Official-CLI subscription logins only show usage; Loadout sign-ins can route.
+  const usageOnly = a.account_type === "subscription" && !props.signIn;
+  const routable = !usageOnly && (!props.signIn || a.transport_opt_in);
+  const loginExpired = a.login_expires_at_ms != null && a.login_expires_at_ms <= Date.now();
   const name = `${a.provider}/${a.alias}`;
   const subtitle = [a.display_name, u?.account_label].filter(Boolean).join(" · ");
   return (
@@ -318,12 +368,12 @@ function AccountCard(props: {
           {subtitle && <div className="small muted ellipsis">{subtitle}</div>}
         </div>
         <div className="account-actions">
-          {!subscription && (
+          {routable && (
             <IconButton label={t("acc.bench")} disabled={props.busy || !a.enabled} onClick={() => props.onBench(a)}>
               <Zap size={16} />
             </IconButton>
           )}
-          {!subscription && (
+          {!usageOnly && (
             <IconButton
               label={t("acc.sync")}
               disabled={props.busy}
@@ -332,7 +382,16 @@ function AccountCard(props: {
               <RefreshCw size={16} />
             </IconButton>
           )}
-          {!subscription && (
+          {props.signIn && (
+            <IconButton
+              label={t("sub.relogin")}
+              disabled={props.busy}
+              onClick={() => props.onDialog({ kind: "login", alias: a.alias })}
+            >
+              <LogIn size={16} />
+            </IconButton>
+          )}
+          {!usageOnly && !props.signIn && (
             <IconButton
               label={a.has_key ? t("acc.changeKey") : t("acc.setKey")}
               disabled={props.busy}
@@ -366,16 +425,53 @@ function AccountCard(props: {
         </div>
       </div>
       <div className="account-tags">
-        <Badge tone={subscription ? "accent" : "info"}>{tv("accountType", a.account_type)}</Badge>
+        <Badge tone={a.account_type === "subscription" ? "accent" : "info"}>{tv("accountType", a.account_type)}</Badge>
         {!a.enabled && <Badge>{t("common.disabled")}</Badge>}
-        {subscription ? (
-          <Badge title={t("acc.usageOnlyHint")}>{t("acc.usageOnly")}</Badge>
-        ) : (
+        {usageOnly && <Badge title={t("acc.usageOnlyHint")}>{t("acc.usageOnly")}</Badge>}
+        {props.signIn &&
+          (a.transport_opt_in ? (
+            <Badge tone="warn" dot>
+              {t("sub.routingOn")}
+            </Badge>
+          ) : (
+            <Badge title={t("sub.routingOffHint")}>{t("sub.routingOff")}</Badge>
+          ))}
+        {!usageOnly && (
           <span className="small muted">{t("acc.modelsRouted", { on: a.enabled_models, all: a.models })}</span>
         )}
-        {!subscription && !a.has_key && <Badge tone="warn">{t("acc.noKey")}</Badge>}
+        {!usageOnly && !props.signIn && !a.has_key && <Badge tone="warn">{t("acc.noKey")}</Badge>}
+        {props.signIn && loginExpired && <Badge tone="bad">{t("sub.loginExpired")}</Badge>}
         {u?.plan?.name && <Badge tone="muted">{u.plan.name}</Badge>}
       </div>
+      {props.signIn && (
+        <div className="row wrap" style={{ gap: 8 }}>
+          {a.transport_opt_in ? (
+            <Button
+              disabled={props.busy}
+              onClick={() =>
+                void confirm({
+                  title: t("sub.turnOffTitle", { name }),
+                  message: t("sub.turnOffBody", { name }),
+                  confirmLabel: t("sub.turnOff"),
+                }).then((ok) => ok && props.onAction(() => api.setTransport(a.provider, a.alias, false, null)))
+              }
+            >
+              {t("sub.turnOff")}
+            </Button>
+          ) : (
+            <Button
+              icon={<ShieldAlert size={16} />}
+              disabled={props.busy || loginExpired}
+              onClick={() => props.onDialog({ kind: "transport", account: a })}
+            >
+              {t("sub.turnOn")}
+            </Button>
+          )}
+          {a.login_expires_at_ms != null && !loginExpired && (
+            <span className="small muted">{t("sub.loginValid", { date: date(a.login_expires_at_ms) })}</span>
+          )}
+        </div>
+      )}
       {u && <UsageDetail usage={u} />}
     </div>
   );
@@ -432,8 +528,8 @@ function UsageDetail(props: { usage: AccountUsage }) {
         {u.supported && (
           <span>
             {t("acc.usageFrom", {
-              source: u.source ?? "",
-              confidence: u.confidence ?? "",
+              source: tv("dataSource", u.source ?? ""),
+              confidence: tv("confidence", u.confidence ?? ""),
               when: ago(u.fetched_at_ms),
             })}
           </span>
@@ -453,7 +549,8 @@ function AddAccountDialog(props: { providers: ProviderInfo[]; onClose: () => voi
   const [key, setKey] = useState("");
   const [result, setResult] = useState<string>();
 
-  const inferenceKinds = (kinds.data ?? []).filter((k) => k.auth !== "external_managed");
+  // Subscription logins come from "Scan this PC" or the sign-in tile, not from API keys.
+  const inferenceKinds = (kinds.data ?? []).filter((k) => k.auth !== "external_managed" && k.auth !== "oauth");
   const selected: ProviderKind | undefined = inferenceKinds.find((k) => k.kind === kind);
   const effectiveSlug = selected?.fixed_slug ?? slug;
   const exists = props.providers.some((p) => p.slug === effectiveSlug);
@@ -689,6 +786,141 @@ function PlanDialog(props: { account: AccountInfo; usage?: AccountUsage; onClose
       </Field>
       <Field label={t("acc.nextRenewal")}>
         <input type="date" value={renews} onChange={(e) => setRenews(e.target.value)} />
+      </Field>
+      <ErrorText error={action.error} />
+    </Modal>
+  );
+}
+
+/** Device-code sign-in for a Loadout-managed subscription login (ADR-012). */
+function LoginDialog(props: { alias?: string; onClose: () => void; onDone: () => void }) {
+  const action = useAction();
+  const [alias, setAlias] = useState(props.alias ?? "main");
+  const [start, setStart] = useState<OAuthStart>();
+  const [done, setDone] = useState<AccountInfo>();
+  const [failed, setFailed] = useState<string>();
+  const { onDone } = props;
+
+  useEffect(() => {
+    if (!start || done || failed != null) return;
+    const id = window.setInterval(() => {
+      api
+        .oauthStatus(start.login_id)
+        .then((s) => {
+          if (s.state === "done" && s.account) {
+            setDone(s.account);
+            onDone();
+          } else if (s.state === "failed") {
+            setFailed(s.message ?? "");
+          }
+        })
+        .catch((e: unknown) => setFailed(e instanceof Error ? e.message : String(e)));
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [start, done, failed, onDone]);
+
+  const begin = () =>
+    void action.run(async () => {
+      setFailed(undefined);
+      const s = await api.oauthStart(SUBSCRIPTION_SLUG, alias.trim());
+      setStart(s);
+      await api.openSignInPage(s.verification_url).catch(() => undefined);
+    });
+
+  return (
+    <Modal
+      title={t("sub.loginTitle")}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{done ? t("common.close") : t("common.cancel")}</Button>
+          {!start && (
+            <Button kind="primary" icon={<LogIn size={16} />} disabled={action.busy || !alias.trim()} onClick={begin}>
+              {t("sub.start")}
+            </Button>
+          )}
+        </>
+      }
+    >
+      <Notice>{t("sub.loginIntro")}</Notice>
+      <Field label={t("acc.alias")} hint={t("acc.aliasHint")}>
+        <input
+          value={alias}
+          disabled={start != null || props.alias != null}
+          onChange={(e) => setAlias(e.target.value.toLowerCase())}
+        />
+      </Field>
+      {start && !done && failed == null && (
+        <>
+          <Field label={t("sub.code")}>
+            <div className="signin-code mono">{start.user_code}</div>
+          </Field>
+          <CopyField value={start.verification_url} />
+          <div className="row" style={{ marginTop: 8 }}>
+            <Button icon={<ExternalLink size={16} />} onClick={() => void api.openSignInPage(start.verification_url)}>
+              {t("sub.openPage")}
+            </Button>
+            <span className="small muted">{t("sub.waiting")}</span>
+          </div>
+        </>
+      )}
+      {done && (
+        <Notice>
+          {t("sub.done", { name: done.display_name ?? `${done.provider}/${done.alias}`, models: done.models })}{" "}
+          {t("sub.routingOffHint")}
+        </Notice>
+      )}
+      {failed != null && <Notice tone="warn">{t("sub.failed", { error: failed })}</Notice>}
+      <ErrorText error={action.error} />
+    </Modal>
+  );
+}
+
+/** The two confirmation steps before routing through a lower-trust transport (ADR-012 §1). */
+function TransportDialog(props: { account: AccountInfo; onClose: () => void; onDone: () => void }) {
+  const action = useAction();
+  const a = props.account;
+  const name = `${a.provider}/${a.alias}`;
+  const [understood, setUnderstood] = useState(false);
+  const [typed, setTyped] = useState("");
+  const ready = understood && typed.trim() === a.alias;
+  return (
+    <Modal
+      title={t("sub.riskTitle", { name })}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button
+            kind="danger"
+            disabled={!ready || action.busy}
+            onClick={() =>
+              void action.run(async () => {
+                await api.setTransport(a.provider, a.alias, true, typed.trim());
+                props.onDone();
+                props.onClose();
+              })
+            }
+          >
+            {t("sub.enable")}
+          </Button>
+        </>
+      }
+    >
+      <Notice tone="warn">
+        <ul className="risk-list">
+          <li>{t("sub.risk1")}</li>
+          <li>{t("sub.risk2")}</li>
+          <li>{t("sub.risk3")}</li>
+          <li>{t("sub.risk4")}</li>
+        </ul>
+      </Notice>
+      <label className="row check-row">
+        <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} />
+        <span>{t("sub.understand")}</span>
+      </label>
+      <Field label={t("sub.typeAlias", { alias: a.alias })}>
+        <input value={typed} disabled={!understood} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
       </Field>
       <ErrorText error={action.error} />
     </Modal>

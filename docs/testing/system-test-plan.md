@@ -112,3 +112,5 @@
 - [ ] 如果请求被拒（如 403），记录错误信息。只有在你接受更高风险时，才试 `loadout provider set codex-sub client_identity=codex` 并重试。
 - [ ] `loadout account transport codex-sub main off` 后不再路由。
 - [ ] 官方 Codex CLI 自身的登录不受影响（两份登录互相独立）。
+- [ ] 桌面端：账号页的"ChatGPT 订阅"卡片 → 获取登录代码，自动打开浏览器登录页；批准后对话框显示"已登录"。
+- [ ] 桌面端：codex-sub 账号卡片显示"未开启转发"；"开启转发…"要求勾选并输入别名后按钮才可用；开启后显示"转发已开启"，"关闭转发"有确认。

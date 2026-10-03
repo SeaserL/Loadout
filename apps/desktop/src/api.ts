@@ -107,7 +107,7 @@ export interface ProviderKind {
   display_name: string;
   fixed_slug: string | null;
   default_base_url: string | null;
-  auth: "api_key" | "optional_api_key" | "external_managed";
+  auth: "api_key" | "optional_api_key" | "external_managed" | "oauth";
   protocols: string[];
   drivers: string[];
   /** Values `usage_source` accepts besides "auto" and "off". */
@@ -133,6 +133,23 @@ export interface AccountInfo {
   has_key: boolean;
   models: number;
   enabled_models: number;
+  /** The owner turned on a lower-trust transport (ADR-012). */
+  transport_opt_in: boolean;
+  /** Expiry of a Loadout-managed sign-in (refreshed automatically). */
+  login_expires_at_ms: number | null;
+}
+
+export interface OAuthStart {
+  login_id: string;
+  verification_url: string;
+  user_code: string;
+  expires_in_secs: number;
+}
+
+export interface OAuthStatus {
+  state: "pending" | "done" | "failed";
+  account: AccountInfo | null;
+  message: string | null;
 }
 
 export interface SyncResult {
@@ -351,6 +368,11 @@ export const api = {
   setAccountKey: (provider: string, alias: string, api_key: string) =>
     call<AccountInfo>("account.set_key", { provider, alias, api_key }),
   removeAccount: (provider: string, alias: string) => call<Revoked>("account.remove", { provider, alias }),
+  oauthStart: (provider: string, alias: string) => call<OAuthStart>("account.oauth_start", { provider, alias }),
+  oauthStatus: (login_id: string) => call<OAuthStatus>("account.oauth_status", { login_id }),
+  setTransport: (provider: string, alias: string, enabled: boolean, confirm: string | null) =>
+    call<AccountInfo>("account.set_transport", { provider, alias, enabled, confirm }),
+  openSignInPage: (url: string) => command<void>("open_sign_in_page", { url }),
   setPlan: (p: {
     provider: string;
     alias: string;

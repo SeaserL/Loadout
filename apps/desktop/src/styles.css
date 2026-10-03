@@ -1668,3 +1668,41 @@ ol.routes li:first-child::before {
     transform: translateY(6px);
   }
 }
+
+/* ExecPlan 010: subscription sign-in */
+.provider-tile.tile-signin {
+  border-style: dashed;
+  background: transparent;
+}
+
+.provider-tile.tile-signin .tile-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+}
+
+.signin-code {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: center;
+  user-select: all;
+}
+
+.risk-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.check-row {
+  gap: 8px;
+  margin: 12px 0;
+  cursor: pointer;
+}
