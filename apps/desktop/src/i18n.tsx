@@ -495,6 +495,17 @@ const en = {
   "logs.rows": "Rows",
   "settings.confirmStopTitle": "Stop the gateway?",
   "settings.appearanceHint": "Theme and language are remembered on this PC for this app only.",
+
+  // Demo: transparency
+  "logs.decision": "Routing decision",
+  "logs.showDecision": "Show routing decision",
+  "logs.noDecision": "No routing decision recorded for this request.",
+  "stats.cacheRead": "Cache read",
+  "stats.cacheWrite": "Cache write",
+  "stats.cacheHitRate": "Cache hit rate",
+  "stats.cacheSavings": "Estimated cache savings",
+  "stats.cacheTrackedNote":
+    "Cache reads and writes are part of input tokens. Savings use each model's current cache prices (\"Models\" page); models without a cache price count as no saving.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -956,6 +967,17 @@ const zh: Record<MessageKey, string> = {
   "logs.rows": "条数",
   "settings.confirmStopTitle": "停止网关？",
   "settings.appearanceHint": "主题和语言只保存在本机的这个应用里。",
+
+  // Demo: transparency
+  "logs.decision": "路由决策",
+  "logs.showDecision": "显示路由决策",
+  "logs.noDecision": "这条请求没有记录路由决策。",
+  "stats.cacheRead": "缓存读取",
+  "stats.cacheWrite": "缓存写入",
+  "stats.cacheHitRate": "缓存命中率",
+  "stats.cacheSavings": "缓存预计节省",
+  "stats.cacheTrackedNote":
+    "缓存读写包含在输入 token 中。节省金额按各模型当前的缓存价格（“模型”页面）估算；未设置缓存价格的模型不计入节省。",
 };
 
 /** Chinese descriptions of the daemon's settings (the daemon sends English). */

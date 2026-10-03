@@ -185,6 +185,14 @@ fn concurrent_requests_all_succeed_and_are_recorded() {
         .map(|r| r["requests"].as_i64().expect("n"))
         .sum();
     assert_eq!(total_requests as usize, n);
+    // Cache fields are always present (zero without cached tokens).
+    assert!(
+        stats
+            .as_array()
+            .expect("stats")
+            .iter()
+            .all(|r| r["cache_read_tokens"] == 0 && r["cache_savings_usd"] == 0.0)
+    );
     eprintln!(
         "{n} requests, concurrency {CONCURRENCY}: total {total:?}, p50 {:?}, p95 {p95:?}",
         sorted[n / 2]

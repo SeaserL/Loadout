@@ -109,6 +109,9 @@ enum Command {
         /// Only the last N hours.
         #[arg(long)]
         hours: Option<u32>,
+        /// Also show each request's routing decision (skips, failed attempts, outcome).
+        #[arg(long, short)]
+        verbose: bool,
     },
     /// Requests, tokens, cost and latency grouped by model, route, provider, client or day.
     Stats {
@@ -241,6 +244,7 @@ fn main() -> ExitCode {
                 search,
                 errors,
                 hours,
+                verbose,
             } => {
                 let filter = loadout_ipc::api::RecentParams {
                     limit,
@@ -249,7 +253,7 @@ fn main() -> ExitCode {
                     status: errors.then(|| "error".to_owned()),
                     since_ms: hours.map(|h| output::now_ms() - i64::from(h) * 3_600_000),
                 };
-                status_cmd::logs(&ctx, filter).await
+                status_cmd::logs(&ctx, filter, verbose).await
             }
             Command::Stats { by, days } => status_cmd::stats(&ctx, by, days).await,
             Command::Usage { provider, refresh } => usage_cmd::run(&ctx, provider, refresh).await,

@@ -40,6 +40,9 @@ pub struct RequestRecord {
     pub duration_ms: u64,
     pub output_tps: Option<f64>,
     pub estimated_cost_usd: Option<f64>,
+    /// Compact routing decision, e.g. `a/b/m: skipped (quota) → c/d/m: 429 rate_limit →
+    /// e/f/m: ok` (at most 500 bytes). Target names and reason codes only.
+    pub decision: Option<String>,
 }
 
 /// Receives request records. Implementations must not block (ADR-008 §5).

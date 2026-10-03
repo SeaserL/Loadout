@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 
-use crate::{ParsedName, RouteTarget, TargetId, parse_name};
+use crate::{ParsedName, RouteTarget, TargetId, Tier, account_model_key, parse_name};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResolutionKind {
@@ -43,6 +43,40 @@ pub struct RouteTable {
     exact: HashMap<String, Vec<usize>>,
     provider_model: HashMap<String, Vec<usize>>,
     virtuals: HashMap<String, Vec<usize>>,
+    /// Which virtual names are user pools (the rest are built-in virtual models).
+    pools: HashSet<String>,
+    /// Latency tier per account model at build time (display only).
+    tiers: HashMap<Arc<str>, Tier>,
+}
+
+/// What a listed model name addresses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ListingKind {
+    /// Built-in `loadout/<name>`.
+    Virtual,
+    /// User pool `loadout/<name>`.
+    Pool,
+    /// `provider/account/model`.
+    Exact,
+}
+
+impl ListingKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Virtual => "virtual",
+            Self::Pool => "pool",
+            Self::Exact => "exact",
+        }
+    }
+}
+
+/// One entry of the model listing (`GET /v1/models`).
+#[derive(Debug)]
+pub struct ModelListing<'a> {
+    pub name: String,
+    pub kind: ListingKind,
+    /// Virtual / pool: the ordered chain. Exact: the account model's protocol variants.
+    pub targets: Vec<&'a Arc<RouteTarget>>,
 }
 
 impl RouteTable {
@@ -91,6 +125,54 @@ impl RouteTable {
             .collect();
         self.virtuals.insert(name.to_owned(), indexes);
         self
+    }
+
+    /// Like [`Self::with_virtual`], marking the name as a user pool.
+    pub fn with_pool(mut self, name: &str, target_ids: &[TargetId]) -> Self {
+        self.pools.insert(name.to_owned());
+        self.with_virtual(name, target_ids)
+    }
+
+    /// Records the latency tier of each account model (display only; the routing order
+    /// is already part of the virtual chains).
+    pub fn with_tiers(mut self, tiers: HashMap<Arc<str>, Tier>) -> Self {
+        self.tiers = tiers;
+        self
+    }
+
+    /// Tier of a target's account model when the table was built.
+    pub fn tier(&self, target: &RouteTarget) -> Tier {
+        self.tiers
+            .get(account_model_key(&target.id))
+            .copied()
+            .unwrap_or(Tier::Unmeasured)
+    }
+
+    /// Everything `GET /v1/models` lists: built-in virtual models, then pools, then exact
+    /// names, each group sorted by name. Empty virtual models are left out.
+    pub fn listing(&self) -> Vec<ModelListing<'_>> {
+        let pick = |idx: &[usize]| idx.iter().map(|&i| &self.targets[i]).collect::<Vec<_>>();
+        let mut out: Vec<ModelListing<'_>> = self
+            .virtuals
+            .iter()
+            .filter(|(_, idx)| !idx.is_empty())
+            .map(|(k, idx)| ModelListing {
+                name: format!("loadout/{k}"),
+                kind: if self.pools.contains(k) {
+                    ListingKind::Pool
+                } else {
+                    ListingKind::Virtual
+                },
+                targets: pick(idx),
+            })
+            .chain(self.exact.iter().map(|(k, idx)| ModelListing {
+                name: k.clone(),
+                kind: ListingKind::Exact,
+                targets: pick(idx),
+            }))
+            .collect();
+        out.sort_by(|a, b| (a.kind, &a.name).cmp(&(b.kind, &b.name)));
+        out
     }
 
     pub fn version(&self) -> u64 {

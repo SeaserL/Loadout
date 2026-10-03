@@ -1057,6 +1057,7 @@ impl ControlPlane {
                 ttft_ms: e.ttft_ms,
                 duration_ms: e.duration_ms,
                 cost_usd: e.estimated_cost_usd,
+                decision: e.decision,
             })
             .collect())
     }
@@ -1098,6 +1099,11 @@ impl ControlPlane {
                 cost_usd: r.cost_usd,
                 avg_ttft_ms: r.avg_ttft_ms,
                 avg_tps: r.avg_tps,
+                cache_read_tokens: r.cache_read_tokens,
+                cache_write_tokens: r.cache_write_tokens,
+                cache_hit_rate: (r.input_tokens > 0)
+                    .then(|| (r.cache_read_tokens as f64 / r.input_tokens as f64).min(1.0)),
+                cache_savings_usd: r.cache_savings_usd,
             })
             .collect())
     }

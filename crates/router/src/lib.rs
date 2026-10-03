@@ -25,5 +25,8 @@ pub use name::{
 };
 pub use select::{Candidates, SelectRequest, account_model_key, select};
 pub use session::SessionAffinity;
-pub use table::{Resolution, ResolutionKind, ResolveError, RouteTable, RouteTableHandle};
+pub use table::{
+    ListingKind, ModelListing, Resolution, ResolutionKind, ResolveError, RouteTable,
+    RouteTableHandle,
+};
 pub use target::{Prices, RouteTarget, TargetId};

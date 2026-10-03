@@ -78,6 +78,11 @@ export interface StatsEntry {
   cost_usd: number;
   avg_ttft_ms: number | null;
   avg_tps: number | null;
+  // Demo: transparency (absent from older daemons)
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
+  cache_hit_rate?: number | null;
+  cache_savings_usd?: number;
 }
 
 export interface LogFilter {
@@ -241,6 +246,8 @@ export interface RequestSummary {
   ttft_ms: number | null;
   duration_ms: number;
   cost_usd: number | null;
+  /** Routing decision (metadata only), e.g. "a/b/m: skipped (quota) → c/d/m: ok". */
+  decision?: string | null;
 }
 
 export interface UsageWindow {
