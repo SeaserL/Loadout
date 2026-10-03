@@ -846,3 +846,29 @@ pub mod events {
     /// Providers, accounts or models changed (the route table was rebuilt).
     pub const ROUTES_CHANGED: &str = "routes.changed";
 }
+
+// ---- notifications (demo, ExecPlan 012) --------------------------------------------------
+
+/// Event carrying a [`Notification`] for the tray app to show as a Windows toast.
+pub const NOTIFY_EVENT: &str = "notify";
+
+/// A condition the user should hear about. The daemon emits each `(kind, key)` at most once
+/// per de-duplication period.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Notification {
+    /// `quota_low`, `balance_low`, `auth_failed`, `login_expiring` or `client_cost_limit`.
+    pub kind: String,
+    /// What the condition is about (`provider/account`, `provider/account/window`, client).
+    pub key: String,
+    /// English text; clients may localize from `kind`, `subject`, `detail` and `value`.
+    pub title: String,
+    pub body: String,
+    /// `provider/account` or the client name.
+    pub subject: String,
+    /// Usage window label, when relevant.
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Percent left, balance, hours left or cost limit, depending on `kind`.
+    #[serde(default)]
+    pub value: Option<f64>,
+}

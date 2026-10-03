@@ -134,6 +134,13 @@ impl Bridge {
         Ok(self.connect().await?.call_raw(method, params).await?)
     }
 
+    /// A connection subscribed to daemon events (notifications, ExecPlan 012).
+    pub async fn subscribe(&self) -> Result<IpcClient, UiError> {
+        let mut client = self.connect().await?;
+        client.call::<api::EventsSubscribe>(&()).await?;
+        Ok(client)
+    }
+
     pub async fn is_running(&self) -> bool {
         match self.connect().await {
             Ok(mut c) => c.call::<api::Status>(&()).await.is_ok(),

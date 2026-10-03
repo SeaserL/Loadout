@@ -970,6 +970,10 @@ const settingDescriptionsZh: Record<string, string> = {
   "benchmark.auto_probe": "为近期没有流量的路由在后台发送极小的测速请求",
   "benchmark.probe_interval_hours": "同一路由两次自动测速之间的间隔（小时）",
   "benchmark.max_probe_output_price": "输出价格高于该值（美元 / 百万 token）的模型不自动测速（价格未知的会测）",
+  // Demo: notifications
+  "notify.enabled": "额度或余额不足、凭证被拒绝、登录即将过期、客户端达到每日花费上限时显示桌面通知",
+  "notify.quota_percent": "任一额度窗口剩余低于该百分比时通知（0 表示关闭）",
+  "notify.balance_usd": "美元余额低于该金额时通知（0 表示关闭）",
 };
 
 const dictionaries: Record<Lang, Record<MessageKey, string>> = { "zh-CN": zh, en };

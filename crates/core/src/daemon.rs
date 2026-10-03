@@ -192,6 +192,12 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             move || crate::oauth::refresh_loop(control.clone(), token.clone()),
         );
     }
+    {
+        let (control, events, token) = (control.clone(), ipc.events(), shutdown.clone());
+        spawn_restartable("notify", shutdown.clone(), Backoff::default(), move || {
+            crate::notify::run(control.clone(), events.clone(), token.clone())
+        });
+    }
     let state = Arc::new(DaemonState {
         db: db.clone(),
         control,
