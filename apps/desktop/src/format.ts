@@ -63,6 +63,15 @@ export function tierLabel(tier: string): string {
   }
 }
 
+/** Time of day for today's entries, otherwise a short date and time. */
+export function shortTime(ms: number | null | undefined): string {
+  if (ms == null) return "-";
+  const d = new Date(ms);
+  const clock = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  if (d.toDateString() === new Date().toDateString()) return clock;
+  return `${d.toLocaleDateString(locale(), { month: "2-digit", day: "2-digit" })} ${clock}`;
+}
+
 /** "3 d 4 h" / "2 h 5 min" / "12 min" style length of time. */
 export function duration(ms: number | null | undefined): string {
   if (ms == null || ms < 0) return "-";

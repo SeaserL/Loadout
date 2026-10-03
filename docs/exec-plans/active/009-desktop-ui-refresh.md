@@ -81,5 +81,12 @@
   - 账号页：provider 网格（点击筛选）+ 搜索；每个 provider 一节（保留 ExecPlan 008 的"用量来源"下拉框），账号为卡片：启用开关、测速（对该账号已启用模型调用现有 `bench.run`）/ 同步 / 密钥 / 套餐图标按钮，删除走确认框；额度窗口用 QuotaBar（剩余 % 绿 / 黄 / 红 + 重置倒计时）。
   - "Codex 订阅"卡片位置：provider 网格末尾留了代码注释位，ExecPlan 010 在此加入登录卡片。
   - 视觉检查方法：浏览器面板 + vite dev server，注入临时的 `window.__TAURI_INTERNALS__` 模拟 IPC（fixture 数据，文件在仓库外的 scratchpad），无需在桌面上模拟点击。
-- [ ] Stage 3 — other pages
+- [x] Stage 3 — other pages（2026-10-04）
+  - 统计：统一筛选栏（时间范围 + 分组 Segmented）、6 个 KPI（请求、成功率、输入、输出、费用、加权平均首 token 时间）、按天 token 堆叠柱状图（`charts.tsx`，手写 SVG + ResizeObserver，按 UTC 日期补齐空白天）、token 构成条、分组明细表。daemon 不区分缓存 token，构成条只有输入 / 输出，并在卡片里说明。
+  - 日志：同一套 FilterBar（搜索、客户端、时间范围、条数、"只看失败"开关）；时间列当天只显示时刻，悬停显示完整时间。
+  - 模型：搜索 + "显示已停用"开关 + 计数；启用改为 Switch；复制、删除（手动模型，走确认框）为图标按钮。
+  - 路由：Tabs 改为 Segmented 放在标题旁；虚拟模型卡片中的路由列表带序号；Pool 编辑对话框用图标按钮排序，删除 Pool 新增确认框。
+  - 客户端：新增"接入应用"卡（两个 Base URL + 复制），吊销走确认框；新密钥对话框用 CopyField。
+  - 设置：自动启动与布尔设置项改为 Switch；外观卡加入主题切换；停止网关走确认框。
+  - 教训：表格里的长模型名需要 `overflow-wrap: anywhere` 才不会把表格撑出卡片，但不能全局加（模型页的名称会被拆得很碎），改为按列使用 `.break`。
 - [ ] Stage 4 — polish and verification

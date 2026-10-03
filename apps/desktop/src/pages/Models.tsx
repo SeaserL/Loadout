@@ -1,8 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState } from "react";
+import { Copy, Plus, Search, Trash } from "lucide-react";
 import { api, type ModelInfo } from "../api";
-import { Badge, Button, Card, Empty, ErrorText, Field, Modal, Page, copy, tierTone } from "../components";
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  ErrorText,
+  Field,
+  IconButton,
+  Modal,
+  Page,
+  Switch,
+  tierTone,
+  useConfirm,
+  useCopy,
+} from "../components";
 import { num, tierLabel } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { t } from "../i18n";
@@ -34,6 +49,8 @@ export function Models() {
   const routes = usePoll(api.routeStatus, 10000);
   const accounts = usePoll(api.accounts, 0);
   const action = useAction();
+  const confirm = useConfirm();
+  const doCopy = useCopy();
   const [filter, setFilter] = useState("");
   const [showDisabled, setShowDisabled] = useState(false);
   const [price, setPrice] = useState<ModelInfo>();
@@ -45,7 +62,9 @@ export function Models() {
     return m;
   }, [routes.data]);
 
-  const list = (models.data ?? []).filter(
+  const all = models.data ?? [];
+  const enabledCount = all.filter((m) => m.enabled).length;
+  const list = all.filter(
     (m) => (showDisabled || m.enabled) && m.name.toLowerCase().includes(filter.toLowerCase()),
   );
   const run = (f: () => Promise<unknown>) =>
@@ -59,84 +78,121 @@ export function Models() {
     <Page
       title={t("models.title")}
       actions={
-        <>
-          <input placeholder={t("common.filter")} value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <label className="row small">
-            <input type="checkbox" checked={showDisabled} onChange={(e) => setShowDisabled(e.target.checked)} />
-            {t("common.showDisabled")}
-          </label>
-          <Button onClick={() => setAdding(true)}>{t("models.addManual")}</Button>
-        </>
+        <Button kind="primary" icon={<Plus size={16} />} onClick={() => setAdding(true)}>
+          {t("models.addManual")}
+        </Button>
       }
     >
+      <div className="row wrap" style={{ marginBottom: 16, gap: 14 }}>
+        <label className="search" style={{ flex: 1, maxWidth: 420 }}>
+          <Search size={16} aria-hidden />
+          <input
+            placeholder={t("models.search")}
+            aria-label={t("models.search")}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </label>
+        <span className="check-row">
+          <Switch checked={showDisabled} onChange={setShowDisabled} label={t("common.showDisabled")} />
+          {t("common.showDisabled")}
+        </span>
+        <span className="spacer" />
+        <span className="small muted">{t("models.count", { on: enabledCount, all: all.length })}</span>
+      </div>
       <ErrorText error={action.error ?? models.error?.message} />
       <Card>
         {list.length === 0 && !models.loading && <Empty>{t("models.empty")}</Empty>}
         {list.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>{t("models.name")}</th>
-                <th>{t("models.protocols")}</th>
-                <th className="num">{t("models.context")}</th>
-                <th className="num">{t("models.price")}</th>
-                <th>{t("models.tier")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((m) => {
-                const tier = tierOf.get(m.name) ?? "UNMEASURED";
-                return (
-                  <tr key={m.name} style={{ opacity: m.enabled ? 1 : 0.55 }}>
-                    <td>
-                      <button className="btn link mono" title={t("models.copy")} onClick={() => copy(m.name)}>
-                        {m.name}
-                      </button>
-                      {m.source === "manual" && <span className="small muted"> {t("models.manual")}</span>}
-                    </td>
-                    <td className="small">{m.protocols.join(", ")}</td>
-                    <td className="num">{num(m.context_window)}</td>
-                    <td className="num">
-                      <button className="btn link" onClick={() => setPrice(m)}>
-                        {m.input_price ?? "-"} / {m.output_price ?? "-"}
-                      </button>
-                    </td>
-                    <td>
-                      <div className="row">
-                        <Badge tone={tierTone(tier)}>{tierLabel(tier)}</Badge>
-                        <select
-                          value={tierValue(m)}
-                          disabled={action.busy || !m.enabled}
-                          onChange={(e) =>
-                            run(() => api.setModelTier(m.name, e.target.value === "auto" ? null : e.target.value))
-                          }
-                        >
-                          {options.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-                    <td className="num">
-                      <div className="row" style={{ justifyContent: "flex-end" }}>
-                        <Button disabled={action.busy} onClick={() => run(() => api.setModelEnabled(m.name, !m.enabled))}>
-                          {m.enabled ? t("common.disable") : t("common.enable")}
-                        </Button>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 48 }}>{t("models.on")}</th>
+                  <th>{t("models.name")}</th>
+                  <th>{t("models.protocols")}</th>
+                  <th className="num">{t("models.context")}</th>
+                  <th className="num" style={{ whiteSpace: "normal", width: 110 }}>
+                    {t("models.price")}
+                  </th>
+                  <th>{t("models.tier")}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((m) => {
+                  const tier = tierOf.get(m.name) ?? "UNMEASURED";
+                  return (
+                    <tr key={m.name} className={m.enabled ? "" : "dim"}>
+                      <td>
+                        <Switch
+                          checked={m.enabled}
+                          disabled={action.busy}
+                          label={m.enabled ? t("common.disable") : t("common.enable")}
+                          onChange={(on) => run(() => api.setModelEnabled(m.name, on))}
+                        />
+                      </td>
+                      <td>
+                        <div className="row" style={{ gap: 4 }}>
+                          <span className="mono">{m.name}</span>
+                          <IconButton label={t("models.copy")} onClick={() => doCopy(m.name)}>
+                            <Copy size={14} />
+                          </IconButton>
+                          {m.source === "manual" && <Badge>{t("models.manual")}</Badge>}
+                        </div>
+                      </td>
+                      <td className="small">{m.protocols.join(", ")}</td>
+                      <td className="num">{num(m.context_window)}</td>
+                      <td className="num">
+                        <button className="btn link" onClick={() => setPrice(m)} title={t("models.priceTitle", { name: m.name })}>
+                          {m.input_price ?? "-"} / {m.output_price ?? "-"}
+                        </button>
+                      </td>
+                      <td>
+                        <div className="row">
+                          <Badge tone={tierTone(tier)}>{tierLabel(tier)}</Badge>
+                          <select
+                            value={tierValue(m)}
+                            disabled={action.busy || !m.enabled}
+                            aria-label={t("models.tier")}
+                            style={{ width: 132 }}
+                            onChange={(e) =>
+                              run(() => api.setModelTier(m.name, e.target.value === "auto" ? null : e.target.value))
+                            }
+                          >
+                            {options.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
+                      <td className="actions-cell">
                         {m.source === "manual" && (
-                          <Button kind="danger" disabled={action.busy} onClick={() => run(() => api.removeModel(m.name))}>
-                            {t("common.remove")}
-                          </Button>
+                          <IconButton
+                            label={t("common.remove")}
+                            danger
+                            disabled={action.busy}
+                            onClick={() =>
+                              void confirm({
+                                title: t("models.removeTitle", { name: m.name }),
+                                message: t("models.confirmRemove"),
+                                confirmLabel: t("common.remove"),
+                                danger: true,
+                              }).then((ok) => ok && run(() => api.removeModel(m.name)))
+                            }
+                          >
+                            <Trash size={16} />
+                          </IconButton>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
       {price && <PriceDialog model={price} onClose={() => setPrice(undefined)} onDone={() => void models.reload()} />}
@@ -164,32 +220,40 @@ function PriceDialog(props: { model: ModelInfo; onClose: () => void; onDone: () 
     return n;
   };
   return (
-    <Modal title={t("models.priceTitle", { name: props.model.name })} onClose={props.onClose}>
-      <p className="small muted">{t("models.priceIntro")}</p>
-      <Field label={t("models.input")}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} inputMode="decimal" />
-      </Field>
-      <Field label={t("models.output")}>
-        <input value={output} onChange={(e) => setOutput(e.target.value)} inputMode="decimal" />
-      </Field>
-      <ErrorText error={action.error} />
-      <div className="row">
-        <div className="spacer" />
-        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
-        <Button
-          kind="primary"
-          disabled={action.busy}
-          onClick={() =>
-            void action.run(async () => {
-              await api.setModelPrice(props.model.name, parse(input), parse(output));
-              props.onDone();
-              props.onClose();
-            })
-          }
-        >
-          {t("common.save")}
-        </Button>
+    <Modal
+      title={t("models.priceTitle", { name: props.model.name })}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button
+            kind="primary"
+            disabled={action.busy}
+            onClick={() =>
+              void action.run(async () => {
+                await api.setModelPrice(props.model.name, parse(input), parse(output));
+                props.onDone();
+                props.onClose();
+              })
+            }
+          >
+            {t("common.save")}
+          </Button>
+        </>
+      }
+    >
+      <p className="small muted" style={{ marginTop: 0 }}>
+        {t("models.priceIntro")}
+      </p>
+      <div className="grid cols-2" style={{ gap: 12 }}>
+        <Field label={t("models.input")}>
+          <input value={input} onChange={(e) => setInput(e.target.value)} inputMode="decimal" />
+        </Field>
+        <Field label={t("models.output")}>
+          <input value={output} onChange={(e) => setOutput(e.target.value)} inputMode="decimal" />
+        </Field>
       </div>
+      <ErrorText error={action.error} />
     </Modal>
   );
 }
@@ -203,7 +267,35 @@ function AddModelDialog(props: { accounts: string[]; onClose: () => void; onDone
   const toggle = (p: string) =>
     setProtocols((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
   return (
-    <Modal title={t("models.addTitle")} onClose={props.onClose}>
+    <Modal
+      title={t("models.addTitle")}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button
+            kind="primary"
+            disabled={action.busy || !account || !model.trim()}
+            onClick={() =>
+              void action.run(async () => {
+                const [provider = "", alias = ""] = account.split("/");
+                await api.addModel({
+                  provider,
+                  account: alias,
+                  model: model.trim(),
+                  protocols,
+                  context_window: context.trim() ? Number(context) : null,
+                });
+                props.onDone();
+                props.onClose();
+              })
+            }
+          >
+            {t("common.add")}
+          </Button>
+        </>
+      }
+    >
       <Field label={t("models.account")}>
         <select value={account} onChange={(e) => setAccount(e.target.value)}>
           {props.accounts.map((a) => (
@@ -215,9 +307,9 @@ function AddModelDialog(props: { accounts: string[]; onClose: () => void; onDone
         <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model-id" />
       </Field>
       <Field label={t("models.serves")}>
-        <div className="row">
+        <div className="row" style={{ gap: 16 }}>
           {["chat", "responses", "messages"].map((p) => (
-            <label key={p} className="row small">
+            <label key={p} className="check-row">
               <input type="checkbox" checked={protocols.includes(p)} onChange={() => toggle(p)} />
               {p}
             </label>
@@ -228,30 +320,6 @@ function AddModelDialog(props: { accounts: string[]; onClose: () => void; onDone
         <input value={context} onChange={(e) => setContext(e.target.value)} inputMode="numeric" />
       </Field>
       <ErrorText error={action.error} />
-      <div className="row">
-        <div className="spacer" />
-        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
-        <Button
-          kind="primary"
-          disabled={action.busy || !account || !model.trim()}
-          onClick={() =>
-            void action.run(async () => {
-              const [provider = "", alias = ""] = account.split("/");
-              await api.addModel({
-                provider,
-                account: alias,
-                model: model.trim(),
-                protocols,
-                context_window: context.trim() ? Number(context) : null,
-              });
-              props.onDone();
-              props.onClose();
-            })
-          }
-        >
-          {t("common.add")}
-        </Button>
-      </div>
     </Modal>
   );
 }

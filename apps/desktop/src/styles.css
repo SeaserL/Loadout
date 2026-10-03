@@ -446,7 +446,7 @@ main > .notice {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -581,13 +581,13 @@ th {
   font-weight: 500;
   color: var(--muted);
   font-size: 12.5px;
-  padding: 8px 10px;
+  padding: 8px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 td {
-  padding: 10px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
@@ -600,6 +600,11 @@ td:first-child {
 th:last-child,
 td:last-child {
   padding-right: 0;
+}
+
+td .break,
+td.break {
+  overflow-wrap: anywhere;
 }
 
 tbody tr:last-child td {

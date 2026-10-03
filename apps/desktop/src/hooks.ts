@@ -1,7 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { IpcFailure } from "./api";
+
+/** The rendered width of an element, kept current with a ResizeObserver (for SVG charts). */
+export function useWidth<T extends HTMLElement>(): [RefObject<T | null>, number] {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    setWidth(node.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w != null) setWidth(Math.round(w));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width];
+}
 
 export interface Polled<T> {
   data: T | undefined;
