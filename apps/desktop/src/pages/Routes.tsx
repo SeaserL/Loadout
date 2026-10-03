@@ -1,8 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Timer, Trash, X } from "lucide-react";
 import { api, type BenchResult, type PoolInfo, type TargetStatus } from "../api";
-import { Badge, Button, Card, Empty, ErrorText, Field, Modal, Page, stateTone, tierTone } from "../components";
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  ErrorText,
+  Field,
+  IconButton,
+  Modal,
+  Notice,
+  Page,
+  Segmented,
+  stateTone,
+  tierTone,
+  useConfirm,
+} from "../components";
 import { ago, ms, tierLabel, time } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { t, tr, tv } from "../i18n";
@@ -37,51 +53,62 @@ export function Routes() {
   return (
     <Page
       title={t("routes.title")}
+      toolbar={
+        <Segmented
+          label={t("routes.title")}
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "virtual", label: t("routes.tabVirtual") },
+            { value: "health", label: t("routes.tabHealth") },
+          ]}
+        />
+      }
       actions={
         <>
-          <Button disabled={action.busy} onClick={() => measure([])}>
+          <Button icon={<Timer size={16} />} disabled={action.busy} onClick={() => measure([])}>
             {action.busy ? t("routes.measuring") : t("routes.measureAll")}
           </Button>
-          <Button kind="primary" onClick={() => setEditing("new")}>
+          <Button kind="primary" icon={<Plus size={16} />} onClick={() => setEditing("new")}>
             {t("routes.newPool")}
           </Button>
         </>
       }
     >
-      <div className="notice small">
+      <Notice>
         {tr("routes.intro", {
           realtime: <span className="mono">loadout/realtime</span>,
           fast: <span className="mono">loadout/fast</span>,
           default: <span className="mono">loadout/default</span>,
         })}
-      </div>
-      <div className="tabs">
-        <button className={tab === "virtual" ? "active" : ""} onClick={() => setTab("virtual")}>
-          {t("routes.tabVirtual")}
-        </button>
-        <button className={tab === "health" ? "active" : ""} onClick={() => setTab("health")}>
-          {t("routes.tabHealth")}
-        </button>
-      </div>
+      </Notice>
       <ErrorText error={action.error ?? virtuals.error?.message ?? routes.error?.message} />
 
       {tab === "virtual" && (
-        <div className="grid cols-2">
+        <div className="grid cols-2 collapse">
           {(virtuals.data ?? []).map((v) => {
             const pool = pools.data?.find((p) => `loadout/${p.name}` === v.name);
             return (
               <Card
                 key={v.name}
                 title={<span className="mono">{v.name}</span>}
+                subtitle={
+                  v.kind === "pool" ? t("routes.pool", { ordering: orderingLabel(v.ordering) }) : t("routes.builtin")
+                }
                 actions={
                   <>
-                    <Badge tone="info">
-                      {v.kind === "pool" ? t("routes.pool", { ordering: orderingLabel(v.ordering) }) : t("routes.builtin")}
-                    </Badge>
-                    <Button disabled={action.busy || v.routes.length === 0} onClick={() => measure([v.name])}>
-                      {t("routes.measure")}
-                    </Button>
-                    {pool && <Button onClick={() => setEditing(pool)}>{t("common.edit")}</Button>}
+                    <IconButton
+                      label={t("routes.measure")}
+                      disabled={action.busy || v.routes.length === 0}
+                      onClick={() => measure([v.name])}
+                    >
+                      <Timer size={16} />
+                    </IconButton>
+                    {pool && (
+                      <IconButton label={t("common.edit")} onClick={() => setEditing(pool)}>
+                        <Pencil size={16} />
+                      </IconButton>
+                    )}
                   </>
                 }
               >
@@ -95,18 +122,17 @@ export function Routes() {
                       const s = byName.get(r);
                       return (
                         <li key={r}>
-                          <div className="row">
-                            <span className="mono">{r}</span>
-                            <div className="spacer" />
-                            {s && <Badge tone={tierTone(s.tier)}>{tierLabel(s.tier)}</Badge>}
-                            {s && s.state !== "HEALTHY" && s.state !== "UNKNOWN" && (
-                              <Badge tone={stateTone(s.state)}>{tv("state", s.state)}</Badge>
-                            )}
-                            <span className="small muted" style={{ minWidth: 90, textAlign: "right" }}>
-                              {s?.ttft_p50_ms != null ? `${ms(s.ttft_p50_ms)}` : ""}
-                              {s?.tps != null ? ` · ${s.tps.toFixed(0)} tok/s` : ""}
-                            </span>
-                          </div>
+                          <span className="mono ellipsis" style={{ flex: 1 }} title={r}>
+                            {r}
+                          </span>
+                          {s && s.state !== "HEALTHY" && s.state !== "UNKNOWN" && (
+                            <Badge tone={stateTone(s.state)}>{tv("state", s.state)}</Badge>
+                          )}
+                          {s && <Badge tone={tierTone(s.tier)}>{tierLabel(s.tier)}</Badge>}
+                          <span className="small muted num" style={{ minWidth: 110, textAlign: "right" }}>
+                            {s?.ttft_p50_ms != null ? `${ms(s.ttft_p50_ms)}` : ""}
+                            {s?.tps != null ? ` · ${s.tps.toFixed(0)} tok/s` : ""}
+                          </span>
                         </li>
                       );
                     })}
@@ -122,56 +148,63 @@ export function Routes() {
         <Card>
           {(routes.data ?? []).length === 0 && <Empty>{t("routes.none")}</Empty>}
           {(routes.data ?? []).length > 0 && (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("routes.route")}</th>
-                  <th>{t("routes.protocol")}</th>
-                  <th>{t("routes.state")}</th>
-                  <th>{t("models.tier")}</th>
-                  <th className="num">{t("routes.ttft")}</th>
-                  <th className="num">tok/s</th>
-                  <th className="num">{t("routes.samples")}</th>
-                  <th className="num">{t("routes.okFail")}</th>
-                  <th>{t("routes.lastMeasured")}</th>
-                  <th>{t("routes.lastError")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(routes.data ?? []).map((r) => (
-                  <tr key={`${r.name}:${r.protocol}`}>
-                    <td className="mono">{r.name}</td>
-                    <td className="small">{r.protocol}</td>
-                    <td>
-                      <Badge
-                        tone={stateTone(r.state)}
-                        title={r.unavailable_until_ms ? t("routes.until", { time: time(r.unavailable_until_ms) }) : undefined}
-                      >
-                        {tv("state", r.state)}
-                      </Badge>
-                    </td>
-                    <td>
-                      <Badge tone={tierTone(r.tier)}>
-                        {tierLabel(r.tier)}
-                        {r.tier_pinned ? ` (${t("tier.pinned")})` : ""}
-                      </Badge>
-                    </td>
-                    <td className="num">
-                      {ms(r.ttft_p50_ms)} / {ms(r.ttft_p90_ms)}
-                    </td>
-                    <td className="num">{r.tps != null ? r.tps.toFixed(0) : "-"}</td>
-                    <td className="num">{r.samples}</td>
-                    <td className="num">
-                      {r.successes} / {r.failures}
-                    </td>
-                    <td className="small">{ago(r.last_sample_ms)}</td>
-                    <td className="small muted" style={{ maxWidth: 260 }}>
-                      {r.last_error}
-                    </td>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("routes.route")}</th>
+                    <th>{t("routes.protocol")}</th>
+                    <th>{t("routes.state")}</th>
+                    <th>{t("models.tier")}</th>
+                    <th className="num" style={{ whiteSpace: "normal" }}>
+                      {t("routes.ttft")}
+                    </th>
+                    <th className="num">tok/s</th>
+                    <th className="num">{t("routes.samples")}</th>
+                    <th className="num">{t("routes.okFail")}</th>
+                    <th>{t("routes.lastMeasured")}</th>
+                    <th>{t("routes.lastError")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(routes.data ?? []).map((r) => (
+                    <tr key={`${r.name}:${r.protocol}`}>
+                      <td className="mono break" style={{ minWidth: 180 }}>{r.name}</td>
+                      <td className="small">{r.protocol}</td>
+                      <td>
+                        <Badge
+                          tone={stateTone(r.state)}
+                          dot
+                          title={r.unavailable_until_ms ? t("routes.until", { time: time(r.unavailable_until_ms) }) : undefined}
+                        >
+                          {tv("state", r.state)}
+                        </Badge>
+                      </td>
+                      <td>
+                        <Badge tone={tierTone(r.tier)}>
+                          {tierLabel(r.tier)}
+                          {r.tier_pinned ? ` (${t("tier.pinned")})` : ""}
+                        </Badge>
+                      </td>
+                      <td className="num">
+                        {ms(r.ttft_p50_ms)} / {ms(r.ttft_p90_ms)}
+                      </td>
+                      <td className="num">{r.tps != null ? r.tps.toFixed(0) : "-"}</td>
+                      <td className="num">{r.samples}</td>
+                      <td className="num">
+                        {r.successes} / {r.failures}
+                      </td>
+                      <td className="small" style={{ whiteSpace: "nowrap" }}>
+                        {ago(r.last_sample_ms)}
+                      </td>
+                      <td className="small muted" style={{ maxWidth: 260 }}>
+                        {r.last_error}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       )}
@@ -191,43 +224,50 @@ export function Routes() {
 
 function BenchDialog(props: { results: BenchResult[]; onClose: () => void }) {
   return (
-    <Modal title={t("routes.benchTitle")} onClose={props.onClose} wide>
+    <Modal
+      title={t("routes.benchTitle")}
+      onClose={props.onClose}
+      wide
+      footer={<Button onClick={props.onClose}>{t("common.close")}</Button>}
+    >
       {props.results.length === 0 ? (
         <Empty>{t("routes.benchNothing")}</Empty>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>{t("routes.route")}</th>
-              <th>{t("routes.result")}</th>
-              <th className="num">TTFT</th>
-              <th className="num">{t("routes.total")}</th>
-              <th>{t("routes.tierNow")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {props.results.map((r) => (
-              <tr key={r.name}>
-                <td className="mono">{r.name}</td>
-                <td>
-                  {r.ok ? (
-                    <Badge tone="ok">{tv("status", "ok")}</Badge>
-                  ) : (
-                    <>
-                      <Badge tone="bad">{t("routes.failed")}</Badge>
-                      <div className="small muted">{r.error}</div>
-                    </>
-                  )}
-                </td>
-                <td className="num">{ms(r.ttft_ms)}</td>
-                <td className="num">{ms(r.duration_ms)}</td>
-                <td>
-                  <Badge tone={tierTone(r.tier)}>{tierLabel(r.tier)}</Badge>
-                </td>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("routes.route")}</th>
+                <th>{t("routes.result")}</th>
+                <th className="num">TTFT</th>
+                <th className="num">{t("routes.total")}</th>
+                <th>{t("routes.tierNow")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {props.results.map((r) => (
+                <tr key={r.name}>
+                  <td className="mono break">{r.name}</td>
+                  <td>
+                    {r.ok ? (
+                      <Badge tone="ok">{tv("status", "ok")}</Badge>
+                    ) : (
+                      <>
+                        <Badge tone="bad">{t("routes.failed")}</Badge>
+                        <div className="small muted">{r.error}</div>
+                      </>
+                    )}
+                  </td>
+                  <td className="num">{ms(r.ttft_ms)}</td>
+                  <td className="num">{ms(r.duration_ms)}</td>
+                  <td>
+                    <Badge tone={tierTone(r.tier)}>{tierLabel(r.tier)}</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <p className="small muted">{t("routes.benchNote")}</p>
     </Modal>
@@ -236,6 +276,7 @@ function BenchDialog(props: { results: BenchResult[]; onClose: () => void }) {
 
 function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => void; onDone: () => void }) {
   const action = useAction();
+  const confirm = useConfirm();
   const [name, setName] = useState(props.pool?.name ?? "");
   const [ordering, setOrdering] = useState<string>(props.pool?.ordering ?? "manual");
   const [members, setMembers] = useState<string[]>(props.pool?.members ?? []);
@@ -255,49 +296,102 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
       title={props.pool ? t("routes.editPool", { name: props.pool.name }) : t("routes.newPool")}
       onClose={props.onClose}
       wide
+      footer={
+        <>
+          {props.pool && (
+            <Button
+              kind="danger"
+              icon={<Trash size={15} />}
+              disabled={action.busy}
+              onClick={() =>
+                void confirm({
+                  title: t("routes.deletePoolTitle", { name: props.pool?.name ?? "" }),
+                  message: t("routes.confirmDeletePool"),
+                  confirmLabel: t("routes.deletePool"),
+                  danger: true,
+                }).then(
+                  (ok) =>
+                    ok &&
+                    void action.run(async () => {
+                      await api.removePool(props.pool?.name ?? "");
+                      props.onDone();
+                      props.onClose();
+                    }),
+                )
+              }
+            >
+              {t("routes.deletePool")}
+            </Button>
+          )}
+          <div className="spacer" />
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button
+            kind="primary"
+            disabled={action.busy || !name || members.length === 0}
+            onClick={() =>
+              void action.run(async () => {
+                await api.savePool(name, ordering, members);
+                props.onDone();
+                props.onClose();
+              })
+            }
+          >
+            {t("common.save")}
+          </Button>
+        </>
+      }
     >
-      <Field label={t("common.name")} hint={t("routes.poolNameHint")}>
-        <input
-          value={name}
-          disabled={!!props.pool}
-          onChange={(e) => setName(e.target.value.toLowerCase())}
-          placeholder="my-models"
-        />
-      </Field>
-      <Field label={t("routes.order")}>
-        <select value={ordering} onChange={(e) => setOrdering(e.target.value)}>
-          <option value="manual">{t("routes.orderManual")}</option>
-          <option value="latency">{t("routes.orderLatency")}</option>
-        </select>
-      </Field>
-      <Field label={t("routes.models")}>
+      <div className="grid cols-2" style={{ gap: 12 }}>
+        <Field label={t("common.name")} hint={t("routes.poolNameHint")}>
+          <input
+            value={name}
+            disabled={!!props.pool}
+            onChange={(e) => setName(e.target.value.toLowerCase())}
+            placeholder="my-models"
+          />
+        </Field>
+        <Field label={t("routes.order")}>
+          <select value={ordering} onChange={(e) => setOrdering(e.target.value)}>
+            <option value="manual">{t("routes.orderManual")}</option>
+            <option value="latency">{t("routes.orderLatency")}</option>
+          </select>
+        </Field>
+      </div>
+      <div className="field">
+        <span className="label">{t("routes.models")}</span>
+        {members.length === 0 && <div className="small muted">{t("routes.noMembers")}</div>}
         <ol className="routes">
           {members.map((m, i) => (
             <li key={m}>
-              <div className="row">
-                <span className="mono">{m}</span>
-                <div className="spacer" />
-                <Button onClick={() => move(i, -1)} disabled={i === 0}>
-                  ↑
-                </Button>
-                <Button onClick={() => move(i, 1)} disabled={i === members.length - 1}>
-                  ↓
-                </Button>
-                <Button kind="danger" onClick={() => setMembers((cur) => cur.filter((x) => x !== m))}>
-                  {t("common.remove")}
-                </Button>
-              </div>
+              <span className="mono ellipsis" style={{ flex: 1 }}>
+                {m}
+              </span>
+              <IconButton label={t("routes.moveUp")} onClick={() => move(i, -1)} disabled={i === 0}>
+                <ArrowUp size={16} />
+              </IconButton>
+              <IconButton label={t("routes.moveDown")} onClick={() => move(i, 1)} disabled={i === members.length - 1}>
+                <ArrowDown size={16} />
+              </IconButton>
+              <IconButton label={t("common.remove")} danger onClick={() => setMembers((cur) => cur.filter((x) => x !== m))}>
+                <X size={16} />
+              </IconButton>
             </li>
           ))}
         </ol>
         <div className="row" style={{ marginTop: 8 }}>
-          <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ flex: 1 }}>
+          <select
+            value={pick}
+            onChange={(e) => setPick(e.target.value)}
+            style={{ flex: 1 }}
+            aria-label={t("routes.addModel")}
+          >
             <option value="">{t("routes.addModel")}</option>
             {available.map((r) => (
               <option key={r}>{r}</option>
             ))}
           </select>
           <Button
+            icon={<Plus size={16} />}
             disabled={!pick}
             onClick={() => {
               setMembers((cur) => [...cur, pick]);
@@ -307,40 +401,8 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
             {t("common.add")}
           </Button>
         </div>
-      </Field>
-      <ErrorText error={action.error} />
-      <div className="row">
-        {props.pool && (
-          <Button
-            kind="danger"
-            disabled={action.busy}
-            onClick={() =>
-              void action.run(async () => {
-                await api.removePool(props.pool?.name ?? "");
-                props.onDone();
-                props.onClose();
-              })
-            }
-          >
-            {t("routes.deletePool")}
-          </Button>
-        )}
-        <div className="spacer" />
-        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
-        <Button
-          kind="primary"
-          disabled={action.busy || !name || members.length === 0}
-          onClick={() =>
-            void action.run(async () => {
-              await api.savePool(name, ordering, members);
-              props.onDone();
-              props.onClose();
-            })
-          }
-        >
-          {t("common.save")}
-        </Button>
       </div>
+      <ErrorText error={action.error} />
     </Modal>
   );
 }

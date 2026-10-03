@@ -1,11 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from "react";
+import { Ban, Plus, SlidersHorizontal } from "lucide-react";
 import { api, type ClientCreated, type ClientInfo, type ClientPolicy } from "../api";
-import { Badge, Button, Card, Empty, ErrorText, Field, Modal, Page, copy } from "../components";
+import {
+  Badge,
+  Button,
+  Card,
+  CopyField,
+  Empty,
+  ErrorText,
+  Field,
+  IconButton,
+  Modal,
+  Notice,
+  Page,
+  useConfirm,
+} from "../components";
 import { num, time, usd } from "../format";
 import { useAction, usePoll } from "../hooks";
-import { t, tr } from "../i18n";
+import { t } from "../i18n";
 
 function describe(p: ClientPolicy): string {
   const parts: string[] = [];
@@ -20,6 +34,7 @@ function describe(p: ClientPolicy): string {
 export function Clients(props: { gateway: string }) {
   const clients = usePoll(api.clients, 10000);
   const action = useAction();
+  const confirm = useConfirm();
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<ClientCreated>();
   const [policyOf, setPolicyOf] = useState<ClientInfo>();
@@ -29,72 +44,107 @@ export function Clients(props: { gateway: string }) {
     <Page
       title={t("clients.title")}
       actions={
-        <Button kind="primary" onClick={() => setCreating(true)}>
+        <Button kind="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>
           {t("clients.new")}
         </Button>
       }
     >
-      <div className="notice small">{tr("clients.intro", { base: <span className="mono">{base}</span> })}</div>
+      <Card title={t("clients.connect")} subtitle={t("clients.intro2")}>
+        <div className="grid cols-2" style={{ gap: 12 }}>
+          <Field label={t("clients.baseOpenai")}>
+            <CopyField value={base} />
+          </Field>
+          <Field label={t("clients.baseAnthropic")}>
+            <CopyField value={base.replace(/\/v1$/, "")} />
+          </Field>
+        </div>
+      </Card>
       <ErrorText error={action.error ?? clients.error?.message} />
-      <Card>
-        {(clients.data ?? []).length === 0 && !clients.loading && <Empty>{t("clients.empty")}</Empty>}
+      <Card title={t("clients.keys")}>
+        {(clients.data ?? []).length === 0 && !clients.loading && (
+          <Empty
+            action={
+              <Button kind="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>
+                {t("clients.new")}
+              </Button>
+            }
+          >
+            {t("clients.empty")}
+          </Empty>
+        )}
         {(clients.data ?? []).length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>{t("common.name")}</th>
-                <th>{t("clients.key")}</th>
-                <th>{t("clients.created")}</th>
-                <th>{t("clients.status")}</th>
-                <th>{t("clients.today")}</th>
-                <th>{t("clients.policy")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {(clients.data ?? []).map((c) => (
-                <tr key={c.id}>
-                  <td>{c.name}</td>
-                  <td className="mono">{c.key_prefix}…</td>
-                  <td className="small">{time(c.created_at_ms)}</td>
-                  <td>
-                    {c.revoked_at_ms ? (
-                      <Badge tone="bad">{t("clients.revoked", { time: time(c.revoked_at_ms) })}</Badge>
-                    ) : (
-                      <Badge tone="ok">{t("clients.active")}</Badge>
-                    )}
-                  </td>
-                  <td className="small">
-                    {t("clients.usageToday", { tokens: num(c.tokens_today), cost: usd(c.cost_today_usd) })}
-                  </td>
-                  <td className="small">{describe(c.policy)}</td>
-                  <td className="num">
-                    {!c.revoked_at_ms && (
-                      <Button disabled={action.busy} onClick={() => setPolicyOf(c)}>
-                        {t("clients.policy")}
-                      </Button>
-                    )}{" "}
-                    {!c.revoked_at_ms && (
-                      <Button
-                        kind="danger"
-                        disabled={action.busy}
-                        onClick={() => {
-                          if (confirm(t("clients.confirmRevoke", { name: c.name }))) {
-                            void action.run(async () => {
-                              await api.revokeClient(c.name);
-                              await clients.reload();
-                            });
-                          }
-                        }}
-                      >
-                        {t("clients.revoke")}
-                      </Button>
-                    )}
-                  </td>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("common.name")}</th>
+                  <th>{t("clients.key")}</th>
+                  <th>{t("clients.status")}</th>
+                  <th>{t("clients.today")}</th>
+                  <th>{t("clients.policy")}</th>
+                  <th>{t("clients.created")}</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(clients.data ?? []).map((c) => (
+                  <tr key={c.id} className={c.revoked_at_ms ? "dim" : ""}>
+                    <td className="strong">{c.name}</td>
+                    <td className="mono">{c.key_prefix}…</td>
+                    <td>
+                      {c.revoked_at_ms ? (
+                        <Badge tone="bad" title={time(c.revoked_at_ms)}>
+                          {t("clients.revokedShort")}
+                        </Badge>
+                      ) : (
+                        <Badge tone="ok" dot>
+                          {t("clients.active")}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="small" style={{ whiteSpace: "nowrap" }}>
+                      {t("clients.usageToday", { tokens: num(c.tokens_today), cost: usd(c.cost_today_usd) })}
+                    </td>
+                    <td className="small">{describe(c.policy)}</td>
+                    <td className="small muted" style={{ whiteSpace: "nowrap" }}>
+                      {time(c.created_at_ms)}
+                    </td>
+                    <td className="actions-cell">
+                      {!c.revoked_at_ms && (
+                        <div className="row">
+                          <IconButton label={t("clients.policy")} disabled={action.busy} onClick={() => setPolicyOf(c)}>
+                            <SlidersHorizontal size={16} />
+                          </IconButton>
+                          <IconButton
+                            label={t("clients.revoke")}
+                            danger
+                            disabled={action.busy}
+                            onClick={() =>
+                              void confirm({
+                                title: t("clients.revokeTitle", { name: c.name }),
+                                message: t("clients.confirmRevoke", { name: c.name }),
+                                confirmLabel: t("clients.revoke"),
+                                danger: true,
+                              }).then(
+                                (ok) =>
+                                  ok &&
+                                  void action.run(async () => {
+                                    await api.revokeClient(c.name);
+                                    await clients.reload();
+                                  }),
+                              )
+                            }
+                          >
+                            <Ban size={16} />
+                          </IconButton>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
       {creating && (
@@ -118,27 +168,33 @@ export function Clients(props: { gateway: string }) {
 function CreateDialog(props: { onClose: () => void; onCreated: (c: ClientCreated) => void }) {
   const action = useAction();
   const [name, setName] = useState("");
+  const submit = () =>
+    void action.run(async () => {
+      props.onCreated(await api.createClient(name.trim()));
+    });
   return (
-    <Modal title={t("clients.new")} onClose={props.onClose}>
+    <Modal
+      title={t("clients.new")}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button kind="primary" disabled={action.busy || !name.trim()} onClick={submit}>
+            {t("common.create")}
+          </Button>
+        </>
+      }
+    >
       <Field label={t("common.name")} hint={t("clients.nameHint")}>
-        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && name.trim() && !action.busy) submit();
+          }}
+        />
       </Field>
       <ErrorText error={action.error} />
-      <div className="row">
-        <div className="spacer" />
-        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
-        <Button
-          kind="primary"
-          disabled={action.busy || !name.trim()}
-          onClick={() =>
-            void action.run(async () => {
-              props.onCreated(await api.createClient(name.trim()));
-            })
-          }
-        >
-          {t("common.create")}
-        </Button>
-      </div>
     </Modal>
   );
 }
@@ -148,25 +204,26 @@ function KeyShown(props: { created: ClientCreated; base: string; onClose: () => 
   const openai = `OPENAI_BASE_URL=${props.base}\nOPENAI_API_KEY=${key}`;
   const anthropic = `ANTHROPIC_BASE_URL=${props.base.replace(/\/v1$/, "")}\nANTHROPIC_API_KEY=${key}`;
   return (
-    <Modal title={t("clients.keyFor", { name: props.created.client.name })} onClose={props.onClose} wide>
-      <p>
-        <strong>{t("clients.copyNow")}</strong> {t("clients.hashOnly")}
-      </p>
-      <div className="key-box">{key}</div>
-      <div className="row" style={{ margin: "10px 0 16px" }}>
-        <Button kind="primary" onClick={() => copy(key)}>
-          {t("clients.copyKey")}
+    <Modal
+      title={t("clients.keyFor", { name: props.created.client.name })}
+      onClose={props.onClose}
+      wide
+      footer={
+        <Button kind="primary" onClick={props.onClose}>
+          {t("common.done")}
         </Button>
-      </div>
+      }
+    >
+      <Notice tone="warn">
+        <strong>{t("clients.copyNow")}</strong> {t("clients.hashOnly")}
+      </Notice>
+      <CopyField value={key} label={t("clients.copyKey")} secret />
+      <div style={{ height: 16 }} />
       <div className="small muted">{t("clients.openaiApps")}</div>
       <pre className="snippet">{openai}</pre>
       <div className="small muted">{t("clients.anthropicApps")}</div>
       <pre className="snippet">{anthropic}</pre>
       <div className="small muted">{t("clients.modelNames")}</div>
-      <div className="row" style={{ marginTop: 12 }}>
-        <div className="spacer" />
-        <Button onClick={props.onClose}>{t("common.done")}</Button>
-      </div>
     </Modal>
   );
 }
@@ -188,7 +245,37 @@ function PolicyDialog(props: { client: ClientInfo; onClose: () => void; onDone: 
     return n;
   };
   return (
-    <Modal title={t("clients.policyTitle", { name: props.client.name })} onClose={props.onClose}>
+    <Modal
+      title={t("clients.policyTitle", { name: props.client.name })}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button
+            kind="primary"
+            disabled={action.busy}
+            onClick={() =>
+              void action.run(async () => {
+                await api.setClientPolicy(props.client.name, {
+                  default_model: defaultModel.trim() || null,
+                  allowed_models: allowed
+                    .split(/[\n,]/)
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                  daily_token_limit: number(tokens, true),
+                  daily_cost_limit_usd: number(cost, false),
+                  requests_per_minute: number(rpm, true),
+                });
+                props.onDone();
+                props.onClose();
+              })
+            }
+          >
+            {t("common.save")}
+          </Button>
+        </>
+      }
+    >
       <Field label={t("clients.defaultModel")} hint={t("clients.defaultModelHint")}>
         <input value={defaultModel} onChange={(e) => setDefaultModel(e.target.value)} placeholder="loadout/default" />
       </Field>
@@ -206,34 +293,10 @@ function PolicyDialog(props: { client: ClientInfo; onClose: () => void; onDone: 
           <input value={rpm} onChange={(e) => setRpm(e.target.value)} inputMode="numeric" />
         </Field>
       </div>
-      <p className="small muted">{t("clients.limitsNote")}</p>
+      <p className="small muted" style={{ margin: 0 }}>
+        {t("clients.limitsNote")}
+      </p>
       <ErrorText error={action.error} />
-      <div className="row">
-        <div className="spacer" />
-        <Button onClick={props.onClose}>{t("common.cancel")}</Button>
-        <Button
-          kind="primary"
-          disabled={action.busy}
-          onClick={() =>
-            void action.run(async () => {
-              await api.setClientPolicy(props.client.name, {
-                default_model: defaultModel.trim() || null,
-                allowed_models: allowed
-                  .split(/[\n,]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-                daily_token_limit: number(tokens, true),
-                daily_cost_limit_usd: number(cost, false),
-                requests_per_minute: number(rpm, true),
-              });
-              props.onDone();
-              props.onClose();
-            })
-          }
-        >
-          {t("common.save")}
-        </Button>
-      </div>
     </Modal>
   );
 }
