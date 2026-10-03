@@ -12,6 +12,9 @@ use serde_json::Value;
 pub enum FailureKind {
     /// 401 / 403: credentials rejected.
     Auth,
+    /// The upstream says the account or organization is disabled, banned, suspended or
+    /// deactivated: a terminal state that needs the user's attention.
+    AccountDisabled,
     /// 429 without quota semantics.
     RateLimited {
         retry_after: Option<Duration>,
@@ -42,6 +45,7 @@ impl FailureKind {
     pub fn code(self) -> &'static str {
         match self {
             Self::Auth => "upstream_auth",
+            Self::AccountDisabled => "account_disabled",
             Self::RateLimited { .. } => "rate_limit",
             Self::QuotaExhausted { .. } => "quota_exhausted",
             Self::Server => "upstream_error",
@@ -135,6 +139,25 @@ fn looks_like_quota(body_lower: &str) -> bool {
     .any(|needle| body_lower.contains(needle))
 }
 
+/// Whether an error text says the account itself is disabled, banned, suspended or
+/// deactivated (not merely a bad key). Expects lower-case input.
+pub fn looks_like_account_disabled(text_lower: &str) -> bool {
+    [
+        "deactivated",
+        "suspended",
+        "banned",
+        "account_disabled",
+        "account disabled",
+        "account is disabled",
+        "account has been disabled",
+        "organization has been disabled",
+        "organization is disabled",
+        "organization_disabled",
+    ]
+    .iter()
+    .any(|needle| text_lower.contains(needle))
+}
+
 fn retry_after(headers: &HeaderMap) -> Option<Duration> {
     if let Some(ms) = headers
         .get("retry-after-ms")
@@ -156,6 +179,7 @@ pub fn classify(status: u16, headers: &HeaderMap, body: &str) -> UpstreamFailure
     let message = error_message(body);
     let lower = body.to_ascii_lowercase();
     let kind = match status {
+        401 | 403 if looks_like_account_disabled(&lower) => FailureKind::AccountDisabled,
         401 => FailureKind::Auth,
         402 => FailureKind::QuotaExhausted { reset_after: None },
         403 if looks_like_quota(&lower) => FailureKind::QuotaExhausted { reset_after: None },
@@ -194,6 +218,24 @@ mod tests {
         let none = HeaderMap::new();
         assert_eq!(classify(401, &none, "").kind, FailureKind::Auth);
         assert_eq!(classify(403, &none, "{}").kind, FailureKind::Auth);
+        assert_eq!(
+            classify(
+                403,
+                &none,
+                r#"{"error":{"type":"permission_error","message":"This organization has been disabled."}}"#
+            )
+            .kind,
+            FailureKind::AccountDisabled
+        );
+        assert_eq!(
+            classify(401, &none, r#"{"error":{"code":"account_deactivated"}}"#).kind,
+            FailureKind::AccountDisabled
+        );
+        assert_eq!(
+            classify(429, &none, "your account was suspended").kind,
+            FailureKind::RateLimited { retry_after: None },
+            "only 401 / 403 can be terminal"
+        );
         assert_eq!(
             classify(
                 429,

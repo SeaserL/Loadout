@@ -519,6 +519,20 @@ const en = {
   "prices.mix.all": "your last 30 days on all models ({n} requests)",
   "prices.mix.default": "default mix (no history)",
   "prices.note": "USD per 1M tokens. Local estimate from prices you set or the provider catalog; unknown prices are never counted as free.",
+
+  // Demo: checks
+  "acc.check": "Check this account's key",
+  "acc.check.ok": "{name}: the key works ({n} models listed).",
+  "acc.check.okNoList": "{name}: the key works.",
+  "acc.check.cleared": "The auth failure was cleared; requests are routed to it again.",
+  "acc.check.invalid_key": "{name}: the key was rejected.",
+  "acc.check.account_disabled": "{name}: the account is disabled, suspended or banned.",
+  "acc.check.rate_limited": "{name}: rate limited right now.",
+  "acc.check.no_credit": "{name}: out of credit or quota.",
+  "acc.check.unreachable": "{name}: the provider could not be reached.",
+  "acc.check.unsupported": "{name}: this provider cannot be checked with a model list call.",
+  "acc.check.missing_key": "{name}: no API key is stored.",
+  "acc.check.error": "{name}: the provider returned an error.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1004,6 +1018,20 @@ const zh: Record<MessageKey, string> = {
   "prices.mix.all": "你近 30 天在全部模型上的用量（{n} 次请求）",
   "prices.mix.default": "默认构成（无历史）",
   "prices.note": "单位：美元 / 每 1M token。根据你填写的价格或服务商目录在本地估算；未知价格永远不按免费计算。",
+
+  // Demo: checks
+  "acc.check": "检测该账号的 key",
+  "acc.check.ok": "{name}：key 有效（列出 {n} 个模型）。",
+  "acc.check.okNoList": "{name}：key 有效。",
+  "acc.check.cleared": "已解除认证失败状态，请求会重新路由到该账号。",
+  "acc.check.invalid_key": "{name}：key 无效或已失效。",
+  "acc.check.account_disabled": "{name}：账号已被停用、暂停或封禁。",
+  "acc.check.rate_limited": "{name}：当前被限流。",
+  "acc.check.no_credit": "{name}：余额或额度不足。",
+  "acc.check.unreachable": "{name}：无法连接到服务商。",
+  "acc.check.unsupported": "{name}：该服务商不支持通过模型列表检测。",
+  "acc.check.missing_key": "{name}：没有保存 API key。",
+  "acc.check.error": "{name}：服务商返回了错误。",
 };
 
 /** Chinese descriptions of the daemon's settings (the daemon sends English). */

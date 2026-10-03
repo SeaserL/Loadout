@@ -112,7 +112,7 @@ v1 内置 Virtual Models：
 | `COOLDOWN` | 5xx / timeout，指数退避中 | 否，到期自动半开 |
 | `RATE_LIMITED` | 429，按 retry-after / reset 冷却 | 否，到期恢复 |
 | `QUOTA_EXHAUSTED` | 上游返回额度耗尽，或 Account 为 `QUOTA_EXHAUSTED` | 否，到 reset 恢复 |
-| `AUTH_FAILED` | 401 / 403，或 Account 为 `AUTH_REQUIRED` | 否，需重新认证 |
+| `AUTH_FAILED` | 401 / 403，或 Account 为 `AUTH_REQUIRED`。首次 401/403 封锁 1 小时后半开重试；连续第二次被拒，或上游表明账号被停用 / 封禁 / 暂停，进入**终态**（无自动恢复，`unavailable_until_ms` 为空），直到 `account.check` 成功、更换凭证、重新登录或用户重新启用账号（ExecPlan 014） | 否，需重新认证 |
 | `OFFLINE` | 连接失败 / DNS 失败 | 否，退避后探测 |
 | `DISABLED` | 用户停用 target 或其 Account | 否 |
 | `UNKNOWN` | 尚无数据 | 仅 `loadout/default` 与 exact model |

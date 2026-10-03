@@ -708,6 +708,75 @@ async fn quota_exhausted_exact_account_fails_over_within_provider() {
 }
 
 #[tokio::test]
+async fn disabled_or_repeatedly_rejected_accounts_become_terminal() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    let (mock_c, base_c) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Status(
+            403,
+            r#"{"error":{"type":"permission_error","message":"This organization has been disabled."}}"#
+                .into(),
+        ),
+    );
+    for _ in 0..2 {
+        mock_b.push(
+            "/v1/chat/completions",
+            Reply::Status(401, r#"{"error":{"message":"invalid x-api-key"}}"#.into()),
+        );
+    }
+    for _ in 0..3 {
+        mock_c.push(
+            "/v1/chat/completions",
+            Reply::Json(json!({"id": "x", "choices": []})),
+        );
+    }
+    let h = Harness::new(vec![
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+        spec("acme", "c", 2, "m", Protocol::Chat, &base_c),
+    ])
+    .await;
+    let send = || {
+        h.post(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "messages": []}),
+        )
+    };
+
+    // a: disabled at once; b: a first 401 retries after an hour.
+    assert_eq!(send().await.headers()["x-loadout-route"], "acme/c/m");
+    let a = h.health.get("acme-a-m:chat").expect("a");
+    let b = h.health.get("acme-b-m:chat").expect("b");
+    assert!(a.is_terminal());
+    assert_eq!(b.state(), HealthState::AuthFailed);
+    assert!(!b.is_terminal());
+
+    // The half-open retry of b is rejected again: terminal.
+    let later = loadout_router::now_ms() + 3_600_001;
+    assert!(b.is_available(later) && !a.is_available(later));
+    b.record_failure(
+        loadout_provider_sdk::FailureKind::Auth,
+        "invalid x-api-key",
+        later,
+    );
+    assert!(b.is_terminal());
+    let snap = b.snapshot();
+    assert_eq!((snap.terminal, snap.until_ms), (true, None));
+
+    // Neither is called again; c serves.
+    assert_eq!(send().await.headers()["x-loadout-route"], "acme/c/m");
+    assert_eq!(mock_a.seen().len(), 1);
+    assert_eq!(mock_b.seen().len(), 1);
+
+    // Until the user acts (new key, re-enabled account or a successful check reset it).
+    b.reset();
+    assert!(b.is_available(loadout_router::now_ms()));
+    assert!(a.is_terminal());
+}
+
+#[tokio::test]
 async fn bad_request_is_returned_without_failover() {
     let (mock_a, base_a) = start_mock().await;
     let (mock_b, base_b) = start_mock().await;

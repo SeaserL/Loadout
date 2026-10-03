@@ -512,6 +512,12 @@ impl Dispatcher {
                     .await?;
                 encode_result::<api::PriceCompare>(&groups)
             }
+            api::AccountCheck::NAME => {
+                let p = decode_params::<api::AccountCheck>(params)?;
+                let r = c.check_account(p.provider, p.alias, p.models).await?;
+                changed(s);
+                encode_result::<api::AccountCheck>(&r)
+            }
             other => Err(ErrorBody::new(
                 ErrorCode::MethodNotFound,
                 format!("unknown method {other}"),

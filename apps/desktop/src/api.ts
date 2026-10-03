@@ -218,6 +218,28 @@ export interface BenchResult {
   tier: string;
 }
 
+export interface ModelCheck {
+  name: string;
+  protocol: string;
+  ok: boolean;
+  ttft_ms: number | null;
+  duration_ms: number;
+  error: string | null;
+  stream: string | null;
+}
+
+export interface AccountCheckResult {
+  account: string;
+  /** ok | invalid_key | account_disabled | rate_limited | no_credit | unreachable | upstream_error | unsupported | missing_key */
+  status: string;
+  http_status: number | null;
+  message: string | null;
+  models_listed: number | null;
+  duration_ms: number;
+  cleared: boolean;
+  models: ModelCheck[];
+}
+
 export interface PoolInfo {
   name: string;
   ordering: "manual" | "latency";
@@ -383,6 +405,8 @@ export const api = {
 
   models: () => call<ModelInfo[]>("model.list", { provider: null, account: null }),
   syncModels: (provider: string, alias: string) => call<SyncResult>("model.sync", { provider, alias }),
+  checkAccount: (provider: string, alias: string, models = false) =>
+    call<AccountCheckResult>("account.check", { provider, alias, models }),
   addModel: (p: { provider: string; account: string; model: string; protocols: string[]; context_window: number | null }) =>
     call<ModelInfo>("model.add", p),
   setModelEnabled: (name: string, enabled: boolean) => call<ModelInfo>("model.set_enabled", { name, enabled }),
