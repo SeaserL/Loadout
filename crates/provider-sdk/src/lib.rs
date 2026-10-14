@@ -19,6 +19,7 @@ pub mod time;
 mod trust;
 mod url;
 pub mod usage;
+pub mod web;
 
 pub use capability::Capabilities;
 pub use catalog::CatalogModel;

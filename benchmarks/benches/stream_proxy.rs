@@ -142,6 +142,7 @@ async fn gateway(upstream: SocketAddr) -> (SocketAddr, String, CancellationToken
         capabilities: Capabilities::DEFAULT_MODEL,
         prices: Prices::default(),
         endpoint,
+        web: None,
         module,
         config: Arc::new(config),
     });

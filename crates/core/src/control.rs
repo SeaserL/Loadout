@@ -42,6 +42,8 @@ pub(crate) struct ControlPlane {
     pub policies: Arc<loadout_gateway::ClientPolicies>,
     /// OAuth sign-ins in progress and refresh state (ADR-012).
     pub(crate) oauth: crate::oauth::OAuthState,
+    /// Browser-session accounts (ADR-014).
+    pub(crate) web: Arc<crate::web_session::WebSessions>,
     version: AtomicU64,
     rebuild: tokio::sync::Mutex<()>,
 }
@@ -99,6 +101,7 @@ fn auth_name(a: AuthMethod) -> &'static str {
         AuthMethod::OptionalApiKey => "optional_api_key",
         AuthMethod::ExternalManaged => "external_managed",
         AuthMethod::OAuth => "oauth",
+        AuthMethod::BrowserLogin => "browser_login",
     }
 }
 
@@ -136,6 +139,7 @@ impl ControlPlane {
             last_probe: std::sync::Mutex::default(),
             policies: Arc::default(),
             oauth: crate::oauth::OAuthState::default(),
+            web: Arc::default(),
             version: AtomicU64::new(0),
             rebuild: tokio::sync::Mutex::new(()),
         }
@@ -145,16 +149,25 @@ impl ControlPlane {
     pub async fn rebuild_routes(&self) -> Result<Vec<String>, ErrorBody> {
         let _serial = self.rebuild.lock().await;
         let version = self.version.fetch_add(1, Ordering::AcqRel) + 1;
-        let (db, secrets, registry, health, latency) = (
+        let (db, secrets, registry, health, latency, web) = (
             self.db.clone(),
             self.secrets.clone(),
             self.registry.clone(),
             self.health.clone(),
             self.latency.clone(),
+            self.web.clone(),
         );
         let (table, report) = blocking(move || {
-            route_build::build(&db, secrets.as_ref(), &registry, &health, &latency, version)
-                .map_err(storage)
+            route_build::build(
+                &db,
+                secrets.as_ref(),
+                &registry,
+                &health,
+                &latency,
+                &web,
+                version,
+            )
+            .map_err(storage)
         })
         .await?;
         for w in &report.warnings {
@@ -490,6 +503,13 @@ impl ControlPlane {
                     d.display_name, provider.slug, alias_c
                 )));
             }
+            if d.auth == AuthMethod::BrowserLogin {
+                return Err(ErrorBody::invalid_params(format!(
+                    "{} accounts need the risk confirmation: `loadout account web add {} {}`, \
+                     or the desktop app",
+                    d.display_name, provider.slug, alias_c
+                )));
+            }
             if d.auth == AuthMethod::ApiKey && key.is_none() {
                 return Err(ErrorBody::invalid_params(format!(
                     "{} accounts need an API key",
@@ -681,18 +701,21 @@ impl ControlPlane {
         let removed = blocking(move || {
             let p = Self::load_provider(&db, &provider)?;
             let Some(a) = db.accounts().get(&p.id, &alias).map_err(storage)? else {
-                return Ok(false);
+                return Ok(None);
             };
             if let Some(refs) = db.accounts().delete(&a.id).map_err(storage)? {
                 delete_secrets(secrets.as_ref(), &refs);
             }
-            Ok(true)
+            Ok(Some(a.id))
         })
         .await?;
-        if removed {
-            self.rebuild_routes().await?;
-        }
-        Ok(removed)
+        let Some(account_id) = removed else {
+            return Ok(false);
+        };
+        self.rebuild_routes().await?;
+        // A browser-session account's profile holds its signed-in session (ADR-014 §4).
+        self.remove_web_profile(&account_id).await;
+        Ok(true)
     }
 
     // ---- models ---------------------------------------------------------------------------
@@ -731,25 +754,32 @@ impl ControlPlane {
             .ok_or_else(|| ErrorBody::internal("unknown provider kind"))?
             .clone();
         let config = provider_config(&provider_row);
-        let models = module
-            .list_models(DriverContext {
-                http: &self.http,
-                config: &config,
-                key: key.as_ref(),
-                home: Some(&self.home),
-            })
-            .await
-            .map_err(|e| match e {
-                ProviderError::NotSupported(_) => ErrorBody::invalid_params(format!(
-                    "{} cannot list models; add them with `loadout model add`",
-                    provider_row.slug
-                )),
-                ProviderError::Upstream(f) => ErrorBody::new(
-                    loadout_ipc::ErrorCode::Internal,
-                    format!("model list request failed: {f}"),
-                ),
-                other => provider_error(other),
-            })?;
+        let models = if let Some(site) = module.web_site() {
+            // Browser sessions list the models the page offered (ADR-014).
+            self.web
+                .seen_models(&account.id)
+                .unwrap_or_else(|| site.fallback_models())
+        } else {
+            module
+                .list_models(DriverContext {
+                    http: &self.http,
+                    config: &config,
+                    key: key.as_ref(),
+                    home: Some(&self.home),
+                })
+                .await
+                .map_err(|e| match e {
+                    ProviderError::NotSupported(_) => ErrorBody::invalid_params(format!(
+                        "{} cannot list models; add them with `loadout model add`",
+                        provider_row.slug
+                    )),
+                    ProviderError::Upstream(f) => ErrorBody::new(
+                        loadout_ipc::ErrorCode::Internal,
+                        format!("model list request failed: {f}"),
+                    ),
+                    other => provider_error(other),
+                })?
+        };
 
         let default_protocols = config
             .settings

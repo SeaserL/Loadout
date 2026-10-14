@@ -1,0 +1,30 @@
+[package]
+name = "loadout-browser"
+description = "Browser-session transport (ADR-014): Edge over CDP pipes, page operations, per-account sessions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+futures-util.workspace = true
+loadout-platform.workspace = true
+loadout-protocol.workspace = true
+loadout-provider-sdk.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+bytes.workspace = true
+loadout-providers.workspace = true
+loadout-router.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

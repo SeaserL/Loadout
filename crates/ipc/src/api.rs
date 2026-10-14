@@ -926,6 +926,98 @@ method!(
     Vec<PriceGroup>
 );
 
+// ---- browser sessions (ADR-014, ExecPlan 017) -----------------------------------------------
+
+/// Adds a browser-session account. `confirm` must equal the alias: the second step of the
+/// risk confirmation (the first is acknowledging the risks in the UI or CLI).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WebAddParams {
+    pub provider: String,
+    pub alias: String,
+    pub confirm: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WebBindParams {
+    pub provider: String,
+    pub alias: String,
+    /// A conversation URL of the site; `None` unbinds.
+    #[serde(default)]
+    pub conversation_url: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WebConfigParams {
+    pub provider: String,
+    pub alias: String,
+    /// `persistent` or `stateless`.
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub min_interval_secs: Option<u32>,
+    /// 0 = no cap.
+    #[serde(default)]
+    pub daily_soft_cap: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WebSessionStatus {
+    pub provider: String,
+    pub alias: String,
+    /// `stopped`, `starting`, `ready`, `busy`, `needs_attention` or `cooling`.
+    pub state: String,
+    pub running: bool,
+    /// What the user has to do in the browser window, when `needs_attention`.
+    pub attention: Option<String>,
+    /// Earliest next request (minimum interval or cooldown), unix ms.
+    pub next_allowed_ms: i64,
+    /// Requests today (UTC).
+    pub today_count: u32,
+    pub mode: String,
+    pub default_conversation: Option<String>,
+    /// `user` or `auto`.
+    pub bound_by: Option<String>,
+    pub min_interval_secs: u32,
+    pub daily_soft_cap: u32,
+    /// `web_session.enabled`.
+    pub enabled_globally: bool,
+    pub headless: bool,
+}
+
+method!(AccountWebAdd, "account.web_add", WebAddParams, AccountInfo);
+method!(
+    AccountWebStatus,
+    "account.web_status",
+    AccountRef,
+    WebSessionStatus
+);
+method!(
+    AccountWebShow,
+    "account.web_show",
+    AccountRef,
+    WebSessionStatus
+);
+method!(
+    AccountWebRecheck,
+    "account.web_recheck",
+    AccountRef,
+    WebSessionStatus
+);
+method!(
+    AccountWebBind,
+    "account.web_bind",
+    WebBindParams,
+    WebSessionStatus
+);
+method!(
+    AccountWebConfig,
+    "account.web_config",
+    WebConfigParams,
+    WebSessionStatus
+);
+
 // ---- notifications (demo, ExecPlan 012) --------------------------------------------------
 
 /// Event carrying a [`Notification`] for the tray app to show as a Windows toast.
@@ -935,7 +1027,8 @@ pub const NOTIFY_EVENT: &str = "notify";
 /// per de-duplication period.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Notification {
-    /// `quota_low`, `balance_low`, `auth_failed`, `login_expiring` or `client_cost_limit`.
+    /// `quota_low`, `balance_low`, `auth_failed`, `login_expiring`, `client_cost_limit` or
+    /// `web_session_attention`.
     pub kind: String,
     /// What the condition is about (`provider/account`, `provider/account/window`, client).
     pub key: String,

@@ -142,12 +142,13 @@ impl ControlPlane {
         Ok(changed)
     }
 
-    /// One target per account model, in table order.
+    /// One target per account model, in table order. Targets whose module forbids test
+    /// requests (browser sessions, ADR-014 §7) are left out.
     pub(crate) fn unique_models<'a>(
         targets: impl Iterator<Item = &'a Arc<RouteTarget>>,
     ) -> Vec<Arc<RouteTarget>> {
         let mut out: Vec<Arc<RouteTarget>> = Vec::new();
-        for t in targets {
+        for t in targets.filter(|t| t.module.active_probe()) {
             if !out
                 .iter()
                 .any(|o| account_model_key(&o.id) == account_model_key(&t.id))
@@ -243,7 +244,14 @@ impl ControlPlane {
                             .filter(|t| !only_first || t.account_id == first_account),
                     );
                 }
-                Self::unique_models(picked.into_iter())
+                let unique = Self::unique_models(picked.into_iter());
+                if unique.is_empty() {
+                    return Err(ErrorBody::invalid_params(
+                        "these routes are not measured with test requests (each one would cost \
+                         a message on the web page); their latency comes from real requests",
+                    ));
+                }
+                unique
             };
         let results = self.probe_all(targets).await;
         self.evaluate_latency(false).await?;

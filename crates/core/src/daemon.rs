@@ -104,6 +104,15 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from(".")),
     ));
+    // Browser sessions (ADR-014): profiles under the data directory, settings before the
+    // first route build.
+    control.web.set_root(&paths.root);
+    {
+        let (db, web) = (db.clone(), control.web.clone());
+        tokio::task::spawn_blocking(move || web.load_settings(&db))
+            .await
+            .map_err(|_| DaemonError::ServiceFailed("settings load"))?;
+    }
     control
         .rebuild_routes()
         .await
@@ -205,6 +214,16 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             crate::notify::run(control.clone(), events.clone(), token.clone())
         });
     }
+    {
+        let (control, events, token) = (control.clone(), ipc.events(), shutdown.clone());
+        spawn_restartable(
+            "web-sessions",
+            shutdown.clone(),
+            Backoff::default(),
+            move || crate::web_session::run(control.clone(), events.clone(), token.clone()),
+        );
+    }
+    let web = control.web.clone();
     let state = Arc::new(DaemonState {
         db: db.clone(),
         control,
@@ -248,6 +267,8 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     tracing::info!("loadoutd shutting down");
 
     let (gateway_result, ipc_result) = tokio::join!(gateway_task, ipc_task);
+    // Close browsers so they flush their profiles (the job ends any that remain).
+    web.stop_all().await;
     drop(plane);
     // Flush queued telemetry (bounded even if stray stream tasks still hold senders).
     let _ = tokio::task::spawn_blocking(move || telemetry_writer.shutdown()).await;

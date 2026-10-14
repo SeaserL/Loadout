@@ -58,6 +58,20 @@ impl Renderer {
         }
     }
 
+    /// Canonical events from a non-SSE upstream (browser sessions); converted only.
+    pub fn render_events(&mut self, canonical: &[CanonicalEvent]) -> Bytes {
+        match self {
+            Self::Passthrough { .. } => Bytes::new(),
+            Self::Converted { encoder } => {
+                let mut out = BytesMut::new();
+                for e in canonical {
+                    out.extend_from_slice(&encoder.encode(e));
+                }
+                out.freeze()
+            }
+        }
+    }
+
     /// Bytes to send after the upstream stream ended normally.
     pub fn finish(&mut self) -> Bytes {
         match self {

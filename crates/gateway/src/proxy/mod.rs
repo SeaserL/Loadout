@@ -11,6 +11,7 @@ mod decision;
 mod meter;
 mod render;
 pub(crate) mod session;
+mod web;
 
 use std::io;
 use std::pin::Pin;
@@ -302,6 +303,58 @@ pub(crate) async fn handle(
             },
             None => None,
         };
+        if target.web.is_some() {
+            // Browser session (ADR-014): canonical request in, canonical events out.
+            let decoded = canonical.get_or_insert_with(|| decode(ingress, &json));
+            let request = match decoded {
+                Ok(c) => c.clone(),
+                Err(e) => {
+                    skipped.push(format!("{}: {e}", target.exact_name()));
+                    trail.skipped(target, "cannot convert");
+                    continue;
+                }
+            };
+            let conversation = ConversationSeed::explicit(&client, &parts.headers, &json)
+                .map(|s| s.for_account(&target.account_id))
+                .and_then(|v| v.to_str().ok().map(str::to_owned));
+            attempts += 1;
+            let attempt = Attempt {
+                plane: &plane,
+                target,
+                ingress,
+                hints: &hints,
+                client_headers: &parts.headers,
+                conversation: None,
+                ctx: &ctx,
+                attempt_no: attempts,
+                trail: &trail,
+            };
+            match attempt.run_web(&request, conversation, permit).await {
+                Outcome::Committed(resp) => return resp,
+                Outcome::Skipped(why) => {
+                    attempts -= 1;
+                    skipped.push(why);
+                    trail.skipped(target, "web session unavailable");
+                }
+                Outcome::Failed(failure) => {
+                    trail.failed(target, &failure);
+                    tracing::info!(
+                        target = %target.exact_name(),
+                        kind = failure.kind.code(),
+                        "web session attempt failed"
+                    );
+                    target
+                        .health
+                        .record_failure(failure.kind, &failure.message, now_ms());
+                    let stop = !failure.kind.fails_over();
+                    last = Some((failure, target.clone()));
+                    if stop {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
         let mut body = if target.protocol == ingress {
             let mut body = json.clone();
             let inject =

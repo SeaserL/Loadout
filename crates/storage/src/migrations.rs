@@ -33,6 +33,8 @@ const MIGRATIONS: &[M<'static>] = &[
     )),
     M::up(include_str!("../migrations/0009_request_decision/up.sql"))
         .down(include_str!("../migrations/0009_request_decision/down.sql")),
+    M::up(include_str!("../migrations/0010_web_session/up.sql"))
+        .down(include_str!("../migrations/0010_web_session/down.sql")),
 ];
 
 /// Schema version after applying every migration.
@@ -162,18 +164,47 @@ mod tests {
         )
         .expect("insert");
 
-        // The decision migration is the last one: stepping down drops only the column.
-        m.to_version(&mut conn, LATEST_VERSION - 1).expect("down");
+        // Stepping down below the decision migration drops only the column.
+        m.to_version(&mut conn, 8).expect("down");
         assert!(!columns(&conn, "request_events").contains(&"decision".to_owned()));
         let kept: i64 = conn
             .query_row("SELECT COUNT(*) FROM request_events", [], |r| r.get(0))
             .expect("count");
         assert_eq!(kept, 1, "rows survive the down migration");
 
-        m.to_latest(&mut conn).expect("up again");
+        m.to_version(&mut conn, 9).expect("up again");
         let decision: Option<String> = conn
             .query_row("SELECT decision FROM request_events", [], |r| r.get(0))
             .expect("decision");
         assert_eq!(decision, None);
+    }
+
+    #[test]
+    fn web_session_column_round_trips_and_keeps_accounts() {
+        let mut conn = Connection::open_in_memory().expect("open");
+        let m = migrations();
+        m.to_version(&mut conn, 9).expect("up to 9");
+        conn.execute_batch(
+            "INSERT INTO providers (id, slug, kind, display_name, created_at, updated_at)
+                VALUES ('p', 'web-chatgpt', 'web-chatgpt', 'W', 1, 1);
+             INSERT INTO accounts (id, provider_id, alias, account_type, created_at, updated_at)
+                VALUES ('a', 'p', 'main', 'subscription', 1, 1);",
+        )
+        .expect("seed");
+        m.to_version(&mut conn, 10).expect("up to 10");
+        assert!(columns(&conn, "accounts").contains(&"web_session_json".to_owned()));
+        conn.execute(
+            "UPDATE accounts SET web_session_json = '{\"mode\":\"persistent\"}' WHERE id = 'a'",
+            [],
+        )
+        .expect("set");
+        m.to_version(&mut conn, 9).expect("down to 9");
+        assert!(!columns(&conn, "accounts").contains(&"web_session_json".to_owned()));
+        let alias: String = conn
+            .query_row("SELECT alias FROM accounts WHERE id = 'a'", [], |r| {
+                r.get(0)
+            })
+            .expect("account survives");
+        assert_eq!(alias, "main");
     }
 }

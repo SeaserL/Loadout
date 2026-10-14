@@ -14,6 +14,9 @@ pub enum AuthMethod {
     ExternalManaged,
     /// Loadout runs its own OAuth login and owns the tokens (ADR-012).
     OAuth,
+    /// The user signs in to the site in a Loadout-owned browser window; Loadout never sees
+    /// the password or the session cookies (ADR-014).
+    BrowserLogin,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

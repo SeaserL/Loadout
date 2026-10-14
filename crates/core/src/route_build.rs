@@ -15,6 +15,8 @@ use loadout_router::{
 };
 use loadout_secrets::{Secret, SecretRef, SecretStore};
 use loadout_storage::{Database, RoutableModel, StorageError};
+
+use crate::web_session::WebSessions;
 use serde_json::Value;
 
 /// Parses a `protocols_json` array; unknown names are ignored.
@@ -177,6 +179,7 @@ pub(crate) fn build(
     registry: &Registry,
     health: &HealthRegistry,
     latency: &LatencyBook,
+    web: &WebSessions,
     version: u64,
 ) -> Result<(RouteTable, BuildReport), StorageError> {
     let rows: Vec<RoutableModel> = db.routable_models()?;
@@ -185,6 +188,8 @@ pub(crate) fn build(
     let mut keys: HashMap<String, Option<Secret>> = HashMap::new();
     let mut targets = Vec::new();
     let mut ids: HashSet<TargetId> = HashSet::new();
+    let mut web_accounts: HashSet<String> = HashSet::new();
+    let mut web_warned: HashSet<String> = HashSet::new();
 
     for row in rows {
         let Some(module) = registry.get(&row.provider.kind) else {
@@ -239,6 +244,42 @@ pub(crate) fn build(
             if opted_in && !row.transport_opt_in {
                 continue;
             }
+            // Browser sessions (ADR-014): only while the feature is on.
+            let web_binding = if module.web_site().is_some() {
+                match web.binding(
+                    &row.account_id,
+                    &row.provider.slug,
+                    &row.account_alias,
+                    module,
+                    &config,
+                    row.web_session_json.as_deref(),
+                ) {
+                    Ok(Some(b)) => {
+                        web_accounts.insert(row.account_id.clone());
+                        Some(b)
+                    }
+                    Ok(None) => {
+                        if web_warned.insert(row.account_id.clone()) {
+                            report.warnings.push(format!(
+                                "{}/{}: browser sessions are off (web_session.enabled); its \
+                                 models are not routable",
+                                row.provider.slug, row.account_alias
+                            ));
+                        }
+                        continue;
+                    }
+                    Err(e) => {
+                        if web_warned.insert(row.account_id.clone()) {
+                            report
+                                .warnings
+                                .push(format!("{}/{}: {e}", row.provider.slug, row.account_alias));
+                        }
+                        continue;
+                    }
+                }
+            } else {
+                None
+            };
             let endpoint = match module.endpoint(&config, protocol, key) {
                 Ok(e) => e,
                 Err(e) => {
@@ -275,12 +316,14 @@ pub(crate) fn build(
                     cache_write: row.model.cache_write_price,
                 },
                 endpoint,
+                web: web_binding,
                 module: module.clone(),
                 config: config.clone(),
             }));
         }
     }
     health.retain(|id| ids.contains(id));
+    web.retain(&web_accounts);
     let models: HashSet<&str> = ids.iter().map(|id| account_model_key(id)).collect();
     latency.retain(|key| models.contains(key));
     report.targets = targets.len();

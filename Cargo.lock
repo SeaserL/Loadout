@@ -2579,11 +2579,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "loadout-browser"
+version = "0.3.0-demo.3"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "futures-util",
+ "loadout-platform",
+ "loadout-protocol",
+ "loadout-provider-sdk",
+ "loadout-providers",
+ "loadout-router",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "loadout-core"
 version = "0.3.0-demo.3"
 dependencies = [
  "axum",
  "futures-util",
+ "loadout-browser",
  "loadout-gateway",
  "loadout-ipc",
  "loadout-platform",
@@ -2668,6 +2689,7 @@ dependencies = [
 name = "loadout-platform"
 version = "0.3.0-demo.3"
 dependencies = [
+ "tempfile",
  "thiserror 2.0.21",
  "uuid",
  "windows-sys 0.61.2",

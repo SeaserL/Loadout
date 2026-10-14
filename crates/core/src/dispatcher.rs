@@ -271,6 +271,10 @@ impl Handler for Dispatcher {
                     // New tier thresholds apply right away.
                     s.control.evaluate_latency(true).await?;
                 }
+                if def.key.starts_with("web_session.") {
+                    s.control.apply_web_settings().await?;
+                    s.emit(events::ROUTES_CHANGED, Value::Null);
+                }
                 encode_result::<api::SettingsSet>(&setting)
             }
 
@@ -289,6 +293,10 @@ impl Handler for Dispatcher {
                 if def.key.starts_with("latency.") {
                     // New tier thresholds apply right away.
                     s.control.evaluate_latency(true).await?;
+                }
+                if def.key.starts_with("web_session.") {
+                    s.control.apply_web_settings().await?;
+                    s.emit(events::ROUTES_CHANGED, Value::Null);
                 }
                 encode_result::<api::SettingsReset>(&setting)
             }
@@ -340,6 +348,45 @@ impl Dispatcher {
                     changed(s);
                 }
                 encode_result::<api::AccountOAuthStatus>(&status)
+            }
+            api::AccountWebAdd::NAME => {
+                let p = decode_params::<api::AccountWebAdd>(params)?;
+                let info = c
+                    .web_add(p.provider, p.alias, p.confirm, p.display_name)
+                    .await?;
+                changed(s);
+                encode_result::<api::AccountWebAdd>(&info)
+            }
+            api::AccountWebStatus::NAME => {
+                let p = decode_params::<api::AccountWebStatus>(params)?;
+                encode_result::<api::AccountWebStatus>(&c.web_status(p.provider, p.alias).await?)
+            }
+            api::AccountWebShow::NAME => {
+                let p = decode_params::<api::AccountWebShow>(params)?;
+                encode_result::<api::AccountWebShow>(&c.web_show(p.provider, p.alias).await?)
+            }
+            api::AccountWebRecheck::NAME => {
+                let p = decode_params::<api::AccountWebRecheck>(params)?;
+                let status = c.web_recheck(p.provider, p.alias).await?;
+                encode_result::<api::AccountWebRecheck>(&status)
+            }
+            api::AccountWebBind::NAME => {
+                let p = decode_params::<api::AccountWebBind>(params)?;
+                let status = c.web_bind(p.provider, p.alias, p.conversation_url).await?;
+                encode_result::<api::AccountWebBind>(&status)
+            }
+            api::AccountWebConfig::NAME => {
+                let p = decode_params::<api::AccountWebConfig>(params)?;
+                let status = c
+                    .web_config(
+                        p.provider,
+                        p.alias,
+                        p.mode,
+                        p.min_interval_secs,
+                        p.daily_soft_cap,
+                    )
+                    .await?;
+                encode_result::<api::AccountWebConfig>(&status)
             }
             api::AccountSetTransport::NAME => {
                 let p = decode_params::<api::AccountSetTransport>(params)?;

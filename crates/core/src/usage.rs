@@ -688,6 +688,7 @@ mod tests {
             capabilities: Capabilities::DEFAULT_MODEL,
             prices: Prices::default(),
             endpoint: Endpoint::new("https://x.test".into()),
+            web: None,
             module: Arc::new(OpenAiCompatible),
             config: Arc::new(ProviderConfig {
                 slug: "p".into(),

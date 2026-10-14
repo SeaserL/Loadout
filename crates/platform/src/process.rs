@@ -109,7 +109,7 @@ fn create(program: &Path, args: &[&OsStr], flags: u32) -> Result<DetachedProcess
 
 /// Builds a NUL-terminated command line quoted per the MSVC CRT rules, so the child's
 /// `argv` matches `args` exactly (including spaces, quotes and trailing backslashes).
-fn command_line(program: &OsStr, args: &[&OsStr]) -> Vec<u16> {
+pub(crate) fn command_line(program: &OsStr, args: &[&OsStr]) -> Vec<u16> {
     let mut line = Vec::new();
     quote(&mut line, program);
     for arg in args {

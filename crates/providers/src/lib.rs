@@ -19,6 +19,7 @@ mod openai_compatible;
 mod opencode_go;
 mod openrouter;
 mod registry;
+mod web_chatgpt;
 
 pub use anthropic_compatible::AnthropicCompatible;
 pub use claude_code::ClaudeCode;
@@ -33,6 +34,7 @@ pub use openai_compatible::OpenAiCompatible;
 pub use opencode_go::OpenCodeGo;
 pub use openrouter::OpenRouter;
 pub use registry::Registry;
+pub use web_chatgpt::WebChatGpt;
 
 #[cfg(test)]
 pub(crate) mod testutil;

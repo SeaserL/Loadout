@@ -7,7 +7,7 @@ use loadout_provider_sdk::ProviderModule;
 
 use crate::{
     Anthropic, AnthropicCompatible, ClaudeCode, Codex, CodexSubscription, CommandCode, DeepSeek,
-    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter,
+    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter, WebChatGpt,
 };
 
 /// All compiled-in provider modules, keyed by `kind`.
@@ -49,6 +49,8 @@ impl Registry {
         r.register(Arc::new(GeminiCli));
         // Opt-in subscription transport (ADR-012).
         r.register(Arc::new(CodexSubscription::default()));
+        // Opt-in browser-session transport (ADR-014).
+        r.register(Arc::new(WebChatGpt));
         r
     }
 
@@ -93,14 +95,27 @@ mod tests {
             }
             for t in m.descriptor().transports {
                 // Lower-trust transports exist only behind a Loadout-managed, per-account
-                // opt-in login (ADR-012).
+                // opt-in login (ADR-012, ADR-014).
                 assert!(
                     t.trust.allowed_for_inference()
-                        || m.descriptor().auth == loadout_provider_sdk::AuthMethod::OAuth,
-                    "{} transport must be tier A or opt-in (ADR-009, ADR-012)",
+                        || matches!(
+                            m.descriptor().auth,
+                            loadout_provider_sdk::AuthMethod::OAuth
+                                | loadout_provider_sdk::AuthMethod::BrowserLogin
+                        ),
+                    "{} transport must be tier A or opt-in (ADR-009, ADR-012, ADR-014)",
                     m.descriptor().kind
                 );
             }
+        }
+        // Browser sessions only for web-session modules, and the reverse (ADR-014).
+        for m in r.modules() {
+            let web = m
+                .descriptor()
+                .transports
+                .iter()
+                .any(|t| t.trust == loadout_provider_sdk::TrustLevel::WebSession);
+            assert_eq!(web, m.web_site().is_some(), "{}", m.descriptor().kind);
         }
         for m in r.modules() {
             let d = m.descriptor();

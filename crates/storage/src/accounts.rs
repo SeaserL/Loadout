@@ -24,6 +24,8 @@ pub struct Account {
     /// Per-account quota reserve (JSON, e.g. `{"default":10,"weekly":20}`); `None` uses
     /// the global setting (ADR-003 §9).
     pub quota_reserve_json: Option<String>,
+    /// Browser-session settings (ADR-014); `None` for other accounts.
+    pub web_session_json: Option<String>,
 }
 
 #[derive(Debug)]
@@ -55,7 +57,7 @@ pub struct AccountRepo<'a> {
 
 const COLUMNS: &str = "id, provider_id, alias, display_name, account_type, enabled, position, \
                        subscription_plan, price_monthly_usd, renew_at, created_at, updated_at, \
-                       transport_opt_in_at, quota_reserve_json";
+                       transport_opt_in_at, quota_reserve_json, web_session_json";
 
 fn map_account(row: &Row<'_>) -> rusqlite::Result<Account> {
     Ok(Account {
@@ -73,6 +75,7 @@ fn map_account(row: &Row<'_>) -> rusqlite::Result<Account> {
         updated_at: row.get(11)?,
         transport_opt_in_at: row.get(12)?,
         quota_reserve_json: row.get(13)?,
+        web_session_json: row.get(14)?,
     })
 }
 
@@ -117,6 +120,7 @@ impl<'a> AccountRepo<'a> {
                 updated_at: now,
                 transport_opt_in_at: None,
                 quota_reserve_json: None,
+                web_session_json: None,
             };
             tx.execute(
                 "INSERT INTO accounts (id, provider_id, alias, display_name, account_type, enabled,
@@ -241,6 +245,16 @@ impl<'a> AccountRepo<'a> {
         self.db.with_conn(|c| {
             Ok(c.execute(
                 "UPDATE accounts SET quota_reserve_json = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, json, now_ms()],
+            )? > 0)
+        })
+    }
+
+    /// Stores (or clears, with `None`) the account's browser-session settings JSON.
+    pub fn set_web_session(&self, id: &str, json: Option<&str>) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE accounts SET web_session_json = ?2, updated_at = ?3 WHERE id = ?1",
                 params![id, json, now_ms()],
             )? > 0)
         })

@@ -155,6 +155,23 @@ pub trait ProviderModule: Send + Sync + 'static {
         None
     }
 
+    /// Site knowledge of a browser-session transport (ADR-014). Targets of such a module are
+    /// executed in a browser, never over HTTP.
+    fn web_site(&self) -> Option<&dyn crate::web::WebSite> {
+        None
+    }
+
+    /// Overrides the global first-token timeout for this module's targets.
+    fn first_token_timeout(&self) -> Option<std::time::Duration> {
+        None
+    }
+
+    /// Whether latency probes may send test requests to this module's targets (ExecPlan 004);
+    /// `false` when every request costs the user's quota on a web page (ADR-014 §7).
+    fn active_probe(&self) -> bool {
+        true
+    }
+
     // ---- auth driver ----
 
     /// Loadout-managed OAuth login (`AuthMethod::OAuth` modules).

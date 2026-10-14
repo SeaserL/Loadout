@@ -4,6 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use loadout_protocol::Protocol;
+use loadout_provider_sdk::web::WebBinding;
 use loadout_provider_sdk::{Capabilities, Endpoint, ProviderConfig, ProviderModule, TrustLevel};
 
 use crate::TargetHealth;
@@ -61,8 +62,11 @@ pub struct RouteTarget {
     pub max_output_tokens: Option<u32>,
     pub capabilities: Capabilities,
     pub prices: Prices,
-    /// Prebuilt URL and headers (credentials included, marked sensitive).
+    /// Prebuilt URL and headers (credentials included, marked sensitive). For browser-session
+    /// targets only the site origin.
     pub endpoint: Endpoint,
+    /// Browser-session execution (ADR-014); `None` for HTTP targets.
+    pub web: Option<Arc<WebBinding>>,
     pub module: Arc<dyn ProviderModule>,
     pub config: Arc<ProviderConfig>,
     pub health: Arc<TargetHealth>,

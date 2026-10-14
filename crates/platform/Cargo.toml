@@ -1,6 +1,6 @@
 [package]
 name = "loadout-platform"
-description = "Platform services: paths, single-instance lock, autostart, current user identity."
+description = "Platform services: paths, single-instance lock, autostart, current user identity, owned child processes."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,11 +16,14 @@ windows-sys = { workspace = true, features = [
     "Win32_Security",
     "Win32_Security_Authorization",
     "Win32_System_Console",
+    "Win32_System_JobObjects",
+    "Win32_System_Pipes",
     "Win32_System_Registry",
     "Win32_System_Threading",
 ] }
 
 [dev-dependencies]
+tempfile.workspace = true
 uuid.workspace = true
 
 [lints]

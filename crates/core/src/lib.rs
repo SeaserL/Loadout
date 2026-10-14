@@ -23,6 +23,7 @@ pub mod settings;
 mod sinks;
 pub mod supervisor;
 mod usage;
+mod web_session;
 
 pub use daemon::{DaemonOptions, run};
 pub use error::DaemonError;

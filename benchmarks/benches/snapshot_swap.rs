@@ -43,6 +43,7 @@ fn targets(reg: &HealthRegistry) -> Vec<Arc<RouteTarget>> {
                 capabilities: Capabilities::DEFAULT_MODEL,
                 prices: Prices::default(),
                 endpoint: Endpoint::new("https://x.test/v1/chat/completions".into()),
+                web: None,
                 module: module.clone(),
                 config: config.clone(),
             }));

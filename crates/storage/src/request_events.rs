@@ -17,7 +17,7 @@ pub struct RequestEvent {
     pub upstream_model: Option<String>,
     pub protocol_in: String,
     pub protocol_out: Option<String>,
-    /// `passthrough` or `converted`.
+    /// `passthrough`, `converted` or `web` (browser session, ADR-014).
     pub mode: Option<String>,
     pub stream: bool,
     /// `ok`, `error` or `client_closed`.
@@ -132,6 +132,24 @@ impl Database {
     }
 
     /// Deletes events older than `before_ms`; returns the number removed.
+    /// Requests routed to one account since `since_ms` (browser-session daily counts).
+    pub fn count_account_requests(
+        &self,
+        provider: &str,
+        account: &str,
+        since_ms: i64,
+    ) -> Result<u32, StorageError> {
+        self.with_conn(|c| {
+            let n: i64 = c.query_row(
+                "SELECT COUNT(*) FROM request_events
+                 WHERE ts >= ?3 AND provider = ?1 AND account = ?2",
+                params![provider, account, since_ms],
+                |r| r.get(0),
+            )?;
+            Ok(u32::try_from(n).unwrap_or(u32::MAX))
+        })
+    }
+
     pub fn prune_requests(&self, before_ms: i64) -> Result<usize, StorageError> {
         self.with_conn(|c| {
             Ok(c.execute(

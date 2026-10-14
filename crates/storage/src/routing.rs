@@ -19,6 +19,8 @@ pub struct RoutableModel {
     pub secret_ref: Option<String>,
     /// The user confirmed lower-trust transports for this account (ADR-012).
     pub transport_opt_in: bool,
+    /// Browser-session settings of the account (ADR-014).
+    pub web_session_json: Option<String>,
 }
 
 impl Database {
@@ -36,6 +38,7 @@ impl Database {
                                  OR (credential_type = 'oauth' AND scope = 'access'))
                           ORDER BY created_at DESC LIMIT 1),
                         a.transport_opt_in_at IS NOT NULL,
+                        a.web_session_json,
                         {}
                  FROM account_models m
                  JOIN accounts a ON a.id = m.account_id
@@ -57,7 +60,8 @@ impl Database {
                     account_type: r.get(11)?,
                     secret_ref: r.get(12)?,
                     transport_opt_in: r.get(13)?,
-                    model: map_account_model(r, 14)?,
+                    web_session_json: r.get(14)?,
+                    model: map_account_model(r, 15)?,
                 })
             })?;
             Ok(rows.collect::<Result<_, _>>()?)

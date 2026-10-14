@@ -41,6 +41,8 @@ pub const PROBE_MAX_PRICE: &str = "benchmark.max_probe_output_price";
 pub const NOTIFY_ENABLED: &str = "notify.enabled";
 pub const NOTIFY_QUOTA_PERCENT: &str = "notify.quota_percent";
 pub const NOTIFY_BALANCE_USD: &str = "notify.balance_usd";
+pub const WEB_SESSION_ENABLED: &str = "web_session.enabled";
+pub const WEB_SESSION_HEADLESS: &str = "web_session.headless";
 
 pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
@@ -137,6 +139,20 @@ pub const SETTINGS: &[SettingDef] = &[
         description: "Notify when a USD account balance falls below this amount (0 disables)",
         restart_required: false,
         validate: validate_price,
+    },
+    SettingDef {
+        key: WEB_SESSION_ENABLED,
+        default: "false",
+        description: "Allow browser-session accounts (ChatGPT web page, ADR-014). They drive the                       site's own page in a dedicated Edge window; the site's terms may forbid                       automated use and the account may be restricted. Read                       docs/providers/web-chatgpt.md first",
+        restart_required: false,
+        validate: validate_bool,
+    },
+    SettingDef {
+        key: WEB_SESSION_HEADLESS,
+        default: "false",
+        description: "Run browser sessions without a window. Sites detect this easily; the                       default visible window is recommended (ADR-014 §2)",
+        restart_required: false,
+        validate: validate_bool,
     },
 ];
 

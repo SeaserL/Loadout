@@ -308,6 +308,7 @@ fn build_target(reg: &HealthRegistry, s: &TargetSpec) -> Arc<RouteTarget> {
             cache_write: None,
         },
         endpoint,
+        web: None,
         module,
         config: Arc::new(config),
     })

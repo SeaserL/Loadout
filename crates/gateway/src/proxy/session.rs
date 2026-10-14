@@ -55,6 +55,19 @@ impl ConversationSeed {
         Self(h.finalize().into())
     }
 
+    /// Only an id the client gave explicitly (a session header or `prompt_cache_key`); no
+    /// fallback to the conversation opening (ADR-014 §5: a browser session continues its
+    /// default conversation instead).
+    pub fn explicit(client: &str, headers: &HeaderMap, body: &Value) -> Option<Self> {
+        let has_key = client_session(headers).is_some()
+            || body
+                .get("prompt_cache_key")
+                .and_then(Value::as_str)
+                .is_some_and(|k| !k.trim().is_empty());
+        // The opening is never hashed here, so the ingress protocol does not matter.
+        has_key.then(|| Self::new(Protocol::Chat, client, headers, body))
+    }
+
     /// The id sent to one account: a UUID (version 8) string.
     pub fn for_account(&self, account_id: &str) -> HeaderValue {
         let digest: [u8; 32] = Sha256::new()
@@ -274,6 +287,22 @@ mod tests {
             id(Protocol::Chat, "c", &blank, &a),
             id(Protocol::Chat, "c", &none(), &a)
         );
+    }
+
+    #[test]
+    fn explicit_ids_need_a_header_or_cache_key() {
+        let body = json!({"messages": [{"role": "user", "content": "one"}]});
+        assert!(ConversationSeed::explicit("c", &none(), &body).is_none());
+        let keyed =
+            json!({"messages": [{"role": "user", "content": "one"}], "prompt_cache_key": "k"});
+        let a = ConversationSeed::explicit("c", &none(), &keyed).expect("cache key");
+        assert_eq!(
+            a.for_account("x"),
+            ConversationSeed::new(Protocol::Messages, "c", &none(), &keyed).for_account("x")
+        );
+        let mut h = HeaderMap::new();
+        h.insert("x-loadout-session-id", HeaderValue::from_static("s1"));
+        assert!(ConversationSeed::explicit("c", &h, &body).is_some());
     }
 
     #[test]

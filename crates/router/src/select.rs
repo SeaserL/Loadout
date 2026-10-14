@@ -99,6 +99,13 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
                 Some("model does not support tools")
             } else if !t.health.is_available(req.now_ms) {
                 Some("unavailable (circuit breaker)")
+            } else if let Some(web) = &t.web {
+                // Browser sessions (ADR-014): text in, text out, one answer at a time.
+                if req.hints.has_tools || req.hints.has_images {
+                    Some("web session: text only")
+                } else {
+                    web.gate.unavailable_reason(req.now_ms)
+                }
             } else {
                 None
             };
@@ -186,6 +193,7 @@ mod tests {
             capabilities: Capabilities::DEFAULT_MODEL,
             prices: Prices::default(),
             endpoint: Endpoint::new("https://x.test".into()),
+            web: None,
             module: Arc::new(Dummy),
             config: Arc::new(ProviderConfig {
                 slug: provider.into(),

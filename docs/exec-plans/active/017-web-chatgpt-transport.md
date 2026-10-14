@@ -1,6 +1,6 @@
 # ExecPlan 017: Web Session Transport — `web-chatgpt`（opt-in）
 
-- **Status**: Active（未开始实施）
+- **Status**: Active（实施中）
 - **Created**: 2026-10-15
 - **Decision**: [ADR-014](../../adr/ADR-014-browser-session-transport.md)（修订 ADR-009 §1–2、ADR-007 §2、ADR-004 §1）
 - **Related**: [ADR-012](../../adr/ADR-012-subscription-transport-opt-in.md)（两步 opt-in）、[ADR-013](../../adr/ADR-013-upstream-conversation-session.md)（对话 ID 来源）、[ExecPlan 010](010-codex-subscription-transport.md)（opt-in / AccountSlots 的现有实现）
@@ -336,7 +336,30 @@ client ─HTTP─▶ gateway ─select (atomic gate check)─▶ RouteTarget
 | D11 | 每账号配置存 `accounts.web_session_json`（Migration 0010），不新增 credentials 行 | 避免为 CHECK 约束重建表；profile 不是 Credential Manager secret |
 | D12 | 只输出 assistant 回复正文；思考过程与搜索 / 工具中间消息首版不输出 | 它们不是回答本身；回答正文原样返回 |
 | D13 | 默认集成测试用 headless Edge 驱动 mock 页；可见窗口测试单独 opt-in | 避免测试在开发者桌面弹窗；mock 页没有反爬问题 |
+| D14 | 不把 `RouteTarget.endpoint` 改成 `Upstream` 枚举，而是新增 `web: Option<Arc<WebBinding>>`（gate + `SessionUpstream`）；也不新增 `TransportKind`，以 `ProviderModule::web_site().is_some()` 判断 | 改动面小（HTTP 路径一行不变），仍是 capability-first（ADR-005）；`endpoint` 对网页目标只记录站点 origin |
+| D15 | `SessionGate`、`SessionUpstream`、`WebSite`、`PageOps` 都放在 provider-sdk 的 `web` 模块 | browser crate 只依赖 provider-sdk，不依赖 router |
+| D16 | 每日软上限按 **UTC 日** 计数 | std 没有本地时区；为此引入时区依赖不值得。文档说明 |
+| D17 | 持续对话模式下，**新开**对话时输入完整历史（展平），已有对话只输入最新一条 user 消息 | daemon 重启后显式 ID 映射丢失时不丢上下文 |
+| D18 | `max_output_tokens` 接受但不执行（Messages 入口必带）；`temperature`、`top_p`、`stop`、tools、`reasoning`、`response_format` 拒绝（跳过该目标） | ExecPlan §5.3；否则 Messages 入口完全不可用 |
+| D19 | 模型通过 URL 参数 `?model=<slug>` 选择（新对话与已有对话都用），`auto` 不带参数；slug 只允许 `[A-Za-z0-9._-]` | 不操作模型选择器的 DOM，更稳；实际回答的模型从答案流读取并写入 debug 日志 |
 
 ## 15. Progress
 
-（尚未开始）
+- [x] 2026-10-15 Stage 0（离线部分）：在仓库外的 spike 中用 Edge 155.0.4283.45 + 本地 mock 页验证：
+  - `--remote-debugging-pipe --remote-debugging-io-pipes=<r>,<w>` 在 Windows 上可用（只继承这两个句柄）；
+  - `navigator.webdriver` 为 `true`（远程调试时浏览器自己设置，Loadout 不修改，D9）；headless 时 UA 含 `HeadlessChrome`，即 headless 会如实暴露自身；
+  - `Input.insertText` 一次插入 50 KB（含换行）完整无误；
+  - `Network.streamResourceContent` 返回已缓冲数据，之后的 `Network.dataReceived` 携带增量 `data`；
+  - 必须在提交前订阅网络事件（spike 第一次就因事后订阅漏掉了请求事件）；
+  - 结束 Edge 主进程不会结束其子进程（观察到残留的 renderer），证实需要 Job（D3）。
+  - **需要登录的部分**（真实 ChatGPT 的页面结构、反爬表现、流格式、最小化节流）留给所有者 live test（Stage 8）。
+- [x] 2026-10-15 Stage 1 platform：`OwnedJob`、`spawn_owned`（handle list + suspended + 入 Job）、`restrict_dir_to_current_user`（受保护 DACL：当前用户 + SYSTEM）、`dacl_sddl`、`app_path`；测试覆盖只继承两个句柄、关闭 Job 结束进程、ACL 内容。
+- [x] 2026-10-15 Stage 2 `loadout-browser`：CDP 客户端（NUL 分帧、方法白名单、订阅）、Edge 检测、启动参数（禁止列表 + 测试）、`Page`（PageOps、导航、截获）、`WebAccount`（启动、检查、显示窗口、请求执行、对话映射、取消时点击停止、冷却与 NeedsAttention）。
+- [x] 2026-10-15 Stage 3 provider-sdk `web` 模块 + `web-chatgpt` 模块（URL、页面状态、提交、答案流解析 delta v1 / 旧版累积格式、错误分类、模型列表）；单元测试 + 合成样本。
+- [x] 2026-10-15 Stage 4（部分）storage：Migration 0010 + 往返测试；`RoutableModel.web_session_json`；`count_account_requests`。core：`web_session.rs`（注册表、后台监管任务、`account.web_*` 操作、事件持久化、通知）、route_build 绑定、模型同步、删除账号删 profile、测速跳过、设置项 `web_session.enabled|headless`、daemon 启停。
+- [x] 2026-10-15 Stage 5（部分）router：选路时读 gate；gateway：`proxy/web.rs`（预提交可 failover、提交后流式、非流式聚合、显式对话 ID）。
+- [x] 2026-10-15 集成测试（真实 headless Edge + mock 页，`crates/browser/tests/web_session.rs`，约 4 s）：持续对话、显式 key、`?model=`、无状态临时对话、参数拒绝、额度冷却、客户端断开时停止、登出与验证页 → NeedsAttention、关闭 Job 结束浏览器。
+- [ ] Stage 4/5 余下：daemon e2e（三个入口经 Gateway）、benchmark
+- [ ] Stage 6 CLI
+- [ ] Stage 7 桌面端
+- [ ] Stage 8 文档；所有者 live test
