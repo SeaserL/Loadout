@@ -1,6 +1,6 @@
 # ADR-013: Upstream Conversation Session Header
 
-- **Status**: Proposed
+- **Status**: Accepted（2026-10-15，项目所有者确认）
 - **Date**: 2026-10-15
 - **Amends**: ADR-005（Provider 扩展点）
 
