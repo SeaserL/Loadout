@@ -18,6 +18,7 @@ mod setup_cmd;
 mod status_cmd;
 mod statusline_cmd;
 mod usage_cmd;
+mod web_cmd;
 
 use std::path::PathBuf;
 use std::process::ExitCode;

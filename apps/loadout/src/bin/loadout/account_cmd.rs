@@ -8,6 +8,7 @@ use loadout_ipc::api::{
     AccountRef, AccountTransportParams, ApiKey, OAuthStartParams, OAuthStatusParams, SyncResult,
 };
 
+use crate::web_cmd::{self, WebCommand};
 use crate::{Ctx, Failure, output};
 
 #[derive(Debug, Args)]
@@ -110,6 +111,9 @@ pub enum AccountCommand {
         #[arg(long, conflicts_with_all = ["default", "windows"])]
         clear: bool,
     },
+    /// Browser-session accounts (e.g. the ChatGPT web page, ADR-014).
+    #[command(subcommand)]
+    Web(WebCommand),
 }
 
 fn check_summary(status: &str) -> &'static str {
@@ -253,7 +257,7 @@ WARNING — subscription transport (ADR-012)
     requests, and keeps it out of loadout/default — but cannot make this safe.
   Details: docs/providers/codex-subscription.md";
 
-fn ask(prompt: &str) -> Result<String, Failure> {
+pub(crate) fn ask(prompt: &str) -> Result<String, Failure> {
     use std::io::Write;
     print!("{prompt}");
     std::io::stdout()
@@ -383,6 +387,7 @@ fn print_accounts(list: &[AccountInfo]) {
 pub async fn run(ctx: &Ctx, cmd: AccountCommand) -> Result<(), Failure> {
     // Read secrets before connecting so a slow prompt does not hold a pipe instance.
     match cmd {
+        AccountCommand::Web(cmd) => web_cmd::run(ctx, cmd).await,
         AccountCommand::Add {
             provider,
             alias,
@@ -544,7 +549,27 @@ pub async fn run(ctx: &Ctx, cmd: AccountCommand) -> Result<(), Failure> {
         } => {
             let enabled = state == "on";
             let confirm = if enabled {
-                Some(confirm_transport(&alias, i_understand_the_risk, confirm)?)
+                // Browser-session accounts carry their own risk notice (ADR-014 §8).
+                let web = {
+                    let mut ipc = ctx.connect().await?;
+                    let kind = ipc
+                        .call::<api::ProviderList>(&())
+                        .await?
+                        .into_iter()
+                        .find(|p| p.slug == provider)
+                        .map(|p| p.kind);
+                    let kinds = ipc.call::<api::ProviderKinds>(&()).await?;
+                    kind.is_some_and(|k| {
+                        kinds
+                            .iter()
+                            .any(|d| d.kind == k && d.auth == "browser_login")
+                    })
+                };
+                Some(if web {
+                    web_cmd::confirm_web(&alias, i_understand_the_risk, confirm)?
+                } else {
+                    confirm_transport(&alias, i_understand_the_risk, confirm)?
+                })
             } else {
                 None
             };

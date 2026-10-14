@@ -2540,7 +2540,9 @@ version = "0.3.0-demo.3"
 dependencies = [
  "anyhow",
  "axum",
+ "bytes",
  "clap",
+ "futures-util",
  "loadout-core",
  "loadout-ipc",
  "loadout-platform",

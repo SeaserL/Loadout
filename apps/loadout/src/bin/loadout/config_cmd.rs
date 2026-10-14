@@ -53,6 +53,9 @@ pub async fn run(ctx: &Ctx, cmd: ConfigCommand) -> Result<(), Failure> {
             }
         }
         ConfigCommand::Set { key, value } => {
+            if key == "web_session.enabled" && value.trim().eq_ignore_ascii_case("true") {
+                eprintln!("{}\n", crate::web_cmd::RISK_NOTICE);
+            }
             let setting = ipc
                 .call::<api::SettingsSet>(&SettingSetParams { key, value })
                 .await?;
