@@ -184,8 +184,8 @@ impl WebSessions {
         self.headless.load(Ordering::Acquire)
     }
 
-    /// Loads `web_session.*` settings.
-    pub(crate) fn load_settings(&self, db: &Database) {
+    /// Loads `web_session.*` settings; `true` when the headless mode changed.
+    pub(crate) fn load_settings(&self, db: &Database) -> bool {
         let get = |key: &str| {
             settings::value(db, key)
                 .ok()
@@ -195,10 +195,15 @@ impl WebSessions {
         self.enabled
             .store(get(settings::WEB_SESSION_ENABLED), Ordering::Release);
         let headless = get(settings::WEB_SESSION_HEADLESS);
-        if self.headless.swap(headless, Ordering::AcqRel) != headless {
-            // Running browsers keep their mode until restarted.
-            lock(&self.launcher).take();
-        }
+        self.headless.swap(headless, Ordering::AcqRel) != headless
+    }
+
+    /// Closes every browser gracefully, then replaces the launcher (and its job) so the
+    /// supervisor restarts them in the new mode. Dropping the launcher first would end the
+    /// browsers through the job without letting them flush their profiles.
+    async fn restart_all(&self) {
+        self.stop_all().await;
+        lock(&self.launcher).take();
     }
 
     pub(crate) fn profile_dir(&self, account_id: &str) -> Option<PathBuf> {
@@ -401,11 +406,10 @@ impl ControlPlane {
     /// Reloads `web_session.*` settings and applies them.
     pub(crate) async fn apply_web_settings(&self) -> Result<(), ErrorBody> {
         let (db, web) = (self.db.clone(), self.web.clone());
-        blocking(move || {
-            web.load_settings(&db);
-            Ok(())
-        })
-        .await?;
+        let headless_changed = blocking(move || Ok(web.load_settings(&db))).await?;
+        if headless_changed {
+            self.web.restart_all().await;
+        }
         tracing::warn!(
             enabled = self.web.enabled(),
             headless = self.web.headless(),

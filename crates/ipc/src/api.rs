@@ -211,7 +211,7 @@ pub struct ProviderKind {
     pub display_name: String,
     pub fixed_slug: Option<String>,
     pub default_base_url: Option<String>,
-    /// `api_key`, `optional_api_key` or `external_managed`.
+    /// `api_key`, `optional_api_key`, `external_managed`, `oauth` or `browser_login`.
     pub auth: String,
     pub protocols: Vec<String>,
     pub drivers: Vec<String>,

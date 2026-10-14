@@ -312,11 +312,11 @@ client ─HTTP─▶ gateway ─select (atomic gate check)─▶ RouteTarget
 
 ## 13. Definition of done
 
-- [ ] Stage 0 门槛通过，`docs/providers/web-chatgpt.md` 含条款摘要、反爬观察（可见 / headless）、临时对话、流格式、Transport 状态、最后验证日期
-- [ ] §5 全部实现，测试覆盖 §8
-- [ ] fmt / clippy / 全部测试通过；benchmark 无回退（§11，结果写入 Progress）
-- [ ] `python scripts\third_party_licenses.py --check` 通过；如有移植代码，THIRD_PARTY_NOTICES 已记录
-- [ ] 文档完成；本文件移入 `completed/`
+- [ ] Stage 0 门槛通过，`docs/providers/web-chatgpt.md` 含条款摘要、反爬观察（可见 / headless）、临时对话、流格式、Transport 状态、最后验证日期 —— 离线部分已完成；依赖已登录账号的观察留在 live test
+- [x] §5 全部实现，测试覆盖 §8（未做：可见窗口的最小化节流测试 `LOADOUT_BROWSER_VISIBLE_TESTS=1`，按约定不在用户桌面上弹窗，并入 live test）
+- [x] fmt / clippy / 全部测试通过（2026-10-15：45 个测试二进制、357 个测试）；benchmark 无可测回退（§11）
+- [x] `python scripts\third_party_licenses.py --check` 通过（347 个包、0 违规）；没有移植代码，THIRD_PARTY_NOTICES 无需新增
+- [ ] 文档完成；本文件移入 `completed/` —— 文档已完成，live test 后再移动
 - [ ] 项目所有者完成 live test，结果记入 Progress
 
 ## 14. Decisions
@@ -359,7 +359,30 @@ client ─HTTP─▶ gateway ─select (atomic gate check)─▶ RouteTarget
 - [x] 2026-10-15 Stage 4（部分）storage：Migration 0010 + 往返测试；`RoutableModel.web_session_json`；`count_account_requests`。core：`web_session.rs`（注册表、后台监管任务、`account.web_*` 操作、事件持久化、通知）、route_build 绑定、模型同步、删除账号删 profile、测速跳过、设置项 `web_session.enabled|headless`、daemon 启停。
 - [x] 2026-10-15 Stage 5（部分）router：选路时读 gate；gateway：`proxy/web.rs`（预提交可 failover、提交后流式、非流式聚合、显式对话 ID）。
 - [x] 2026-10-15 集成测试（真实 headless Edge + mock 页，`crates/browser/tests/web_session.rs`，约 4 s）：持续对话、显式 key、`?model=`、无状态临时对话、参数拒绝、额度冷却、客户端断开时停止、登出与验证页 → NeedsAttention、关闭 Job 结束浏览器。
-- [ ] Stage 4/5 余下：daemon e2e（三个入口经 Gateway）、benchmark
-- [ ] Stage 6 CLI
-- [ ] Stage 7 桌面端
-- [ ] Stage 8 文档；所有者 live test
+- [x] 2026-10-15 daemon e2e（`apps/loadout/tests/web_session_e2e.rs`，真实 daemon + headless Edge + mock 页，约 13 s）：功能未开启时拒绝添加；别名确认不符时拒绝；就绪与模型列表；不测速、不进虚拟模型；Chat 非流式、Messages、Responses 流式三个入口返回内容与页面流逐字一致且接在同一对话；`temperature` 被拒且未输入页面；状态中的默认对话（auto）与今日计数；删除账号删除 profile。测试后无残留 Edge 进程。
+- [x] 2026-10-15 Stage 6 CLI：`loadout account web add|status|show|recheck|bind|config`；`account transport … on` 对网页账号显示网页会话风险说明（按 provider kind 的 `auth == browser_login` 判断，不按 slug）；`config set web_session.enabled true` 打印风险说明。
+- [x] 2026-10-15 Stage 7 桌面端：账号页"ChatGPT 网页会话"入口与添加对话框（风险列表 → 勾选 → 输入别名，必要时同时开启 `web_session.enabled`）；网页账号卡片显示 D 级标识、实时状态、需要处理的原因、今日次数、默认对话，提供"打开窗口""我已处理""会话设置"（模式、间隔、上限、默认对话）；网页账号隐藏测速 / 检测 / 密钥按钮；开启转发对话框显示网页会话风险；设置页开启 `web_session.enabled` 前弹出风险确认；IPC 白名单新增 6 个方法。验证：`npm run build`（含 tsc）；在内置浏览器中用模拟 IPC 预览（未在桌面上做 GUI 自动化）账号页、"我已处理"状态切换、开启转发对话框、添加对话框、会话设置对话框。
+- [x] 2026-10-15 Stage 8 文档：`docs/providers/web-chatgpt.md`（条款、原则、用法、对话映射、降级、技术说明、待 live test 确认的项目）、providers 索引、README、AGENTS（命令与平台注意事项）、system-test-plan（网页会话 live test 清单）。
+- [x] 2026-10-15 复查后补充：答案流开始后 10 分钟没有新数据时报错并停止页面生成（防止一直占用会话）；答案流里的限额消息同样触发冷却。
+- [x] 2026-10-15 benchmark（§11）：基线是改动前提交 `d657f54` 在独立 worktree 中用 `--save-baseline before017` 跑的结果，改动后在同一个 target 目录用 `--baseline-lenient before017` 对比（结果见下表）。
+
+### Benchmarks（Harness §20）
+
+本机，均值。机器在测试期间同时有其他负载：`route_selection/provider_model_100_targets` 第一次对比为 −9.9%，同一份代码第二次对比为 +14.9%，以下数字的波动在 ±15% 左右。
+
+| Benchmark | 改动后 | criterion 判定（第二次） |
+|---|---|---|
+| `route_selection/provider_model_100_targets` | 649 ns | +14.9%（第一次 −9.9%，噪声） |
+| `route_selection/virtual_100_targets_with_session` | 6.76 µs | −13.9% |
+| `route_selection/exact_100_targets` | 227 ns | −3.7% |
+| `route_selection/provider_model_100_web_gates`（新增） | 691 ns | — 100 个目标全部带 gate，比无 gate 多约 40 ns |
+| `snapshot_swap/build_100_targets_3_virtuals` | 39.0 µs | −5.8% |
+| `snapshot_swap/load` / `load_during_swaps` | 6.4 / 6.5 ns | −4.0% / −5.3% |
+| `stream_proxy/passthrough_200_events` | 169 µs | −6.0% |
+| `stream_proxy/convert_chat_to_messages_200_events` | 417 µs | −8.6% |
+| `ttft/direct_upstream` | 92.0 µs | 无变化 |
+| `ttft/via_gateway_passthrough` | 602 µs | +3.4% |
+| `ttft/via_gateway_converted_messages` | 622 µs | +4.4% |
+
+结论：HTTP 目标只多了一次 `Option` 判空，没有可测回退（ttft 的 +3–4% 与 ExecPlan 016 观察到的本机波动同量级，且同一轮中其他 gateway 项为负）。gate 读取是几次原子 load，100 个目标约 40 ns。Loadout 自身在浏览器路径上的开销（选路到首个 `TextDelta`）没有单独计时；集成测试中 mock 页的整个往返在数百毫秒量级，主要是页面与 Edge 的时间。
+- [ ] 所有者 live test（Stage 8；清单见 system-test-plan"ChatGPT 网页会话"一节）

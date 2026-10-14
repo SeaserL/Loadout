@@ -152,6 +152,7 @@ loadout route status | loadout logs               路由健康、Tier、延迟 /
 loadout route list                                loadout/realtime|fast|default 与 Pool 的路由顺序
 loadout bench [name…]                             立即测速（默认：所有未测量的路由）
 loadout pool set <name> <models…> [--ordering latency]
+loadout account web add|status|show|bind|config …  ChatGPT 网页会话（ADR-014；需先开启 web_session.enabled）
 loadout-app                                       桌面管理界面（托盘常驻；未运行 daemon 时自动拉起）
 loadout daemon stop
 loadoutd --foreground                             前台运行，日志输出到终端
@@ -176,3 +177,5 @@ loadoutd --foreground                             前台运行，日志输出到
 - 用 PowerShell 批量替换文本时使用单引号 here-string（`@' '@`）；双引号版本会吞掉反引号。
 - 启动后台进程必须用 `loadout_platform::spawn_detached`，不要用 `std::process::Command`（会泄漏调用方句柄，见 ExecPlan 001 Stage 7）。
 - Credential Manager 调用必须串行（见 ADR-004）。
+- 网页会话的浏览器只能用 `loadout_platform::spawn_owned` 启动（放进 daemon 持有的 Job，只继承两个管道句柄），CDP 只经管道、只调用 `loadout-browser` 白名单里的方法（ADR-014、ExecPlan 017）。
+- 网页会话测试用 headless Edge 驱动本地 mock 页（`crates/browser/tests/support/mock_chatgpt.rs`），临时 profile、测试自己的 Job；在 Bash 沙箱里 Edge 无法启动，需在 PowerShell 中运行。

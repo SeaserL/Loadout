@@ -116,3 +116,25 @@
 - [ ] 官方 Codex CLI 自身的登录不受影响（两份登录互相独立）。
 - [ ] 桌面端：账号页的"ChatGPT 订阅"卡片 → 获取登录代码，自动打开浏览器登录页；批准后对话框显示"已登录"。
 - [ ] 桌面端：codex-sub 账号卡片显示"未开启转发"；"开启转发…"要求勾选并输入别名后按钮才可用；开启后显示"转发已开启"，"关闭转发"有确认。
+
+## ChatGPT 网页会话（ADR-014，可选，使用你自己的 ChatGPT 账号）
+
+> OpenAI 条款禁止自动化提取输出，有封号风险：只在你接受风险时测试，低频使用。这也是 ExecPlan 017 Stage 8 的 live test，结论请写回 `docs/providers/web-chatgpt.md`。
+
+- [ ] 未开启时，`loadout account web add web-chatgpt main` 报错并提示 `web_session.enabled`。
+- [ ] `loadout config set web_session.enabled true` 打印风险说明；桌面端设置页开启该项时先弹出风险确认。
+- [ ] `loadout account web add web-chatgpt main`：风险说明 → "I understand" → 别名；几秒后弹出一个独立的 Edge 窗口（与你日常的 Edge 分开）。在窗口里自己登录 ChatGPT。
+- [ ] 登录后 `loadout account web status web-chatgpt main` 显示 ready（最多约 30 秒；也可运行 `account web recheck`）；`loadout model list` 出现 `web-chatgpt/main/auto` 及页面列出的模型。
+- [ ] 若出现 Cloudflare 验证页：状态为"需要你处理"，桌面通知出现；在窗口里自己完成后 `recheck` 变为 ready。记录出现频率。
+- [ ] Chat 非流式：`web-chatgpt/main/auto` 发一句话，返回内容与窗口中显示的回答逐字一致。
+- [ ] 连续 3 轮（Chat 流式、Messages、Responses 各一次）都落在窗口里同一段对话中；`status` 显示该对话为默认对话（auto）。
+- [ ] 多行输入（含空行）在网页里的换行是否保持原样。
+- [ ] `web-chatgpt/main/<其他模型>`：网页实际使用了该模型（看窗口里的模型显示）。
+- [ ] 请求进行中断开客户端（Ctrl+C）：窗口里的回答被停止，下一个请求正常。
+- [ ] 你在窗口里打字时发请求：返回可重试的忙错误，不会覆盖你的输入。
+- [ ] 把窗口最小化后再请求一次：回答正常流式返回，没有明显停顿。
+- [ ] `account web config web-chatgpt main --mode stateless`：请求进入临时对话，不出现在历史记录里。
+- [ ] `loadout/default` 与 `loadout bench` 都不会选到 `web-chatgpt`。
+- [ ] 任务管理器：记录该 Edge 实例的内存占用；`loadout daemon stop` 后该 Edge 窗口随之关闭。
+- [ ] `loadout account remove web-chatgpt main`：窗口关闭，`%LOCALAPPDATA%\Loadout\browser-profiles` 下对应目录被删除。
+- [ ] 桌面端：账号页"ChatGPT 网页会话"入口、卡片状态、"打开窗口"、"我已处理"、"会话设置"均可用。

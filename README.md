@@ -117,6 +117,8 @@ ANTHROPIC_API_KEY=lo-…
 
 例外：ChatGPT 订阅可以由 Loadout 单独登录（`loadout account login codex-sub <别名>`），并在两步风险确认（`loadout account transport codex-sub <别名> on`）后用于转发。这不是官方 API，有被限制或封号的风险，详见 [codex-subscription.md](docs/providers/codex-subscription.md) 与 [ADR-012](docs/adr/ADR-012-subscription-transport-opt-in.md)。Claude 订阅不提供这种用法；Claude 模型请使用 Console API key。
 
+另一个例外是 ChatGPT 网页会话（`web-chatgpt`）：开启 `web_session.enabled` 并经两步风险确认（`loadout account web add web-chatgpt <别名>`）后，Loadout 在一个专用的 Edge 窗口里使用 ChatGPT 网页，把网页的回答作为模型输出返回，适合"顾问回路"一类低频用法。OpenAI 条款禁止自动化提取输出，有被限制或封号的风险；Loadout 不伪装、不处理验证页、不读取 cookie。详见 [web-chatgpt.md](docs/providers/web-chatgpt.md) 与 [ADR-014](docs/adr/ADR-014-browser-session-transport.md)。
+
 ## 安全与隐私
 
 - 网关只监听 `127.0.0.1`，每个请求都需要 client key；校验 Host 头（防 DNS rebinding），默认拒绝浏览器跨域请求（[ADR-011](docs/adr/ADR-011-local-gateway-security.md)）。

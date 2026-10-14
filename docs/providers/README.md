@@ -1,6 +1,6 @@
 # Providers
 
-每个 Provider 一份说明（ADR-005 §6）。"Subscription Transport Status" 与 "ToS Risk" 依据 ADR-009 / ADR-012。
+每个 Provider 一份说明（ADR-005 §6）。"Subscription Transport Status" 与 "ToS Risk" 依据 ADR-009 / ADR-012 / ADR-014。
 
 | Slug / kind | 推理 | 用量 | 文档 |
 |---|---|---|---|
@@ -16,6 +16,7 @@
 | `anthropic-compatible` | Messages | — | [anthropic-compatible.md](anthropic-compatible.md) |
 | `codex` | **不支持**（ADR-009） | 官方 CLI app-server / 本地日志 | [codex.md](codex.md) |
 | `codex-sub` (`codex-subscription`) | Responses（逐账号 opt-in，`PRIVATE_ENDPOINT`，ADR-012） | — | [codex-subscription.md](codex-subscription.md) |
+| `web-chatgpt` | ChatGPT 网页会话：Chat / Responses / Messages，只限文本（全局开关 + 逐账号 opt-in，`WEB_SESSION`，ADR-014） | 估算 | [web-chatgpt.md](web-chatgpt.md) |
 | `claude-code` | **不支持**（ADR-009 / ADR-012：维持只读） | 桌面应用本地文件 / 私有端点（可切换） | [claude-code.md](claude-code.md) |
 | `gemini-cli` | **不支持**（ADR-009） | 私有端点 | [gemini-cli.md](gemini-cli.md) |
 

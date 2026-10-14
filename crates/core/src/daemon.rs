@@ -109,9 +109,11 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     control.web.set_root(&paths.root);
     {
         let (db, web) = (db.clone(), control.web.clone());
-        tokio::task::spawn_blocking(move || web.load_settings(&db))
-            .await
-            .map_err(|_| DaemonError::ServiceFailed("settings load"))?;
+        tokio::task::spawn_blocking(move || {
+            web.load_settings(&db);
+        })
+        .await
+        .map_err(|_| DaemonError::ServiceFailed("settings load"))?;
     }
     control
         .rebuild_routes()

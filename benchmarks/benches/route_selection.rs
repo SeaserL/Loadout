@@ -9,7 +9,13 @@ use std::sync::Arc;
 use criterion::{Criterion, criterion_group, criterion_main};
 use loadout_protocol::Protocol;
 use loadout_protocol::hints::RouteHints;
-use loadout_provider_sdk::{Capabilities, Endpoint, ProviderConfig, ProviderModule, TrustLevel};
+use loadout_provider_sdk::web::{
+    GateState, SessionError, SessionGate, SessionRequest, SessionStream, SessionUpstream,
+    WebBinding,
+};
+use loadout_provider_sdk::{
+    BoxFuture, Capabilities, Endpoint, ProviderConfig, ProviderModule, TrustLevel,
+};
 use loadout_providers::OpenAiCompatible;
 use loadout_router::{
     HealthRegistry, Prices, RouteTable, RouteTarget, SelectRequest, SessionAffinity, TargetId,
@@ -17,7 +23,24 @@ use loadout_router::{
 };
 use serde_json::Value;
 
+/// Never executed: selection only reads the gate.
+struct NoSession;
+
+impl SessionUpstream for NoSession {
+    fn execute(
+        self: Arc<Self>,
+        _request: SessionRequest,
+    ) -> BoxFuture<'static, Result<SessionStream, SessionError>> {
+        Box::pin(async { Err(SessionError::Busy("benchmark")) })
+    }
+}
+
 fn table(reg: &HealthRegistry) -> RouteTable {
+    table_with(reg, None)
+}
+
+/// `web`: every target is a browser session sharing one ready gate (ExecPlan 017 §11).
+fn table_with(reg: &HealthRegistry, web: Option<Arc<WebBinding>>) -> RouteTable {
     let module: Arc<dyn ProviderModule> = Arc::new(OpenAiCompatible);
     let config = Arc::new(ProviderConfig {
         slug: "p".into(),
@@ -46,7 +69,7 @@ fn table(reg: &HealthRegistry) -> RouteTable {
                     capabilities: Capabilities::DEFAULT_MODEL,
                     prices: Prices::default(),
                     endpoint: Endpoint::new("https://x.test/v1/chat/completions".into()),
-                    web: None,
+                    web: web.clone(),
                     module: module.clone(),
                     config: config.clone(),
                 }));
@@ -119,6 +142,36 @@ fn route_selection(c: &mut Criterion) {
                 .expect("resolve")
                 .candidates
                 .len()
+        })
+    });
+
+    let gate = Arc::new(SessionGate::default());
+    gate.set_state(GateState::Ready);
+    let web = Arc::new(WebBinding {
+        gate,
+        upstream: Arc::new(NoSession),
+    });
+    let web_reg = HealthRegistry::default();
+    let web_table = table_with(&web_reg, Some(web));
+    let mut text_hints = hints.clone();
+    text_hints.has_tools = false;
+    c.bench_function("route_selection/provider_model_100_web_gates", |b| {
+        b.iter(|| {
+            let res = web_table
+                .resolve(black_box(&text_hints.model))
+                .expect("resolve");
+            select(
+                &res,
+                &SelectRequest {
+                    ingress: Protocol::Chat,
+                    hints: &text_hints,
+                    now_ms: 1,
+                    max_attempts: 3,
+                    pinned_target: None,
+                    allow_account_failover: true,
+                    preferred: None,
+                },
+            )
         })
     });
 }

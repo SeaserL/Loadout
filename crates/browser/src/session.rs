@@ -38,6 +38,8 @@ const BUSY_WAIT: Duration = Duration::from_secs(3);
 const ANSWER_REQUEST_WAIT: Duration = Duration::from_secs(30);
 const RESPONSE_WAIT: Duration = Duration::from_secs(120);
 const STOP_WAIT: Duration = Duration::from_secs(30);
+/// Longest silence of the page's answer stream once it started.
+const ANSWER_IDLE: Duration = Duration::from_secs(600);
 const MODELS_WAIT: Duration = Duration::from_secs(10);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 /// Consecutive failures after which the session needs the user (ExecPlan 017 §5.5).
@@ -786,6 +788,7 @@ impl WebAccount {
         } = started;
         let mut client_gone = false;
         let mut failed_stream = false;
+        let mut stalled = false;
         let mut saw_finish = false;
 
         let first = parser.feed(&buffered);
@@ -795,7 +798,21 @@ impl WebAccount {
         }
         while !client_gone && !parser.is_done() {
             let ev = tokio::select! {
-                ev = net.next() => ev,
+                ev = tokio::time::timeout(ANSWER_IDLE, net.next()) => match ev {
+                    Ok(ev) => ev,
+                    Err(_) => {
+                        // Nothing from the page for too long: give up and stop the answer.
+                        failed_stream = true;
+                        stalled = true;
+                        let _ = tx
+                            .send(CanonicalEvent::Error {
+                                message: "the answer stalled on the web page".into(),
+                                kind: Some("upstream_error".into()),
+                            })
+                            .await;
+                        break;
+                    }
+                },
                 () = tx.closed() => { client_gone = true; break; }
             };
             let Some(ev) = ev else {
@@ -850,8 +867,8 @@ impl WebAccount {
 
         let running = guard.as_mut();
         if let Some(r) = running {
-            if client_gone {
-                tracing::info!(account = %self.account_id, "client disconnected; stopping the answer");
+            if client_gone || stalled {
+                tracing::info!(account = %self.account_id, client_gone, stalled, "stopping the answer");
                 site.stop(&r.page).await;
                 let deadline = tokio::time::Instant::now() + STOP_WAIT;
                 while site.page_state(&r.page).await == PageState::Busy
