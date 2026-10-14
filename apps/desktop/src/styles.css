@@ -1294,20 +1294,72 @@ pre.snippet {
   color: var(--muted);
 }
 
-.provider-section {
-  margin-bottom: 22px;
+/* One board cell per provider; a provider with several accounts spans as many cells as fit.
+   Thresholds below are where the auto-fill grid reaches 2 / 3 columns (n * 340 + (n - 1) * 14). */
+.provider-board {
+  container: board / inline-size;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-auto-flow: row dense;
+  gap: 14px;
+}
+
+.provider-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.provider-group.multi {
+  grid-column: 1 / -1;
+}
+
+@container board (min-width: 694px) {
+  .provider-group.span-2 {
+    grid-column: span 2;
+  }
+}
+
+@container board (min-width: 1034px) {
+  .provider-group.span-3 {
+    grid-column: span 3;
+  }
 }
 
 .provider-head {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  align-items: flex-start;
+  gap: 8px 10px;
   flex-wrap: wrap;
 }
 
+.provider-title {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
 .provider-head h2 {
-  font-size: 17px;
+  font-size: 15.5px;
+  min-width: 0;
+}
+
+.provider-head .nowrap {
+  flex: none;
+  white-space: nowrap;
+}
+
+.provider-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
 }
 
 .provider-head .select-label {
@@ -1318,10 +1370,35 @@ pre.snippet {
   color: var(--muted);
 }
 
+.provider-head .select-label select {
+  width: auto;
+  height: 30px;
+}
+
 .account-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
+  flex: 1;
+}
+
+/* A lone account is the provider card's body, not a card of its own. */
+.provider-group.single .account-grid {
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.provider-group.single .account-card {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.provider-group.multi .account-card {
+  background: var(--surface-2);
+  box-shadow: none;
 }
 
 .account-card {

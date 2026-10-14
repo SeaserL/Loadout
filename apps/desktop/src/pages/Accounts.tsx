@@ -218,20 +218,24 @@ export function Accounts() {
         </>
       )}
 
-      {shown.map((p) => (
-        <ProviderSection
-          key={p.slug}
-          provider={p}
-          usageSources={kinds.data?.find((k) => k.kind === p.kind)?.usage_sources ?? []}
-          signIn={kinds.data?.find((k) => k.kind === p.kind)?.auth === "oauth"}
-          accounts={(byProvider.get(p.slug) ?? []).filter(matches)}
-          usageOf={usageOf}
-          busy={action.busy}
-          onAction={onAction}
-          onBench={bench}
-          onDialog={setDialog}
-        />
-      ))}
+      {shown.length > 0 && (
+        <div className="provider-board">
+          {shown.map((p) => (
+            <ProviderSection
+              key={p.slug}
+              provider={p}
+              usageSources={kinds.data?.find((k) => k.kind === p.kind)?.usage_sources ?? []}
+              signIn={kinds.data?.find((k) => k.kind === p.kind)?.auth === "oauth"}
+              accounts={(byProvider.get(p.slug) ?? []).filter(matches)}
+              usageOf={usageOf}
+              busy={action.busy}
+              onAction={onAction}
+              onBench={bench}
+              onDialog={setDialog}
+            />
+          ))}
+        </div>
+      )}
       {shown.length === 0 && (providers.data ?? []).length > 0 && <Empty>{t("acc.noMatch")}</Empty>}
 
       {dialog?.kind === "add" && (
@@ -282,56 +286,64 @@ function ProviderSection(props: {
   const p = props.provider;
   const confirm = useConfirm();
   const source = typeof p.settings?.usage_source === "string" ? p.settings.usage_source : "auto";
+  // One account fills a regular board cell; several share one wider panel.
+  const n = props.accounts.length;
+  const span = n <= 1 ? "single" : n >= 4 ? "multi span-all" : `multi span-${n}`;
   return (
-    <section className="provider-section">
+    <section className={`provider-group ${span}`}>
       <div className="provider-head">
-        <h2>{p.display_name}</h2>
-        <span className="mono small muted">{p.slug}</span>
-        {p.base_url && (
-          <span className="mono small muted ellipsis" title={p.base_url}>
-            {p.base_url}
-          </span>
-        )}
-        <div className="spacer" />
-        {props.usageSources.length > 0 && (
-          <label className="select-label" title={t("acc.usageSourceHint")}>
-            {t("acc.usageSource")}
-            <select
-              value={source}
-              disabled={props.busy}
-              onChange={(e) => {
-                const value = e.target.value;
-                props.onAction(() => api.setProviderSettings(p.slug, { usage_source: value }));
-              }}
-            >
-              {["auto", ...props.usageSources, "off"].map((v) => (
-                <option key={v} value={v}>
-                  {tv("usageSource", v)}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <IconButton
-          label={t("acc.removeProvider")}
-          danger
-          disabled={props.busy}
-          onClick={() =>
-            void confirm({
-              title: t("acc.removeProviderTitle", { slug: p.slug }),
-              message: t("acc.confirmRemoveProvider", { slug: p.slug }),
-              confirmLabel: t("acc.removeProvider"),
-              danger: true,
-            }).then((ok) => ok && props.onAction(() => api.removeProvider(p.slug)))
-          }
-        >
-          <Trash size={16} />
-        </IconButton>
+        <div className="provider-title">
+          <div className="row" style={{ gap: 8, minWidth: 0 }}>
+            <h2 className="ellipsis" title={p.display_name}>
+              {p.display_name}
+            </h2>
+            <span className="mono small muted nowrap">{p.slug}</span>
+          </div>
+          {p.base_url && (
+            <div className="mono small muted ellipsis" title={p.base_url}>
+              {p.base_url}
+            </div>
+          )}
+        </div>
+        <div className="provider-controls">
+          {props.usageSources.length > 0 && (
+            <label className="select-label" title={t("acc.usageSourceHint")}>
+              {t("acc.usageSource")}
+              <select
+                value={source}
+                disabled={props.busy}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  props.onAction(() => api.setProviderSettings(p.slug, { usage_source: value }));
+                }}
+              >
+                {["auto", ...props.usageSources, "off"].map((v) => (
+                  <option key={v} value={v}>
+                    {tv("usageSource", v)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <IconButton
+            label={t("acc.removeProvider")}
+            danger
+            disabled={props.busy}
+            onClick={() =>
+              void confirm({
+                title: t("acc.removeProviderTitle", { slug: p.slug }),
+                message: t("acc.confirmRemoveProvider", { slug: p.slug }),
+                confirmLabel: t("acc.removeProvider"),
+                danger: true,
+              }).then((ok) => ok && props.onAction(() => api.removeProvider(p.slug)))
+            }
+          >
+            <Trash size={16} />
+          </IconButton>
+        </div>
       </div>
       {props.accounts.length === 0 ? (
-        <Card>
-          <Empty>{t("acc.noAccounts")}</Empty>
-        </Card>
+        <Empty>{t("acc.noAccounts")}</Empty>
       ) : (
         <div className="account-grid">
           {props.accounts.map((a) => (
@@ -381,7 +393,10 @@ function AccountCard(props: {
           onChange={(on) => props.onAction(() => api.setAccountEnabled(a.provider, a.alias, on))}
         />
         <div className="account-name">
-          <div className="ellipsis">{name}</div>
+          {/* The provider is already in the section header above. */}
+          <div className="ellipsis" title={name}>
+            {a.alias}
+          </div>
           {subtitle && <div className="small muted ellipsis">{subtitle}</div>}
         </div>
         <div className="account-actions">
