@@ -320,6 +320,9 @@ Do not copy code.
 | **models.dev** (anomalyco/models.dev) | MIT | **A** for price data | Price / limits / modality catalog with `canonical_model_id` | `api.json` | **Bundle a filtered snapshot with notice** |
 | **pydantic genai-prices** | MIT | **B** | Provider `api_pattern` and model match rules; historic prices | `data.json` | **Reimplement matcher in Rust** |
 | Others (2026-10-04 survey) | see docs/research/2026-10-04-feature-landscape.md §7 | **B/C** | 9router, ccs, claude-code-hub, bifrost, uni-api, axonhub, ccstatusline, tokscale, cc-switch-cli, api-key-tester | — | Check licence per path before porting |
+| **chromedp** (chromedp/chromedp) | MIT (LICENSE verified 2026-10-15) | **B** for web-session transport | Windows CDP pipe launch (`--remote-debugging-io-pipes`, inherit only two handles) | `pipe_windows.go` | **Concept; reimplement in Rust (ExecPlan 017 D1)** |
+| **devtools-protocol** (ChromeDevTools/devtools-protocol) | BSD-3-Clause | **A** for CDP | Authoritative CDP method / event definitions | `pdl/domains/*.pdl` (e.g. `Network.streamResourceContent`) | **Protocol spec; hand-written serde types** |
+| Web-UI → API projects (2026-10-15) | MIT / AGPL-3.0 / GPL-3.0, see §10.12 | **C** | PhantomAPI, mse_ai_api, unofficial-chatgpt-api, AIstudioProxyAPI, WebAI2API, gpt4free, chat2api | — | **Concept only; their stealth / token-forging / cookie-reuse techniques are banned by ADR-014 §2** |
 | **Antigravity Manager** (lbjlaq; Draculabo) | lbjlaq: verify; Draculabo: CC BY-NC-SA 4.0 | **C** | Account rotation on quota threshold; tray; local proxy | — | **Do not copy (non-commercial licence); web-session / OAuth piggybacking is banned by ADR-009/012** |
 
 ---
@@ -361,6 +364,7 @@ This is the fast lookup table agents should use before searching the web.
 | Quota-aware / reset-aware / cache-affinity routing | **OmniRoute (MIT, concept)** | claude-code-hub (MIT) |
 | Key validity / stream health checks | **cc-switch-cli (MIT)** | api-key-tester (MIT) |
 | Price comparison UX (normalization, "never treat missing as 0") | **all-api-hub (AGPL, concept only)** | octopus (AGPL, concept only) |
+| Web session transport (ADR-014): CDP launch / pipe / network capture | **devtools-protocol (BSD-3) + chromedp `pipe_windows.go` (MIT, concept)** | Playwright / Puppeteer (Apache-2.0) Chromium launchers; §10.12 projects for site behaviour only |
 
 ---
 
@@ -822,6 +826,29 @@ Study only at the product/architecture level:
 Do not mechanically translate its Go/React code into Rust/TypeScript.
 
 Use it only to understand product patterns and public behavior unless a future licensing decision explicitly changes.
+
+---
+
+# 10.12 Web-UI → API projects (ADR-014)
+
+Surveyed for ADR-014 (2026-10-15). Licenses below were verified on 2026-10-15 by reading each repository's LICENSE file at the listed commit (ADR-014's table said "not verified").
+
+| Project | Repository | License (file) | Commit checked | Approach | Notes |
+|---|---|---|---|---|---|
+| PhantomAPI | `mrshibly/PhantomAPI` | MIT (`LICENSE`) | `a48ba0d` | FastAPI + headless Playwright on free ChatGPT web; OpenAI-compatible `/v1`; prompt-simulated tool calling | Small (8★) |
+| mse_ai_api | origin unclear — earliest found `shakahl/mse_ai_api` (created 2026-03-19) | MIT (`LICENSE`, "Copyright (c) 2026 Mohamed Elsayed") | `a08c6f3` | Playwright driving a standalone Chrome; prompt-forced JSON for function calling | Several same-named copies with MIT, MIT-0 or **no** license (e.g. `DjamelRebiai/mse_ai_api`, `alomda552005-lgtm/mse-ai-api`). Treat any copy without a LICENSE as "unknown: no reuse" |
+| unofficial-chatgpt-api | `taranjeet/unofficial-chatgpt-api` | MIT (`License`) | `371abb7` | Opens Chromium, parses HTML for the answer | Unmaintained (last push 2023-07) |
+| AIstudioProxyAPI | `CJackHwang/AIstudioProxyAPI` | **AGPL-3.0** (`LICENSE`) | `044c3db` | Playwright + Camoufox on Google AI Studio; fingerprint spoofing | Concept only (AGPL); Camoufox banned by ADR-014 §2 |
+| WebAI2API | `foxhui/WebAI2API` | MIT (`LICENSE`) | `beac6c9` | Camoufox; several web UIs → OpenAI-compatible API | Camoufox banned; site selectors / flows may be read as behaviour notes |
+| gpt4free | `xtekky/gpt4free` | **GPL-3.0** (`LICENSE`) | `74661d1` | Browser to obtain cookies / HAR / anti-bot tokens, then direct HTTP | Concept only (GPL); the technique itself is banned by ADR-014 §2 |
+| chat2api | `lanqian528/chat2api` | MIT (`LICENSE`, "Copyright (c) 2024 aurora-develop") | `a63a90c` | No browser; reverse-engineered web backend, multi-account rotation | Backend calls and Sentinel/PoW generation banned; reading its notes on the SSE delta format is allowed as knowledge of what the page receives |
+
+### Agent rule
+
+- **Reuse mode for all of the above: concept only.** Even where the code is MIT, the core of each project is a technique ADR-014 §2 forbids (fingerprint spoofing, stealth drivers, cookie / HAR extraction, off-page token generation, direct backend calls, account rotation).
+- What may be learned: which page request carries the answer stream, its event format, how the composer and model picker behave. Anything ported (e.g. a parsing table) needs the MIT notice in `THIRD_PARTY_NOTICES.md`; nothing may be ported from AIstudioProxyAPI or gpt4free.
+- For the CDP mechanics themselves, read the official protocol (`ChromeDevTools/devtools-protocol`, BSD-3-Clause) first, then chromedp (MIT) or Playwright / Puppeteer (Apache-2.0). Do not use Camoufox, nodriver, undetected-chromedriver or puppeteer-extra-stealth as references for implementation.
+- Rust CDP crates checked for ExecPlan 017 (crates.io, 2026-10-15): `chromiumoxide` 0.9.1 (MIT OR Apache-2.0), `chromey` 2.58.2 (MIT OR Apache-2.0), `headless_chrome` 1.0.22 (MIT). None adopted (ExecPlan 017 D1).
 
 ---
 
