@@ -138,6 +138,12 @@ pub trait ProviderModule: Send + Sync + 'static {
     /// converted requests (ExecPlan 010 §2.1). Runs on the request path: no I/O.
     fn prepare_request(&self, _config: &ProviderConfig, _protocol: Protocol, _body: &mut Value) {}
 
+    /// Upstream header that carries a stable per-conversation id (ADR-013), e.g.
+    /// `x-opencode-session`. The gateway derives the value; `None` sends nothing.
+    fn session_header(&self) -> Option<HeaderName> {
+        None
+    }
+
     /// The upstream only answers streaming requests; non-streaming clients get a response
     /// aggregated from the stream.
     fn upstream_stream_only(&self) -> bool {

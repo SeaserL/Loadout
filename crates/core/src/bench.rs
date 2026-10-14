@@ -177,6 +177,12 @@ async fn run(
         header::ACCEPT,
         HeaderValue::from_static("text/event-stream"),
     );
+    // A probe is not a conversation: a fresh id each time (ADR-013 §3).
+    if let Some(name) = target.module.session_header()
+        && let Ok(v) = HeaderValue::from_str(&uuid::Uuid::new_v4().to_string())
+    {
+        headers.insert(name, v);
+    }
     let deadline = tokio::time::Instant::now() + FIRST_TOKEN_TIMEOUT;
     let send = http
         .for_url(&endpoint.url)

@@ -65,5 +65,9 @@ harness = false
 name = "snapshot_swap"
 harness = false
 
+[[bench]]
+name = "conversation_session"
+harness = false
+
 [lints]
 workspace = true

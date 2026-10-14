@@ -12,6 +12,7 @@ use loadout_provider_sdk::{
     ProviderDescriptor, ProviderError, ProviderModule, TransportSpec, TrustLevel,
 };
 use loadout_secrets::Secret;
+use reqwest::header::HeaderName;
 use serde_json::Value;
 
 use crate::common::{self, FIVE_HOURS, MONTH, WEEK, object, window};
@@ -43,12 +44,13 @@ static DESCRIPTOR: ProviderDescriptor = ProviderDescriptor {
     default_model_protocols: &[Protocol::Chat],
 };
 
-/// Endpoint per model family, as documented by OpenCode (can be overridden per model).
+/// Endpoint per model family, as documented by OpenCode (model table, 2026-10-15; can be
+/// overridden per model).
 pub(crate) fn protocol_for(model: &str) -> Protocol {
     let m = model.to_ascii_lowercase();
-    if m.contains("minimax") || m.contains("qwen") {
+    if m.contains("minimax") || m.contains("qwen") || m.contains("claude") {
         Protocol::Messages
-    } else if m.contains("grok") {
+    } else if m.contains("grok") || m.contains("gpt") || m.contains("muse") {
         Protocol::Responses
     } else {
         Protocol::Chat
@@ -116,6 +118,11 @@ impl ProviderModule for OpenCodeGo {
         common::bearer_all(&config.base_url(&DESCRIPTOR)?, protocol, key)
     }
 
+    /// Requests without a stable session id are rejected (opencode.ai/docs/go, 2026-10-15).
+    fn session_header(&self) -> Option<HeaderName> {
+        Some(HeaderName::from_static("x-opencode-session"))
+    }
+
     fn list_models<'a>(
         &'a self,
         ctx: DriverContext<'a>,
@@ -152,9 +159,27 @@ mod tests {
     fn protocol_mapping_follows_model_family() {
         assert_eq!(protocol_for("minimax-m3"), Protocol::Messages);
         assert_eq!(protocol_for("qwen3.8-max"), Protocol::Messages);
+        assert_eq!(protocol_for("claude-haiku-5-5"), Protocol::Messages);
         assert_eq!(protocol_for("grok-4.7"), Protocol::Responses);
+        assert_eq!(protocol_for("gpt-6-luna"), Protocol::Responses);
+        assert_eq!(protocol_for("gpt-5.6-luna"), Protocol::Responses);
+        assert_eq!(
+            protocol_for("muse-spark-1.3-contributor"),
+            Protocol::Responses
+        );
         assert_eq!(protocol_for("kimi-k3"), Protocol::Chat);
         assert_eq!(protocol_for("deepseek-v4-flash"), Protocol::Chat);
+    }
+
+    #[test]
+    fn asks_for_a_conversation_session_header() {
+        assert_eq!(
+            OpenCodeGo
+                .session_header()
+                .map(|h| h.to_string())
+                .as_deref(),
+            Some("x-opencode-session")
+        );
     }
 
     #[test]
