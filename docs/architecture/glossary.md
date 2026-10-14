@@ -55,7 +55,7 @@
 | `PRIVATE_ENDPOINT` | C | Private Endpoint |
 | `WEB_SESSION` | D | Web Session |
 
-v1 推理 Transport 只允许 Tier A（见 ADR-009）。
+v1 推理 Transport 默认只使用 Tier A（见 ADR-009）。例外需要逐账号 opt-in：Tier C 的 `codex-subscription`（ADR-012）、Tier D 的 `WEB_SESSION`（ADR-014）。
 
 ---
 

@@ -15,6 +15,7 @@
 | [011](ADR-011-local-gateway-security.md) | Local Gateway Security | Accepted |
 | [012](ADR-012-subscription-transport-opt-in.md) | Opt-in Subscription Transport (Codex) | Accepted |
 | [013](ADR-013-upstream-conversation-session.md) | Upstream Conversation Session Header | Accepted |
+| [014](ADR-014-browser-session-transport.md) | Opt-in Browser Session Transport (`WEB_SESSION`) | Accepted |
 
 ## Status 含义
 

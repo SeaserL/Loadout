@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-29
+- **Amended by**: [ADR-014](ADR-014-browser-session-transport.md)（浏览器 profile 中的 session cookie 由 Chromium DPAPI 加密保存，Loadout 不读取其值）
 
 ## Context
 

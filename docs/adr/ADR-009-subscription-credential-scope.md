@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-29
-- **Amended by**: [ADR-012](ADR-012-subscription-transport-opt-in.md)（Codex 订阅 Transport 可逐账号 opt-in；Claude 维持只读用量）
+- **Amended by**: [ADR-012](ADR-012-subscription-transport-opt-in.md)（Codex 订阅 Transport 可逐账号 opt-in；Claude 维持只读用量）；[ADR-014](ADR-014-browser-session-transport.md)（`WEB_SESSION` 浏览器 Transport 可逐账号 opt-in，使用 Loadout 专用 profile；读取用户日常浏览器 cookie 仍然禁止）
 
 ## Context
 

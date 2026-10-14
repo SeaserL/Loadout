@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-29
+- **Amended by**: [ADR-014](ADR-014-browser-session-transport.md)（受管浏览器进程：崩溃隔离与 supervisor 重启）
 
 ## Context
 
