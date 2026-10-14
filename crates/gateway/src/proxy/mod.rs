@@ -10,6 +10,7 @@
 mod decision;
 mod meter;
 mod render;
+pub(crate) mod session;
 
 use std::io;
 use std::pin::Pin;
@@ -18,7 +19,7 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::extract::Request;
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
@@ -41,6 +42,7 @@ use crate::{ApiError, ApiFlavor, ClientId, ErrorCategory, PolicyViolation};
 use decision::{Trail, select_reason};
 use meter::{Meter, RecordCtx};
 use render::Renderer;
+use session::ConversationSeed;
 
 const ERROR_BODY_LIMIT: usize = 64 * 1024;
 const PUMP_BUFFER: usize = 64;
@@ -115,6 +117,8 @@ struct Attempt<'a> {
     ingress: Protocol,
     hints: &'a RouteHints,
     client_headers: &'a HeaderMap,
+    /// Conversation id header for upstreams that ask for one (ADR-013).
+    conversation: Option<(HeaderName, HeaderValue)>,
     ctx: &'a RecordCtx,
     attempt_no: u32,
     /// Decision steps before this attempt.
@@ -281,6 +285,7 @@ pub(crate) async fn handle(
     let mut last: Option<(UpstreamFailure, Arc<RouteTarget>)> = None;
     let mut skipped: Vec<String> = Vec::new();
     let mut attempts = 0u32;
+    let mut seed: Option<ConversationSeed> = None;
 
     for target in &candidates.attempts {
         let permit = match target.module.account_concurrency() {
@@ -326,6 +331,12 @@ pub(crate) async fn handle(
                     .prepare_request(&target.config, target.protocol, body);
             }
         }
+        let conversation = target.module.session_header().map(|name| {
+            let seed = seed.get_or_insert_with(|| {
+                ConversationSeed::new(ingress, &client, &parts.headers, &json)
+            });
+            (name, seed.for_account(&target.account_id))
+        });
         attempts += 1;
         let attempt = Attempt {
             plane: &plane,
@@ -333,6 +344,7 @@ pub(crate) async fn handle(
             ingress,
             hints: &hints,
             client_headers: &parts.headers,
+            conversation,
             ctx: &ctx,
             attempt_no: attempts,
             trail: &trail,
@@ -492,6 +504,9 @@ impl Attempt<'_> {
                     headers.insert(name, v.clone());
                 }
             }
+        }
+        if let Some((name, value)) = &self.conversation {
+            headers.insert(name.clone(), value.clone());
         }
 
         let _in_flight = self.target.health.begin();

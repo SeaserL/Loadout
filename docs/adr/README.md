@@ -14,6 +14,7 @@
 | [010](ADR-010-model-addressing.md) | Model Addressing | Accepted |
 | [011](ADR-011-local-gateway-security.md) | Local Gateway Security | Accepted |
 | [012](ADR-012-subscription-transport-opt-in.md) | Opt-in Subscription Transport (Codex) | Accepted |
+| [013](ADR-013-upstream-conversation-session.md) | Upstream Conversation Session Header | Accepted |
 
 ## Status 含义
 

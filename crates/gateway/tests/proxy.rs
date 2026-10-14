@@ -1245,6 +1245,121 @@ async fn stream_only_upstream_serves_non_streaming_clients_and_prepares_bodies()
     assert_eq!(usage[0].0, "sub-main");
 }
 
+/// An upstream that asks for a conversation id header (ADR-013).
+#[derive(Debug, Default)]
+struct SessionAware(OpenAiCompatible);
+
+impl ProviderModule for SessionAware {
+    fn descriptor(&self) -> &'static loadout_provider_sdk::ProviderDescriptor {
+        self.0.descriptor()
+    }
+    fn endpoint(
+        &self,
+        config: &ProviderConfig,
+        protocol: Protocol,
+        key: Option<&Secret>,
+    ) -> Result<loadout_provider_sdk::Endpoint, loadout_provider_sdk::ProviderError> {
+        self.0.endpoint(config, protocol, key)
+    }
+    fn session_header(&self) -> Option<axum::http::HeaderName> {
+        Some(axum::http::HeaderName::from_static("x-test-session"))
+    }
+}
+
+#[tokio::test]
+async fn session_aware_upstreams_get_a_stable_conversation_id() {
+    let (mock, base) = start_mock().await;
+    for _ in 0..4 {
+        mock.push("/v1/chat/completions", Reply::Sse(chat_stream_text("ok")));
+    }
+    let health = Arc::new(HealthRegistry::default());
+    let mut aware = Arc::into_inner(build_target(
+        &health,
+        &spec("go", "main", 0, "m", Protocol::Chat, &base),
+    ))
+    .expect("unique");
+    aware.module = Arc::new(SessionAware::default());
+    let plain = build_target(
+        &health,
+        &spec("acme", "main", 0, "p", Protocol::Chat, &base),
+    );
+    let h = Harness::with_targets(health, vec![Arc::new(aware), plain]).await;
+
+    let turn1 = json!({"model": "go/main/m", "stream": true, "messages": [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "first question"}
+    ]});
+    let turn2 = json!({"model": "go/main/m", "stream": true, "messages": [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "first question"},
+        {"role": "assistant", "content": "answer"},
+        {"role": "user", "content": "follow-up"}
+    ]});
+    let other = json!({"model": "go/main/m", "stream": true, "messages": [
+        {"role": "user", "content": "something else"}
+    ]});
+    for body in [turn1, turn2, other] {
+        let resp = h.post("/v1/chat/completions", body).await;
+        assert_eq!(resp.status(), 200);
+        let _ = resp.text().await;
+    }
+    let plain_resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/main/p", "stream": true, "messages": [{"role": "user", "content": "x"}]}),
+        )
+        .await;
+    assert_eq!(plain_resp.status(), 200);
+    let _ = plain_resp.text().await;
+
+    let seen = mock.seen();
+    let ids: Vec<String> = seen[..3]
+        .iter()
+        .map(|s| {
+            s.headers["x-test-session"]
+                .to_str()
+                .expect("ascii")
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(ids[0], ids[1], "same conversation, same id");
+    assert_ne!(ids[0], ids[2], "different conversation");
+    assert_eq!(ids[0].len(), 36, "uuid form: {}", ids[0]);
+    assert!(
+        seen[3].headers.get("x-test-session").is_none(),
+        "only upstreams that ask for it"
+    );
+}
+
+#[tokio::test]
+async fn conversation_id_survives_protocol_conversion() {
+    let (mock, base) = start_mock().await;
+    mock.push("/v1/chat/completions", Reply::Sse(chat_stream_text("ok")));
+    let health = Arc::new(HealthRegistry::default());
+    let mut aware = Arc::into_inner(build_target(
+        &health,
+        &spec("go", "main", 0, "m", Protocol::Chat, &base),
+    ))
+    .expect("unique");
+    aware.module = Arc::new(SessionAware::default());
+    let h = Harness::with_targets(health, vec![Arc::new(aware)]).await;
+
+    let resp = h
+        .post_with(
+            "/v1/messages",
+            json!({"model": "go/main/m", "max_tokens": 16, "stream": true,
+                   "messages": [{"role": "user", "content": "hi"}]}),
+            &[("x-claude-code-session-id", "cc-session-1")],
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    let _ = resp.text().await;
+    let seen = mock.seen();
+    let id = seen[0].headers["x-test-session"].to_str().expect("ascii");
+    assert_eq!(id.len(), 36);
+    assert!(!id.contains("cc-session-1"), "client id is not forwarded");
+}
+
 #[tokio::test]
 async fn lower_trust_targets_need_opt_in() {
     let (_mock, base) = start_mock().await;

@@ -24,6 +24,7 @@ pub use plane::{
     UpstreamLimits,
 };
 pub use policy::{ClientPolicies, ClientPolicy, ClientUsageToday, PolicyViolation};
+pub use proxy::session::ConversationSeed;
 pub use server::{Gateway, GatewayConfig};
 
 /// Identifier of the authenticated client, attached to each request as an extension.
