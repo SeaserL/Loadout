@@ -1,8 +1,9 @@
 # ExecPlan 016: OpenCode Go session header and endpoint mapping
 
-- **Status**: In progress
+- **Status**: Completed
 - **Created**: 2026-10-15
-- **Decision**: [ADR-013](../../adr/ADR-013-upstream-conversation-session.md)（Proposed）
+- **Completed**: 2026-10-15
+- **Decision**: [ADR-013](../../adr/ADR-013-upstream-conversation-session.md)（Accepted）
 
 ---
 
@@ -108,7 +109,7 @@ docs/providers/opencode-go.md
 - 上述测试通过；`cargo fmt`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace` 通过；
 - benchmark 无回退并记录在本文件；
 - 本机实测：`loadout bench opencode-go/ling/gpt-6-luna` 和一个 Chat 模型成功；
-- 文档更新；ADR-013 等待项目所有者确认。
+- 文档更新；ADR-013 经项目所有者确认。
 
 ## 14. Progress
 
@@ -121,7 +122,11 @@ docs/providers/opencode-go.md
 - [x] 2026-10-15 e2e：`apps/loadout/tests/opencode_go_e2e.rs`——mock 上游缺少该头时返回 400；验证模型同步的协议、测速、同一对话 ID 稳定、Responses 请求
 - [x] 2026-10-15 fmt / clippy 通过；benchmark 见下
 - [x] 2026-10-15 全量 `cargo test --workspace` 通过（含新增 e2e）；提交到分支 `fix/opencode-go-session`
-- [ ] 本机实测（需要用户换用新构建的 daemon，并重新同步 `opencode-go` 模型）
+- [x] 2026-10-15 ADR-013 由项目所有者确认（Accepted）
+- [x] 2026-10-15 本机实测：从分支的干净 worktree 构建 release，用户亲手启动新版 `loadout-app`（避免 MSIX 沙箱重定向数据目录）。
+  - `loadout model sync opencode-go ling`：40 个模型，`gpt-*-luna`、`muse-spark-*` 改为 `responses`；
+  - `loadout bench`：`gpt-6-luna`（responses）TTFT 1615 ms、`deepseek-v4-flash`（chat）TTFT 1517 ms，均 ok；
+  - 经 Gateway 的两轮 Chat 对话（Chat → Responses 转换）均 200，用完即撤销临时 client key。
 
 ### Benchmarks（Harness §20）
 
