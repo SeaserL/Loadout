@@ -112,7 +112,7 @@ export interface ProviderKind {
   display_name: string;
   fixed_slug: string | null;
   default_base_url: string | null;
-  auth: "api_key" | "optional_api_key" | "external_managed" | "oauth";
+  auth: "api_key" | "optional_api_key" | "external_managed" | "oauth" | "browser_login";
   protocols: string[];
   drivers: string[];
   /** Values `usage_source` accepts besides "auto" and "off". */
@@ -144,6 +144,25 @@ export interface AccountInfo {
   login_expires_at_ms: number | null;
   /** Per-account quota reserve, e.g. {default: 10, weekly: 20}; null = global setting. */
   quota_reserve?: Record<string, number> | null;
+}
+
+/** Browser-session account state (ADR-014). */
+export interface WebSessionStatus {
+  provider: string;
+  alias: string;
+  /** `stopped`, `starting`, `ready`, `busy`, `needs_attention` or `cooling`. */
+  state: string;
+  running: boolean;
+  attention: string | null;
+  next_allowed_ms: number;
+  today_count: number;
+  mode: string;
+  default_conversation: string | null;
+  bound_by: string | null;
+  min_interval_secs: number;
+  daily_soft_cap: number;
+  enabled_globally: boolean;
+  headless: boolean;
 }
 
 export interface OAuthStart {
@@ -404,6 +423,18 @@ export const api = {
   setTransport: (provider: string, alias: string, enabled: boolean, confirm: string | null) =>
     call<AccountInfo>("account.set_transport", { provider, alias, enabled, confirm }),
   openSignInPage: (url: string) => command<void>("open_sign_in_page", { url }),
+  webAdd: (provider: string, alias: string, confirm: string) =>
+    call<AccountInfo>("account.web_add", { provider, alias, confirm, display_name: null }),
+  webStatus: (provider: string, alias: string) => call<WebSessionStatus>("account.web_status", { provider, alias }),
+  webShow: (provider: string, alias: string) => call<WebSessionStatus>("account.web_show", { provider, alias }),
+  webRecheck: (provider: string, alias: string) => call<WebSessionStatus>("account.web_recheck", { provider, alias }),
+  webBind: (provider: string, alias: string, conversation_url: string | null) =>
+    call<WebSessionStatus>("account.web_bind", { provider, alias, conversation_url }),
+  webConfig: (
+    provider: string,
+    alias: string,
+    c: { mode: string | null; min_interval_secs: number | null; daily_soft_cap: number | null },
+  ) => call<WebSessionStatus>("account.web_config", { provider, alias, ...c }),
   setPlan: (p: {
     provider: string;
     alias: string;

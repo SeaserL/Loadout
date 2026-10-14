@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AppWindow,
   ExternalLink,
   KeyRound,
   LogIn,
@@ -45,6 +46,8 @@ import {
 import { ago, date, num, resetIn, usd } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { t, tv, type MessageKey } from "../i18n";
+import { WebAddDialog, WebPanel, WebRiskList, WebSettingsDialog } from "./WebSession";
+import type { WebSessionStatus } from "../api";
 
 /** Toast text and tone for an `account.check` result (ExecPlan 014). */
 function checkMessage(name: string, r: AccountCheckResult): [string, "ok" | "bad"] {
@@ -66,7 +69,9 @@ type Dialog =
   | { kind: "key"; account: AccountInfo }
   | { kind: "plan"; account: AccountInfo; usage?: AccountUsage }
   | { kind: "login"; alias?: string }
-  | { kind: "transport"; account: AccountInfo };
+  | { kind: "transport"; account: AccountInfo; web?: boolean }
+  | { kind: "webAdd" }
+  | { kind: "webSettings"; status: WebSessionStatus };
 
 /** Built-in provider that signs in through Loadout (ADR-012). */
 const SUBSCRIPTION_SLUG = "codex-sub";
@@ -164,6 +169,9 @@ export function Accounts() {
                 <Button icon={<LogIn size={16} />} onClick={() => setDialog({ kind: "login" })}>
                   {t("sub.tileTitle")}
                 </Button>
+                <Button icon={<AppWindow size={16} />} onClick={() => setDialog({ kind: "webAdd" })}>
+                  {t("web.tileTitle")}
+                </Button>
               </div>
             }
           >
@@ -200,6 +208,17 @@ export function Accounts() {
               </span>
               <span className="small muted">{t("sub.tileHint")}</span>
             </button>
+            <button
+              type="button"
+              className="provider-tile tile-signin"
+              title={t("web.tileHint")}
+              onClick={() => setDialog({ kind: "webAdd" })}
+            >
+              <span className="tile-name ellipsis">
+                <AppWindow size={14} aria-hidden /> {t("web.tileTitle")}
+              </span>
+              <span className="small muted">{t("web.tileHint")}</span>
+            </button>
           </div>
           <div className="row" style={{ marginBottom: 16 }}>
             <label className="search" style={{ flex: 1, maxWidth: 420 }}>
@@ -226,6 +245,7 @@ export function Accounts() {
               provider={p}
               usageSources={kinds.data?.find((k) => k.kind === p.kind)?.usage_sources ?? []}
               signIn={kinds.data?.find((k) => k.kind === p.kind)?.auth === "oauth"}
+              web={kinds.data?.find((k) => k.kind === p.kind)?.auth === "browser_login"}
               accounts={(byProvider.get(p.slug) ?? []).filter(matches)}
               usageOf={usageOf}
               busy={action.busy}
@@ -255,6 +275,17 @@ export function Accounts() {
       {dialog?.kind === "transport" && (
         <TransportDialog
           account={dialog.account}
+          web={dialog.web}
+          onClose={() => setDialog(undefined)}
+          onDone={() => void reloadAll()}
+        />
+      )}
+      {dialog?.kind === "webAdd" && (
+        <WebAddDialog onClose={() => setDialog(undefined)} onDone={() => void reloadAll()} />
+      )}
+      {dialog?.kind === "webSettings" && (
+        <WebSettingsDialog
+          status={dialog.status}
           onClose={() => setDialog(undefined)}
           onDone={() => void reloadAll()}
         />
@@ -276,6 +307,8 @@ function ProviderSection(props: {
   usageSources: string[];
   /** Accounts sign in through Loadout (ADR-012). */
   signIn: boolean;
+  /** Browser-session accounts (ADR-014). */
+  web: boolean;
   accounts: AccountInfo[];
   usageOf: (a: AccountInfo) => AccountUsage | undefined;
   busy: boolean;
@@ -352,6 +385,7 @@ function ProviderSection(props: {
               account={a}
               usage={props.usageOf(a)}
               signIn={props.signIn}
+              web={props.web}
               busy={props.busy}
               onAction={props.onAction}
               onBench={props.onBench}
@@ -368,6 +402,7 @@ function AccountCard(props: {
   account: AccountInfo;
   usage: AccountUsage | undefined;
   signIn: boolean;
+  web: boolean;
   busy: boolean;
   onAction: (f: () => Promise<unknown>) => void;
   onBench: (a: AccountInfo) => void;
@@ -377,9 +412,11 @@ function AccountCard(props: {
   const u = props.usage;
   const confirm = useConfirm();
   const toast = useToast();
-  // Official-CLI subscription logins only show usage; Loadout sign-ins can route.
-  const usageOnly = a.account_type === "subscription" && !props.signIn;
-  const routable = !usageOnly && (!props.signIn || a.transport_opt_in);
+  // Official-CLI subscription logins only show usage; Loadout sign-ins and browser sessions
+  // can route.
+  const optIn = props.signIn || props.web;
+  const usageOnly = a.account_type === "subscription" && !optIn;
+  const routable = !usageOnly && (!optIn || a.transport_opt_in);
   const loginExpired = a.login_expires_at_ms != null && a.login_expires_at_ms <= Date.now();
   const name = `${a.provider}/${a.alias}`;
   const subtitle = [a.display_name, u?.account_label].filter(Boolean).join(" · ");
@@ -400,12 +437,12 @@ function AccountCard(props: {
           {subtitle && <div className="small muted ellipsis">{subtitle}</div>}
         </div>
         <div className="account-actions">
-          {routable && (
+          {routable && !props.web && (
             <IconButton label={t("acc.bench")} disabled={props.busy || !a.enabled} onClick={() => props.onBench(a)}>
               <Zap size={16} />
             </IconButton>
           )}
-          {!usageOnly && (
+          {!usageOnly && !props.web && (
             <IconButton
               label={t("acc.check")}
               disabled={props.busy}
@@ -437,7 +474,7 @@ function AccountCard(props: {
               <LogIn size={16} />
             </IconButton>
           )}
-          {!usageOnly && !props.signIn && (
+          {!usageOnly && !optIn && (
             <IconButton
               label={a.has_key ? t("acc.changeKey") : t("acc.setKey")}
               disabled={props.busy}
@@ -474,7 +511,7 @@ function AccountCard(props: {
         <Badge tone={a.account_type === "subscription" ? "accent" : "info"}>{tv("accountType", a.account_type)}</Badge>
         {!a.enabled && <Badge>{t("common.disabled")}</Badge>}
         {usageOnly && <Badge title={t("acc.usageOnlyHint")}>{t("acc.usageOnly")}</Badge>}
-        {props.signIn &&
+        {optIn &&
           (a.transport_opt_in ? (
             <Badge tone="warn" dot>
               {t("sub.routingOn")}
@@ -485,11 +522,19 @@ function AccountCard(props: {
         {!usageOnly && (
           <span className="small muted">{t("acc.modelsRouted", { on: a.enabled_models, all: a.models })}</span>
         )}
-        {!usageOnly && !props.signIn && !a.has_key && <Badge tone="warn">{t("acc.noKey")}</Badge>}
+        {!usageOnly && !optIn && !a.has_key && <Badge tone="warn">{t("acc.noKey")}</Badge>}
         {props.signIn && loginExpired && <Badge tone="bad">{t("sub.loginExpired")}</Badge>}
         {u?.plan?.name && <Badge tone="muted">{u.plan.name}</Badge>}
       </div>
-      {props.signIn && (
+      {props.web && (
+        <WebPanel
+          account={a}
+          busy={props.busy}
+          onAction={props.onAction}
+          onSettings={(status) => props.onDialog({ kind: "webSettings", status })}
+        />
+      )}
+      {optIn && (
         <div className="row wrap" style={{ gap: 8 }}>
           {a.transport_opt_in ? (
             <Button
@@ -508,7 +553,7 @@ function AccountCard(props: {
             <Button
               icon={<ShieldAlert size={16} />}
               disabled={props.busy || loginExpired}
-              onClick={() => props.onDialog({ kind: "transport", account: a })}
+              onClick={() => props.onDialog({ kind: "transport", account: a, web: props.web })}
             >
               {t("sub.turnOn")}
             </Button>
@@ -596,7 +641,9 @@ function AddAccountDialog(props: { providers: ProviderInfo[]; onClose: () => voi
   const [result, setResult] = useState<string>();
 
   // Subscription logins come from "Scan this PC" or the sign-in tile, not from API keys.
-  const inferenceKinds = (kinds.data ?? []).filter((k) => k.auth !== "external_managed" && k.auth !== "oauth");
+  const inferenceKinds = (kinds.data ?? []).filter(
+    (k) => k.auth !== "external_managed" && k.auth !== "oauth" && k.auth !== "browser_login",
+  );
   const selected: ProviderKind | undefined = inferenceKinds.find((k) => k.kind === kind);
   const effectiveSlug = selected?.fixed_slug ?? slug;
   const exists = props.providers.some((p) => p.slug === effectiveSlug);
@@ -965,8 +1012,9 @@ function LoginDialog(props: { alias?: string; onClose: () => void; onDone: () =>
   );
 }
 
-/** The two confirmation steps before routing through a lower-trust transport (ADR-012 §1). */
-function TransportDialog(props: { account: AccountInfo; onClose: () => void; onDone: () => void }) {
+/** The two confirmation steps before routing through a lower-trust transport (ADR-012 §1,
+ * ADR-014 §8). */
+function TransportDialog(props: { account: AccountInfo; web?: boolean; onClose: () => void; onDone: () => void }) {
   const action = useAction();
   const a = props.account;
   const name = `${a.provider}/${a.alias}`;
@@ -996,14 +1044,18 @@ function TransportDialog(props: { account: AccountInfo; onClose: () => void; onD
         </>
       }
     >
-      <Notice tone="warn">
-        <ul className="risk-list">
-          <li>{t("sub.risk1")}</li>
-          <li>{t("sub.risk2")}</li>
-          <li>{t("sub.risk3")}</li>
-          <li>{t("sub.risk4")}</li>
-        </ul>
-      </Notice>
+      {props.web ? (
+        <WebRiskList />
+      ) : (
+        <Notice tone="warn">
+          <ul className="risk-list">
+            <li>{t("sub.risk1")}</li>
+            <li>{t("sub.risk2")}</li>
+            <li>{t("sub.risk3")}</li>
+            <li>{t("sub.risk4")}</li>
+          </ul>
+        </Notice>
+      )}
       <label className="row check-row">
         <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} />
         <span>{t("sub.understand")}</span>

@@ -1771,6 +1771,13 @@ ol.routes li:first-child::before {
   user-select: all;
 }
 
+.web-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
 .risk-list {
   margin: 0;
   padding-left: 18px;

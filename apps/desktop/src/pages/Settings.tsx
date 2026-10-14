@@ -18,6 +18,7 @@ import {
 import { time } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { settingDescription, t } from "../i18n";
+import { WebRiskList } from "./WebSession";
 
 export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Promise<void> }) {
   const settings = usePoll(api.settings, 0);
@@ -148,6 +149,7 @@ function SettingRow(props: {
   onReset: () => void;
 }) {
   const s = props.setting;
+  const confirm = useConfirm();
   const [value, setValue] = useState(s.value);
   const boolean = s.default === "true" || s.default === "false";
   const changed = value !== s.value;
@@ -166,11 +168,24 @@ function SettingRow(props: {
             checked={value === "true"}
             disabled={props.busy}
             label={value === "true" ? t("settings.on") : t("settings.off")}
-            onChange={(on) => {
-              const v = on ? "true" : "false";
-              setValue(v);
-              props.onSave(v);
-            }}
+            onChange={(on) =>
+              void (async () => {
+                // Browser sessions carry account risks: confirm before turning them on
+                // (ADR-014).
+                if (on && s.key === "web_session.enabled") {
+                  const ok = await confirm({
+                    title: t("web.enableTitle"),
+                    message: <WebRiskList />,
+                    confirmLabel: t("settings.on"),
+                    danger: true,
+                  });
+                  if (!ok) return;
+                }
+                const v = on ? "true" : "false";
+                setValue(v);
+                props.onSave(v);
+              })()
+            }
           />
         ) : (
           <input

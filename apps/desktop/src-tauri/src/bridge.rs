@@ -65,6 +65,12 @@ pub const ALLOWED_METHODS: &[&str] = &[
     api::PriceCompare::NAME,
     api::AccountCheck::NAME,
     api::AccountSetReserve::NAME,
+    api::AccountWebAdd::NAME,
+    api::AccountWebStatus::NAME,
+    api::AccountWebShow::NAME,
+    api::AccountWebRecheck::NAME,
+    api::AccountWebBind::NAME,
+    api::AccountWebConfig::NAME,
 ];
 
 /// Error returned to the web UI.
