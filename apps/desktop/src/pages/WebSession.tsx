@@ -4,7 +4,7 @@
 // with the two-step risk confirmation, its live state, and its settings.
 
 import { useState } from "react";
-import { AppWindow, CheckCheck, Settings2 } from "lucide-react";
+import { AppWindow, CheckCheck, LogIn, Settings2 } from "lucide-react";
 import { api, type AccountInfo, type WebSessionStatus } from "../api";
 import { Badge, Button, ErrorText, Field, Modal, Notice, type Tone } from "../components";
 import { time } from "../format";
@@ -100,6 +100,7 @@ function stateTone(s: WebSessionStatus): Tone {
       return "ok";
     case "busy":
     case "starting":
+    case "signing_in":
       return "info";
     case "cooling":
     case "needs_attention":
@@ -112,7 +113,7 @@ function stateTone(s: WebSessionStatus): Tone {
 function stateLabel(s: WebSessionStatus): string {
   if (s.state === "stopped" && !s.enabled_globally) return t("web.off");
   if (s.state === "cooling") return t("web.state.cooling", { time: time(s.next_allowed_ms) });
-  const known = ["ready", "busy", "starting", "stopped", "needs_attention"];
+  const known = ["ready", "busy", "starting", "stopped", "needs_attention", "signing_in"];
   return known.includes(s.state) ? t(`web.state.${s.state}` as MessageKey) : s.state;
 }
 
@@ -145,6 +146,7 @@ export function WebPanel(props: {
         {s && <span className="small muted">{t("web.today", { n: s.today_count })}</span>}
       </div>
       {s?.state === "needs_attention" && s.attention && <Notice tone="warn">{s.attention}</Notice>}
+      {s?.state === "signing_in" && <Notice>{t("web.signingInHint")}</Notice>}
       {s && (
         <div className="small muted ellipsis" title={s.default_conversation ?? undefined}>
           {t("web.conversation")}:{" "}
@@ -160,13 +162,34 @@ export function WebPanel(props: {
       )}
       <ErrorText error={status.error?.message} />
       <div className="row wrap" style={{ gap: 8 }}>
-        <Button
-          icon={<AppWindow size={16} />}
-          disabled={props.busy || !s?.enabled_globally || !a.transport_opt_in || !a.enabled}
-          onClick={() => run(() => api.webShow(a.provider, a.alias))}
-        >
-          {t("web.show")}
-        </Button>
+        {s?.state === "signing_in" ? (
+          <Button
+            kind="primary"
+            icon={<CheckCheck size={16} />}
+            disabled={props.busy}
+            onClick={() => run(() => api.webLogin(a.provider, a.alias, true))}
+          >
+            {t("web.loginDone")}
+          </Button>
+        ) : (
+          <>
+            <Button
+              icon={<LogIn size={16} />}
+              disabled={props.busy || !s?.enabled_globally || !a.transport_opt_in || !a.enabled}
+              title={t("web.loginHint")}
+              onClick={() => run(() => api.webLogin(a.provider, a.alias, false))}
+            >
+              {t("web.login")}
+            </Button>
+            <Button
+              icon={<AppWindow size={16} />}
+              disabled={props.busy || !s?.enabled_globally || !a.transport_opt_in || !a.enabled}
+              onClick={() => run(() => api.webShow(a.provider, a.alias))}
+            >
+              {t("web.show")}
+            </Button>
+          </>
+        )}
         {s?.state === "needs_attention" && (
           <Button icon={<CheckCheck size={16} />} disabled={props.busy} onClick={() => run(() => api.webRecheck(a.provider, a.alias))}>
             {t("web.recheck")}

@@ -39,6 +39,23 @@ pub struct LaunchOptions {
     pub start_url: String,
 }
 
+/// Arguments of a sign-in window: the same profile, no debugging pipe and nothing else, so
+/// the browser is not controlled while the user signs in (ADR-014 §4).
+pub fn login_args(profile_dir: &std::path::Path, headless: bool, url: &str) -> Vec<OsString> {
+    let mut profile = OsString::from("--user-data-dir=");
+    profile.push(profile_dir);
+    let mut args = vec![
+        profile,
+        "--no-first-run".into(),
+        "--no-default-browser-check".into(),
+    ];
+    if headless {
+        args.push("--headless=new".into());
+    }
+    args.push(url.into());
+    args
+}
+
 /// The full argument list (without the program).
 pub fn launch_args(opts: &LaunchOptions, pipe_read: &str, pipe_write: &str) -> Vec<OsString> {
     let mut profile = OsString::from("--user-data-dir=");
@@ -205,5 +222,25 @@ mod tests {
                 Some("https://chatgpt.com/")
             );
         }
+    }
+
+    #[test]
+    fn sign_in_windows_are_not_controlled() {
+        let args = login_args(
+            std::path::Path::new("C:/Data/browser-profiles/a"),
+            false,
+            "https://chatgpt.com/",
+        );
+        let text: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(text.len(), 4, "{text:?}");
+        assert!(text.iter().all(|a| !a.contains("remote-debugging")));
+        assert!(text.iter().all(|a| !a.contains("headless")));
+        assert!(
+            text.iter()
+                .all(|a| !FORBIDDEN_ARG_PREFIXES.iter().any(|f| a.starts_with(f)))
+        );
     }
 }

@@ -307,6 +307,7 @@ impl WebSessions {
             edge: edge.path,
             job: Arc::new(job),
             headless: self.headless(),
+            login_headless: false,
         };
         *l = Some(launcher.clone());
         Ok(launcher)
@@ -419,13 +420,14 @@ impl ControlPlane {
     }
 
     /// Creates a browser-session account with its two-step confirmation (`confirm` must
-    /// equal the alias, ADR-014 §8) and opens the sign-in window.
+    /// equal the alias, ADR-014 §8) and, with `sign_in`, opens the sign-in window.
     pub async fn web_add(
         &self,
         provider: String,
         alias: String,
         confirm: String,
         display_name: Option<String>,
+        sign_in: bool,
     ) -> Result<AccountInfo, ErrorBody> {
         self.require_web_enabled()?;
         if confirm.trim() != alias {
@@ -499,7 +501,35 @@ impl ControlPlane {
         tracing::warn!(provider = %provider, alias = %alias, "browser-session account added and opted in");
         // Offer the page default model until the page lists its own.
         self.sync_models(provider.clone(), alias.clone()).await?;
+        if sign_in {
+            self.web_login(provider.clone(), alias.clone(), false)
+                .await?;
+        }
         self.account(&provider, &alias).await
+    }
+
+    /// Opens the sign-in window (an uncontrolled browser on the account's profile), or with
+    /// `done` closes it so the controlled browser starts again (ADR-014 §4).
+    pub async fn web_login(
+        &self,
+        provider: String,
+        alias: String,
+        done: bool,
+    ) -> Result<WebSessionStatus, ErrorBody> {
+        let (_, a) = self.web_target(&provider, &alias).await?;
+        let account = self.running_account(&a.id)?;
+        if done {
+            account.finish_login().await;
+        } else {
+            self.require_web_enabled()?;
+            let launcher = self.web.launcher().map_err(browser_error)?;
+            account
+                .begin_login(&launcher)
+                .await
+                .map_err(browser_error)?;
+        }
+        tracing::info!(provider = %provider, alias = %alias, done, "web session sign-in");
+        self.web_status(provider, alias).await
     }
 
     async fn web_target(
@@ -748,9 +778,10 @@ impl ControlPlane {
 
 fn browser_error(e: BrowserError) -> ErrorBody {
     match e {
-        BrowserError::EdgeNotFound | BrowserError::EdgeTooOld(_) | BrowserError::ProfileInUse => {
-            ErrorBody::invalid_params(e.to_string())
-        }
+        BrowserError::EdgeNotFound
+        | BrowserError::EdgeTooOld(_)
+        | BrowserError::ProfileInUse
+        | BrowserError::SigningIn => ErrorBody::invalid_params(e.to_string()),
         other => ErrorBody::internal(other.to_string()),
     }
 }
@@ -761,6 +792,8 @@ struct Schedule {
     backoff: Duration,
     next_check: Instant,
     seeded: bool,
+    /// A sign-in window was open at the last tick.
+    signing_in: bool,
 }
 
 /// Background supervisor (restartable): starts browsers of opted-in accounts, restarts
@@ -796,7 +829,7 @@ pub(crate) async fn run(
         let accounts = web.all();
         if !web.enabled() {
             for (a, _) in &accounts {
-                if a.is_running() {
+                if a.is_running() || a.signing_in() {
                     a.stop().await;
                 }
             }
@@ -828,10 +861,21 @@ pub(crate) async fn run(
                     backoff: Duration::from_secs(1),
                     next_check: now + CHECK_INTERVAL,
                     seeded: false,
+                    signing_in: false,
                 });
             if !s.seeded {
                 control.seed_today(&account, &meta).await;
                 s.seeded = true;
+            }
+            // The user is signing in: leave the profile to the uncontrolled window, and start
+            // the controlled browser as soon as it closes.
+            if account.signing_in() {
+                s.signing_in = true;
+                continue;
+            }
+            if std::mem::take(&mut s.signing_in) {
+                s.next_start = now;
+                s.backoff = Duration::from_secs(1);
             }
             if !account.is_running() {
                 if now < s.next_start {

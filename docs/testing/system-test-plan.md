@@ -123,7 +123,8 @@
 
 - [ ] 未开启时，`loadout account web add web-chatgpt main` 报错并提示 `web_session.enabled`。
 - [ ] `loadout config set web_session.enabled true` 打印风险说明；桌面端设置页开启该项时先弹出风险确认。
-- [ ] `loadout account web add web-chatgpt main`：风险说明 → "I understand" → 别名；几秒后弹出一个独立的 Edge 窗口（与你日常的 Edge 分开）。在窗口里自己登录 ChatGPT。
+- [ ] `loadout account web add web-chatgpt main`：风险说明 → "I understand" → 别名；随即弹出一个独立的普通 Edge 窗口（登录窗口，与你日常的 Edge 分开，Loadout 不控制它）。在里面自己登录 ChatGPT（包括用 Google 登录时不再提示"不安全"），然后关闭窗口（或 `loadout account web login web-chatgpt main --done`）。
+- [ ] 登录期间 `account web status` 显示"the sign-in window is open"；关闭窗口后几秒内重新打开一个受控窗口，并已是登录状态。
 - [ ] 登录后 `loadout account web status web-chatgpt main` 显示 ready（最多约 30 秒；也可运行 `account web recheck`）；`loadout model list` 出现 `web-chatgpt/main/auto` 及页面列出的模型。
 - [ ] 若出现 Cloudflare 验证页：状态为"需要你处理"，桌面通知出现；在窗口里自己完成后 `recheck` 变为 ready。记录出现频率。
 - [ ] Chat 非流式：`web-chatgpt/main/auto` 发一句话，返回内容与窗口中显示的回答逐字一致。

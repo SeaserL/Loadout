@@ -937,6 +937,19 @@ pub struct WebAddParams {
     pub confirm: String,
     #[serde(default)]
     pub display_name: Option<String>,
+    /// Open the sign-in window right away (default true).
+    #[serde(default = "default_true")]
+    pub sign_in: bool,
+}
+
+/// Opens the sign-in window of a browser-session account: a plain browser on its profile,
+/// not controlled by Loadout. `done` closes it again.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WebLoginParams {
+    pub provider: String,
+    pub alias: String,
+    #[serde(default)]
+    pub done: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -966,7 +979,7 @@ pub struct WebConfigParams {
 pub struct WebSessionStatus {
     pub provider: String,
     pub alias: String,
-    /// `stopped`, `starting`, `ready`, `busy`, `needs_attention` or `cooling`.
+    /// `stopped`, `starting`, `ready`, `busy`, `needs_attention`, `cooling` or `signing_in`.
     pub state: String,
     pub running: bool,
     /// What the user has to do in the browser window, when `needs_attention`.
@@ -997,6 +1010,12 @@ method!(
     AccountWebShow,
     "account.web_show",
     AccountRef,
+    WebSessionStatus
+);
+method!(
+    AccountWebLogin,
+    "account.web_login",
+    WebLoginParams,
     WebSessionStatus
 );
 method!(

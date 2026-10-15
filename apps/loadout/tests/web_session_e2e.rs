@@ -93,6 +93,7 @@ fn web_session_answers_through_the_gateway() {
         None,
     );
     assert!(!wrong.status.success());
+    // No sign-in window: the mock page needs no login.
     let added = d.json(
         &[
             "account",
@@ -103,6 +104,7 @@ fn web_session_answers_through_the_gateway() {
             "--i-understand-the-risk",
             "--confirm",
             "main",
+            "--no-sign-in",
         ],
         None,
     );

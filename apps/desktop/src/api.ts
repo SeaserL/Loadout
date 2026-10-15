@@ -150,7 +150,7 @@ export interface AccountInfo {
 export interface WebSessionStatus {
   provider: string;
   alias: string;
-  /** `stopped`, `starting`, `ready`, `busy`, `needs_attention` or `cooling`. */
+  /** `stopped`, `starting`, `ready`, `busy`, `needs_attention`, `cooling` or `signing_in`. */
   state: string;
   running: boolean;
   attention: string | null;
@@ -427,6 +427,8 @@ export const api = {
     call<AccountInfo>("account.web_add", { provider, alias, confirm, display_name: null }),
   webStatus: (provider: string, alias: string) => call<WebSessionStatus>("account.web_status", { provider, alias }),
   webShow: (provider: string, alias: string) => call<WebSessionStatus>("account.web_show", { provider, alias }),
+  webLogin: (provider: string, alias: string, done: boolean) =>
+    call<WebSessionStatus>("account.web_login", { provider, alias, done }),
   webRecheck: (provider: string, alias: string) => call<WebSessionStatus>("account.web_recheck", { provider, alias }),
   webBind: (provider: string, alias: string, conversation_url: string | null) =>
     call<WebSessionStatus>("account.web_bind", { provider, alias, conversation_url }),

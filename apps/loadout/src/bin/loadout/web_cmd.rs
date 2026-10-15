@@ -4,7 +4,8 @@
 
 use clap::Subcommand;
 use loadout_ipc::api::{
-    self, AccountRef, WebAddParams, WebBindParams, WebConfigParams, WebSessionStatus,
+    self, AccountRef, WebAddParams, WebBindParams, WebConfigParams, WebLoginParams,
+    WebSessionStatus,
 };
 
 use crate::account_cmd::ask;
@@ -13,7 +14,7 @@ use crate::{Ctx, Failure, output};
 #[derive(Debug, Subcommand)]
 pub enum WebCommand {
     /// Add a browser-session account (e.g. `web-chatgpt`). Shows the risks, asks for two
-    /// confirmations, then opens a dedicated Edge window where you sign in yourself.
+    /// confirmations, then opens the sign-in window (see `login`).
     Add {
         provider: String,
         alias: String,
@@ -25,6 +26,19 @@ pub enum WebCommand {
         confirm: Option<String>,
         #[arg(long)]
         name: Option<String>,
+        /// Do not open the sign-in window now (sign in later with `login`).
+        #[arg(long)]
+        no_sign_in: bool,
+    },
+    /// Open a plain Edge window on the account's profile to sign in. Loadout does not
+    /// control that window (sites such as Google refuse sign-in in a controlled browser);
+    /// close it when you are signed in, or run this again with --done.
+    Login {
+        provider: String,
+        alias: String,
+        /// Close the sign-in window now and start the session.
+        #[arg(long)]
+        done: bool,
     },
     /// State of the session: ready, busy, needs attention, cooling down…
     Status { provider: String, alias: String },
@@ -99,6 +113,7 @@ fn describe_state(s: &WebSessionStatus) -> String {
         "ready" => "ready".into(),
         "busy" => "busy (answering, or the window is in use)".into(),
         "starting" => "starting the browser".into(),
+        "signing_in" => "the sign-in window is open; close it when you are signed in".into(),
         "stopped" if !s.enabled_globally => "off (web_session.enabled is false)".into(),
         "stopped" => "not running (the daemon starts it shortly)".into(),
         "cooling" => format!(
@@ -111,6 +126,15 @@ fn describe_state(s: &WebSessionStatus) -> String {
         ),
         other => other.to_owned(),
     }
+}
+
+fn print_sign_in_help(provider: &str, alias: &str) {
+    println!(
+        "An Edge window for {provider}/{alias} opens now. Sign in there yourself; Loadout does \
+         not control or read that window. Then close the window (or run `loadout account web \
+         login {provider} {alias} --done`); the session starts on its own and `loadout account \
+         web status {provider} {alias}` says \"ready\"."
+    );
 }
 
 pub(crate) fn print_status(s: &WebSessionStatus) {
@@ -147,6 +171,7 @@ pub async fn run(ctx: &Ctx, cmd: WebCommand) -> Result<(), Failure> {
             i_understand_the_risk,
             confirm,
             name,
+            no_sign_in,
         } => {
             let confirm = confirm_web(&alias, i_understand_the_risk, confirm)?;
             let mut ipc = ctx.connect().await?;
@@ -156,21 +181,45 @@ pub async fn run(ctx: &Ctx, cmd: WebCommand) -> Result<(), Failure> {
                     alias: alias.clone(),
                     confirm,
                     display_name: name,
+                    sign_in: !no_sign_in,
                 })
                 .await?;
             if ctx.json {
                 return output::json(&info);
             }
             println!("Added {}/{}.", info.provider, info.alias);
-            println!(
-                "A dedicated Edge window opens in a few seconds: sign in there yourself. Then \
-                 `loadout account web status {provider} {alias}` should say \"ready\"."
-            );
+            if no_sign_in {
+                println!("Sign in when ready: loadout account web login {provider} {alias}");
+            } else {
+                print_sign_in_help(&provider, &alias);
+            }
             println!(
                 "Use it as {}/{}/auto (the page's default model) or another model from \
                  `loadout model list`.",
                 info.provider, info.alias
             );
+            Ok(())
+        }
+        WebCommand::Login {
+            provider,
+            alias,
+            done,
+        } => {
+            let mut ipc = ctx.connect().await?;
+            let s = ipc
+                .call::<api::AccountWebLogin>(&WebLoginParams {
+                    provider: provider.clone(),
+                    alias: alias.clone(),
+                    done,
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&s);
+            }
+            if !done {
+                print_sign_in_help(&provider, &alias);
+            }
+            print_status(&s);
             Ok(())
         }
         WebCommand::Status { provider, alias } => {

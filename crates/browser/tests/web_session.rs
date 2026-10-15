@@ -55,6 +55,7 @@ fn launcher() -> Option<Launcher> {
         edge: edge.path,
         job: Arc::new(OwnedJob::new().expect("job")),
         headless: true,
+        login_headless: true,
     })
 }
 
@@ -398,6 +399,62 @@ async fn limits_cancellation_and_sign_out() {
             .iter()
             .any(|r| r.contains("verification"))
     );
+    acct.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sign_in_uses_an_uncontrolled_window_then_resumes() {
+    let Some(launcher) = launcher() else { return };
+    let (origin, mock) = mock::start();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let acct = account(
+        &origin,
+        &dir.path().join("profile"),
+        no_limits(ConversationMode::Persistent),
+        Arc::new(Recorder::default()),
+    );
+    acct.start(&launcher).await.expect("start");
+    assert!(acct.is_running());
+
+    // Sign-in: the controlled browser closes, a plain window takes the profile.
+    acct.begin_login(&launcher).await.expect("sign-in window");
+    assert!(acct.signing_in());
+    assert!(!acct.is_running(), "no controlled browser while signing in");
+    assert_eq!(acct.gate().state(), GateState::SigningIn);
+    assert_eq!(
+        acct.gate().unavailable_reason(1),
+        Some("web session signing in")
+    );
+    assert!(matches!(
+        acct.start(&launcher).await,
+        Err(loadout_browser::BrowserError::SigningIn)
+    ));
+    assert!(acct.check().await.is_none());
+    assert_eq!(
+        acct.gate().state(),
+        GateState::SigningIn,
+        "checks leave it alone"
+    );
+    assert!(matches!(
+        ask(&acct, request(&[(Role::User, "hi")], &[]), "auto", None).await,
+        Err(SessionError::Busy(_))
+    ));
+    // The plain window loads the site like any browser, without Loadout reading it.
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while mock.model_list_requests.load(Ordering::Acquire) < 2 {
+        assert!(
+            Instant::now() < deadline,
+            "sign-in window did not load the page"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    // Done: the window closes and the controlled browser starts again on the same profile.
+    acct.finish_login().await;
+    assert!(!acct.signing_in());
+    assert_eq!(acct.gate().state(), GateState::Stopped);
+    acct.start(&launcher).await.expect("restart after sign-in");
+    assert_eq!(acct.gate().state(), GateState::Ready);
     acct.stop().await;
 }
 

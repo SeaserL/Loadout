@@ -33,12 +33,15 @@ OpenAI Terms of Use（<https://openai.com/policies/terms-of-use/>，2026-10-15 �
 - 不处理验证页：出现验证页或登录失效时，会话进入"需要你处理"，由用户在窗口里自己完成。
 - 不读取 cookie：CDP 方法白名单禁止 `Network.getCookies`、`Storage.*`、`Fetch.*` 等，Loadout 也从不读取 profile 目录里的文件。
 - 页面的所有请求都由页面自己的脚本发出。Loadout 只做两件事：像用户一样输入文字，以及被动读取页面收到的答案流。
+- **登录时浏览器不受控制**：登录在一个单独启动的普通 Edge 窗口里完成（同一个专用 profile，没有调试管道，Loadout 不驱动、不读取它）。用户关闭窗口后，Loadout 才以受控方式重新启动浏览器。见下文"登录"。
 
 ## 使用
 
 ```text
 loadout config set web_session.enabled true             显示风险说明后开启
-loadout account web add web-chatgpt main                风险说明 → "I understand" → 输入别名；随后打开专用窗口，在窗口里自己登录
+loadout account web add web-chatgpt main                风险说明 → "I understand" → 输入别名；随后打开登录窗口（--no-sign-in：稍后再登录）
+loadout account web login web-chatgpt main              重新打开登录窗口（登出后、换账号时）
+loadout account web login web-chatgpt main --done       关闭登录窗口并启动会话（直接关掉窗口也一样）
 loadout account web status web-chatgpt main             就绪 / 忙 / 需要你处理 / 冷却中
 loadout account web show web-chatgpt main               把窗口带到前台
 loadout account web recheck web-chatgpt main            登录或完成验证后，立即重新检查
@@ -48,7 +51,23 @@ loadout account transport web-chatgpt main off          停止路由（profile �
 loadout account remove web-chatgpt main                 关闭浏览器并删除 profile 目录
 ```
 
-桌面端：账号页 →「ChatGPT 网页会话」。
+桌面端：账号页 →「ChatGPT 网页会话」；账号卡片上有「登录」与「完成登录」。
+
+## 登录
+
+2026-10-16 所有者实测：在受控窗口里登录，后续步骤提示"此浏览器或应用可能不安全"并拒绝登录。Google 等身份提供方会拒绝在被远程调试控制的浏览器里登录（受控时 `navigator.webdriver` 为 `true`，我们不隐藏它）。
+
+做法：
+
+1. 打开登录窗口时，Loadout 先正常关闭受控浏览器；
+2. 再用同一个 profile 启动一个**普通** Edge：只有 `--user-data-dir`、`--no-first-run`、`--no-default-browser-check` 和起始网址，没有调试管道。它仍在 daemon 的 Job 里，daemon 退出时随之结束，但 Loadout 不与它通信；
+3. 用户在里面登录（任何方式：Google、Microsoft、Apple、邮箱）；
+4. 用户关闭窗口，或执行 `login --done` / 点「完成登录」（Loadout 向该窗口发送与点击关闭按钮相同的 WM_CLOSE，让 Edge 保存会话；15 秒内未退出才结束进程）；
+5. daemon 用受控方式重新启动浏览器并检查页面状态，变为 ready。
+
+登录期间账号状态为 `signing_in`，不参与路由，后台检查也不打扰该窗口。
+
+这不是伪装（ADR-014 §2）：登录期间浏览器确实没有被控制；登录后的受控浏览器照常如实暴露自动化特征。如果网站在受控浏览器里也要求重新验证身份，就会进入"需要你处理"，由用户再次通过登录窗口处理。
 
 模型名：
 
@@ -88,7 +107,7 @@ system / instructions 只在新开对话时，以 `[System instructions from the
 - **一次一个请求**：每个账号同一时间只处理一个请求。
 - **最小间隔与每日上限**：默认 10 s、150 次 / 天，按 UTC 日计数，可用 `account web config` 修改。
 - **冷却**：额度耗尽（429 带 `clears_in`，或答案流里的限额消息）时冷却到 reset；没有 reset 时间时冷却 1 小时。
-- **需要你处理**：登出、出现验证页，或连续 3 次失败时，停止路由并发桌面通知；登录后点「我已处理」或运行 `account web recheck`。
+- **需要你处理**：登出、出现验证页，或连续 3 次失败时，停止路由并发桌面通知。登出时用登录窗口重新登录；验证页在「打开窗口」后自己完成，再点「我已处理」或运行 `account web recheck`。
 - **用户正在使用窗口**：输入框里有文字，或页面正在生成回答时，请求视为忙，转向下一个目标（或返回可重试错误），不会覆盖用户的输入。
 - **客户端断开**：点击页面的停止按钮，等页面回到空闲后才处理下一个请求。
 - **不测速**：每次请求都会消耗网页额度，所以不做主动测速，延迟数据只来自真实请求。

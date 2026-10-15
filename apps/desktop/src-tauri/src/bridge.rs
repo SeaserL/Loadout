@@ -68,6 +68,7 @@ pub const ALLOWED_METHODS: &[&str] = &[
     api::AccountWebAdd::NAME,
     api::AccountWebStatus::NAME,
     api::AccountWebShow::NAME,
+    api::AccountWebLogin::NAME,
     api::AccountWebRecheck::NAME,
     api::AccountWebBind::NAME,
     api::AccountWebConfig::NAME,

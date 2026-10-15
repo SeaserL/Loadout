@@ -144,6 +144,8 @@ pub enum GateState {
     Busy = 3,
     NeedsAttention = 4,
     Cooling = 5,
+    /// A plain, uncontrolled browser window is open for the user to sign in (ADR-014 §4).
+    SigningIn = 6,
 }
 
 impl GateState {
@@ -154,6 +156,7 @@ impl GateState {
             3 => Self::Busy,
             4 => Self::NeedsAttention,
             5 => Self::Cooling,
+            6 => Self::SigningIn,
             _ => Self::Stopped,
         }
     }
@@ -166,6 +169,7 @@ impl GateState {
             Self::Busy => "busy",
             Self::NeedsAttention => "needs_attention",
             Self::Cooling => "cooling",
+            Self::SigningIn => "signing_in",
         }
     }
 }
@@ -244,6 +248,7 @@ impl SessionGate {
             GateState::NeedsAttention => return Some("web session needs attention"),
             GateState::Starting => return Some("web session starting"),
             GateState::Stopped => return Some("web session not running"),
+            GateState::SigningIn => return Some("web session signing in"),
         }
         if now_ms < self.next_allowed_ms() {
             return Some("web session minimum interval");

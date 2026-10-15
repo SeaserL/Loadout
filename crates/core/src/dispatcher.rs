@@ -352,7 +352,7 @@ impl Dispatcher {
             api::AccountWebAdd::NAME => {
                 let p = decode_params::<api::AccountWebAdd>(params)?;
                 let info = c
-                    .web_add(p.provider, p.alias, p.confirm, p.display_name)
+                    .web_add(p.provider, p.alias, p.confirm, p.display_name, p.sign_in)
                     .await?;
                 changed(s);
                 encode_result::<api::AccountWebAdd>(&info)
@@ -364,6 +364,11 @@ impl Dispatcher {
             api::AccountWebShow::NAME => {
                 let p = decode_params::<api::AccountWebShow>(params)?;
                 encode_result::<api::AccountWebShow>(&c.web_show(p.provider, p.alias).await?)
+            }
+            api::AccountWebLogin::NAME => {
+                let p = decode_params::<api::AccountWebLogin>(params)?;
+                let status = c.web_login(p.provider, p.alias, p.done).await?;
+                encode_result::<api::AccountWebLogin>(&status)
             }
             api::AccountWebRecheck::NAME => {
                 let p = decode_params::<api::AccountWebRecheck>(params)?;

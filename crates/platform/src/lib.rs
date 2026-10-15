@@ -27,7 +27,9 @@ pub use autostart::{Autostart, AutostartStatus};
 pub use console::{attach_parent_console, read_hidden_line};
 pub use error::PlatformError;
 pub use instance::InstanceLock;
-pub use owned::{ChildPipes, OwnedJob, OwnedProcess, spawn_owned};
+pub use owned::{
+    ChildPipes, OwnedJob, OwnedProcess, close_windows, spawn_owned, spawn_owned_plain,
+};
 pub use paths::default_data_dir;
 pub use process::{DetachedProcess, spawn_detached};
 pub use registry::app_path;

@@ -16,7 +16,7 @@ mod session;
 
 pub use cdp::{ALLOWED_METHODS, Cdp, Event, Subscription, is_allowed};
 pub use edge::{EdgeInstall, MIN_MAJOR_VERSION, find_edge};
-pub use launch::{Browser, FORBIDDEN_ARG_PREFIXES, LaunchOptions, launch_args};
+pub use launch::{Browser, FORBIDDEN_ARG_PREFIXES, LaunchOptions, launch_args, login_args};
 pub use page::Page;
 pub use plan::{ConversationMode, flatten};
 pub use session::{AccountEvents, AccountSettings, Launcher, WebAccount, WebAccountStatus};
@@ -45,6 +45,8 @@ pub enum BrowserError {
     Io(String),
     #[error("{0} is not a browser-session provider")]
     NotWebProvider(String),
+    #[error("the sign-in window is open; close it when you have signed in")]
+    SigningIn,
 }
 
 /// Removes a profile directory, retrying while a just-closed browser still holds files.

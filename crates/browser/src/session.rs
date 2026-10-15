@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use loadout_platform::OwnedJob;
+use loadout_platform::{OwnedJob, OwnedProcess, close_windows, spawn_owned_plain};
 use loadout_protocol::{CanonicalEvent, StopReason};
 use loadout_provider_sdk::web::{
     GateState, PageState, SessionError, SessionGate, SessionRequest, SessionStream,
@@ -29,7 +29,7 @@ use tokio::sync::{OwnedMutexGuard, mpsc};
 
 use crate::BrowserError;
 use crate::cdp::Subscription;
-use crate::launch::{Browser, LaunchOptions};
+use crate::launch::{Browser, LaunchOptions, login_args};
 use crate::page::{Page, decode_b64};
 use crate::plan::{self, ConversationMode};
 
@@ -60,6 +60,8 @@ pub struct Launcher {
     pub edge: PathBuf,
     pub job: Arc<OwnedJob>,
     pub headless: bool,
+    /// Sign-in windows without a window (tests only: a user cannot sign in to one).
+    pub login_headless: bool,
 }
 
 /// Per-account settings (`accounts.web_session_json`).
@@ -125,6 +127,8 @@ pub struct WebAccount {
     events: Arc<dyn AccountEvents>,
     failures: AtomicU32,
     attention: Mutex<Option<String>>,
+    /// The uncontrolled sign-in window, while one is open (ADR-014 §4).
+    login: Mutex<Option<OwnedProcess>>,
 }
 
 impl std::fmt::Debug for WebAccount {
@@ -208,6 +212,7 @@ impl WebAccount {
             events,
             failures: AtomicU32::new(0),
             attention: Mutex::default(),
+            login: Mutex::default(),
         }))
     }
 
@@ -303,9 +308,9 @@ impl WebAccount {
                 }
             }
             PageState::Busy => self.gate.set_state(GateState::Busy),
-            PageState::LoggedOut => {
-                self.set_attention("signed out: sign in in the Loadout browser window")
-            }
+            PageState::LoggedOut => self.set_attention(
+                "signed out: sign in again (Sign in button, or `loadout account web login`)",
+            ),
             PageState::Challenge => {
                 self.set_attention("verification page: complete it in the Loadout browser window")
             }
@@ -315,6 +320,9 @@ impl WebAccount {
 
     /// Starts the browser if it is not running and reads the page state.
     pub async fn start(&self, launcher: &Launcher) -> Result<(), BrowserError> {
+        if self.signing_in() {
+            return Err(BrowserError::SigningIn);
+        }
         let mut running = self.running.lock().await;
         if running.as_ref().is_some_and(|r| r.browser.is_alive()) {
             return Ok(());
@@ -366,6 +374,9 @@ impl WebAccount {
 
     /// Re-reads the page state (background check). Skipped while a request runs.
     pub async fn check(&self) -> Option<PageState> {
+        if self.signing_in() {
+            return None;
+        }
         let Ok(running) = self.running.try_lock() else {
             return None;
         };
@@ -401,12 +412,93 @@ impl WebAccount {
 
     /// Closes the browser (waits for a running request).
     pub async fn stop(&self) {
+        self.finish_login().await;
         let mut running = self.running.lock().await;
         if let Some(r) = running.take() {
             r.browser.shutdown(SHUTDOWN_GRACE).await;
             tracing::info!(account = %self.account_id, "web session stopped");
         }
         self.gate.set_state(GateState::Stopped);
+    }
+
+    /// Whether a sign-in window is open. Notices when the user closed it.
+    pub fn signing_in(&self) -> bool {
+        let mut login = self.login.lock().unwrap_or_else(PoisonError::into_inner);
+        let alive = login
+            .as_ref()
+            .is_some_and(|p| p.try_exit_code().ok().flatten().is_none());
+        if !alive && login.take().is_some() {
+            tracing::info!(account = %self.account_id, "sign-in window closed");
+            if self.gate.state() == GateState::SigningIn {
+                self.gate.set_state(GateState::Stopped);
+            }
+        }
+        alive
+    }
+
+    /// Opens a plain browser window on this account's profile for the user to sign in.
+    ///
+    /// Sites such as Google refuse sign-in in a browser under remote control, so the
+    /// controlled browser is closed first and the window is started without any debugging
+    /// pipe: Loadout does not drive or read it. When the user closes it, the daemon starts
+    /// the controlled browser again, now signed in (ADR-014 §4).
+    pub async fn begin_login(&self, launcher: &Launcher) -> Result<(), BrowserError> {
+        if self.signing_in() {
+            return Ok(());
+        }
+        let mut running = self.running.lock().await;
+        if let Some(r) = running.take() {
+            r.browser.shutdown(SHUTDOWN_GRACE).await;
+        }
+        std::fs::create_dir_all(&self.profile_dir).map_err(|e| BrowserError::Io(e.to_string()))?;
+        let url = self
+            .site()
+            .new_conversation_url(&self.origin, "auto", false);
+        let args = login_args(&self.profile_dir, launcher.login_headless, &url);
+        let process = spawn_owned_plain(&launcher.edge, &args, &launcher.job)
+            .map_err(|e| BrowserError::Launch(e.to_string()))?;
+        tracing::info!(account = %self.account_id, pid = process.pid(), "sign-in window opened");
+        *self.login.lock().unwrap_or_else(PoisonError::into_inner) = Some(process);
+        *self
+            .attention
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
+        self.failures.store(0, Ordering::Relaxed);
+        self.gate.set_state(GateState::SigningIn);
+        Ok(())
+    }
+
+    /// Closes the sign-in window like its close button does (the browser saves the new
+    /// session), then ends it if it lingers.
+    pub async fn finish_login(&self) {
+        let Some(process) = self
+            .login
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        else {
+            return;
+        };
+        let closed = close_windows(process.pid());
+        // With no window to close there is nothing the browser is waiting to save.
+        let grace = if closed > 0 {
+            SHUTDOWN_GRACE * 3
+        } else {
+            Duration::from_secs(2)
+        };
+        let exited = tokio::task::spawn_blocking(move || {
+            let done = process.wait(grace);
+            if !done {
+                process.kill();
+            }
+            done
+        })
+        .await
+        .unwrap_or(false);
+        tracing::info!(account = %self.account_id, closed, exited, "sign-in window finished");
+        if self.gate.state() == GateState::SigningIn {
+            self.gate.set_state(GateState::Stopped);
+        }
     }
 
     /// Navigates, reading the page's model list if it loads one within `models_wait`.
@@ -731,6 +823,9 @@ impl WebAccount {
 
     async fn run(self: Arc<Self>, req: SessionRequest) -> Result<SessionStream, SessionError> {
         let plan = self.plan(&req)?;
+        if self.signing_in() {
+            return Err(SessionError::Busy("the sign-in window is open"));
+        }
         let mut guard: OwnedMutexGuard<Option<Running>> = self
             .running
             .clone()

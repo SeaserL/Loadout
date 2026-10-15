@@ -342,6 +342,7 @@ client ─HTTP─▶ gateway ─select (atomic gate check)─▶ RouteTarget
 | D17 | 持续对话模式下，**新开**对话时输入完整历史（展平），已有对话只输入最新一条 user 消息 | daemon 重启后显式 ID 映射丢失时不丢上下文 |
 | D18 | `max_output_tokens` 接受但不执行（Messages 入口必带）；`temperature`、`top_p`、`stop`、tools、`reasoning`、`response_format` 拒绝（跳过该目标） | ExecPlan §5.3；否则 Messages 入口完全不可用 |
 | D19 | 模型通过 URL 参数 `?model=<slug>` 选择（新对话与已有对话都用），`auto` 不带参数；slug 只允许 `[A-Za-z0-9._-]` | 不操作模型选择器的 DOM，更稳；实际回答的模型从答案流读取并写入 debug 日志 |
+| D20 | **登录与自动化分开**：登录时先关闭受控浏览器，用同一 profile 启动不带调试管道的普通 Edge（`spawn_owned_plain`，仍在 daemon 的 Job 里），Loadout 不驱动、不读取它；用户关闭窗口（或 `login --done`，向其发送 WM_CLOSE）后再以受控方式启动。期间 gate 为 `SigningIn` | 2026-10-16 所有者实测：受控窗口里登录被提示"此浏览器或应用可能不安全"并拒绝（Google 等拒绝在受远程控制的浏览器中登录）。登录期间浏览器确实不受控，不属于 ADR-014 §2 禁止的隐藏或伪装 |
 
 ## 15. Progress
 
@@ -385,4 +386,10 @@ client ─HTTP─▶ gateway ─select (atomic gate check)─▶ RouteTarget
 | `ttft/via_gateway_converted_messages` | 622 µs | +4.4% |
 
 结论：HTTP 目标只多了一次 `Option` 判空，没有可测回退（ttft 的 +3–4% 与 ExecPlan 016 观察到的本机波动同量级，且同一轮中其他 gateway 项为负）。gate 读取是几次原子 load，100 个目标约 40 ns。Loadout 自身在浏览器路径上的开销（选路到首个 `TextDelta`）没有单独计时；集成测试中 mock 页的整个往返在数百毫秒量级，主要是页面与 Edge 的时间。
+- [x] 2026-10-16 所有者实测反馈：受控窗口里登录被拒（"不安全"）。修复（D20）：
+  - platform：`spawn_owned_plain`（不继承任何句柄、入 Job）、`close_windows(pid)`（WM_CLOSE）；
+  - browser：`login_args`（只有 profile 与起始网址）、`WebAccount::begin_login / finish_login / signing_in`，登录期间不启动受控浏览器、不检查、拒绝请求；
+  - provider-sdk：`GateState::SigningIn`；core：`account.web_login`、`web_add` 默认打开登录窗口、监管任务在窗口关闭后立即启动受控浏览器；
+  - CLI：`account web login [--done]`、`web add --no-sign-in`；桌面端：「登录」「完成登录」按钮与"登录中"状态。
+  - 测试：`sign_in_uses_an_uncontrolled_window_then_resumes`（headless 登录窗口）、登录参数不含调试 / headless / 禁止参数；daemon e2e 用 `--no-sign-in`。daemon 层的登录窗口没有 e2e：它总是可见窗口，按约定不在用户桌面上弹窗。
 - [ ] 所有者 live test（Stage 8；清单见 system-test-plan"ChatGPT 网页会话"一节）

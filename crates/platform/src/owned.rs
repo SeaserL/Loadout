@@ -19,7 +19,8 @@ use std::ptr;
 use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, STILL_ACTIVE, SetHandleInformation, WAIT_OBJECT_0,
+    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, HWND, LPARAM, STILL_ACTIVE, SetHandleInformation,
+    WAIT_OBJECT_0,
 };
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::System::JobObjects::{
@@ -34,6 +35,10 @@ use windows_sys::Win32::System::Threading::{
     PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, ResumeThread, STARTUPINFOEXW,
     TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
 };
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, GetWindowThreadProcessId, IsWindowVisible, PostMessageW, WM_CLOSE,
+};
+use windows_sys::core::BOOL;
 
 use crate::PlatformError;
 use crate::process::command_line;
@@ -295,6 +300,86 @@ pub fn spawn_owned(
     Ok((process, pipes))
 }
 
+/// Starts `program` inside `job` without inheriting any handle (no pipes): a process the
+/// daemon owns but does not talk to, e.g. a browser window the user signs in with.
+pub fn spawn_owned_plain(
+    program: &Path,
+    args: &[OsString],
+    job: &OwnedJob,
+) -> Result<OwnedProcess, PlatformError> {
+    let arg_refs: Vec<&OsStr> = args.iter().map(OsString::as_os_str).collect();
+    let application: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
+    let mut line = command_line(program.as_os_str(), &arg_refs);
+    let startup = windows_sys::Win32::System::Threading::STARTUPINFOW {
+        cb: size_of::<windows_sys::Win32::System::Threading::STARTUPINFOW>() as u32,
+        ..Default::default()
+    };
+    let mut info = PROCESS_INFORMATION::default();
+    // SAFETY: strings are NUL-terminated; `line` is mutable as required; bInheritHandles =
+    // FALSE.
+    let ok = unsafe {
+        CreateProcessW(
+            application.as_ptr(),
+            line.as_mut_ptr(),
+            ptr::null(),
+            ptr::null(),
+            0,
+            CREATE_SUSPENDED,
+            ptr::null(),
+            ptr::null(),
+            &startup,
+            &mut info,
+        )
+    };
+    if ok == 0 {
+        return Err(PlatformError::os("CreateProcessW", last_error()));
+    }
+    let process = OwnedProcess {
+        handle: info.hProcess,
+        pid: info.dwProcessId,
+    };
+    let thread = Guard(info.hThread);
+    // SAFETY: both handles are live; the process is suspended and has run no code yet.
+    if unsafe { AssignProcessToJobObject(job.handle, process.handle) } == 0 {
+        let code = last_error();
+        process.kill();
+        return Err(PlatformError::os("AssignProcessToJobObject", code));
+    }
+    // SAFETY: the primary thread handle of the suspended process.
+    if unsafe { ResumeThread(thread.0) } == u32::MAX {
+        let code = last_error();
+        process.kill();
+        return Err(PlatformError::os("ResumeThread", code));
+    }
+    Ok(process)
+}
+
+unsafe extern "system" fn close_if_owned(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    // SAFETY: `lparam` is the `&mut (u32, usize)` passed by `close_windows` below, alive for
+    // the whole EnumWindows call.
+    let target = unsafe { &mut *(lparam as *mut (u32, usize)) };
+    let mut pid = 0u32;
+    // SAFETY: `hwnd` comes from EnumWindows; `pid` is a valid out-pointer.
+    unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+    // SAFETY: as above.
+    if pid == target.0 && unsafe { IsWindowVisible(hwnd) } != 0 {
+        // SAFETY: posting WM_CLOSE is what clicking the window's close button does.
+        if unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) } != 0 {
+            target.1 += 1;
+        }
+    }
+    1
+}
+
+/// Asks every visible top-level window of process `pid` to close, as if the user clicked its
+/// close button (the application can save its state). Returns how many were asked.
+pub fn close_windows(pid: u32) -> usize {
+    let mut target: (u32, usize) = (pid, 0);
+    // SAFETY: the callback only reads and writes `target` during this call.
+    unsafe { EnumWindows(Some(close_if_owned), (&raw mut target) as LPARAM) };
+    target.1
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
@@ -367,5 +452,19 @@ mod tests {
     fn missing_program_is_an_error() {
         let job = OwnedJob::new().expect("job");
         assert!(spawn_owned(Path::new(r"C:\no\such.exe"), |_, _| Vec::new(), &job).is_err());
+        assert!(spawn_owned_plain(Path::new(r"C:\no\such.exe"), &[], &job).is_err());
+    }
+
+    #[test]
+    fn plain_children_end_with_their_job() {
+        let job = OwnedJob::new().expect("job");
+        let args: Vec<OsString> = ["-NoProfile", "-Command", "Start-Sleep 60"]
+            .iter()
+            .map(OsString::from)
+            .collect();
+        let child = spawn_owned_plain(&powershell(), &args, &job).expect("spawn");
+        assert_eq!(child.try_exit_code().expect("code"), None);
+        drop(job);
+        assert!(child.wait(Duration::from_secs(10)), "job close kills");
     }
 }
