@@ -143,14 +143,18 @@ pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
         key: WEB_SESSION_ENABLED,
         default: "false",
-        description: "Allow browser-session accounts (ChatGPT web page, ADR-014). They drive the                       site's own page in a dedicated Edge window; the site's terms may forbid                       automated use and the account may be restricted. Read                       docs/providers/web-chatgpt.md first",
+        description: "Allow browser-session accounts (ChatGPT web page, ADR-014). They drive the \
+                      site's own page in a dedicated Edge window; the site's terms may forbid \
+                      automated use and the account may be restricted. Read \
+                      docs/providers/web-chatgpt.md first",
         restart_required: false,
         validate: validate_bool,
     },
     SettingDef {
         key: WEB_SESSION_HEADLESS,
         default: "false",
-        description: "Run browser sessions without a window. Sites detect this easily; the                       default visible window is recommended (ADR-014 §2)",
+        description: "Run browser sessions without a window. Sites detect this easily; the \
+                      default visible window is recommended (ADR-014 §2)",
         restart_required: false,
         validate: validate_bool,
     },
