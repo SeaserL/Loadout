@@ -5,7 +5,7 @@
 | Slug / kind | 推理 | 用量 | 文档 |
 |---|---|---|---|
 | `opencode-go` | Chat / Responses / Messages（按模型） | 官方 API | [opencode-go.md](opencode-go.md) |
-| `commandcode` | Chat / Responses / Messages | 估算（无 API key 用量接口） | [commandcode.md](commandcode.md) |
+| `commandcode` | Chat / Responses / Messages | 未公开的 alpha API（5 小时 / 每周 / 每月额度） | [commandcode.md](commandcode.md) |
 | `kimi-code` | Chat / Messages | 官方 API / 官方 CLI 登录 | [kimi-code.md](kimi-code.md) |
 | `openrouter` | Chat | 官方 API（余额与消费） | [openrouter.md](openrouter.md) |
 | `deepseek` | Chat / Messages | 官方 API（余额） | [deepseek.md](deepseek.md) |

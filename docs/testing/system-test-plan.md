@@ -17,7 +17,7 @@
 | 提供方 | 添加方式 | 期望 |
 |---|---|---|
 | OpenCode Go | Add account → OpenCode Go | 模型列表同步；Accounts 页显示滚动 / 每周 / 每月额度 |
-| Command Code | Add account → Command Code | 模型列表同步；用量显示为"由 Loadout 请求估算" |
+| Command Code | Add account → Command Code | 模型列表同步；Accounts 页显示 5 小时 / 每周 / 每月额度与套餐名 |
 | Kimi Code | Add account → Kimi Code（国内账号：先用命令行 `loadout provider add kimi-code --setting region=china`） | 模型同步；显示每周额度与 5 小时窗口 |
 | OpenRouter | Add account → OpenRouter | 模型含价格；显示余额 / 今日与本月花费 |
 | DeepSeek | Add account → DeepSeek | 显示余额 |
@@ -98,7 +98,7 @@
 ## 已知限制（v0.2.1）
 
 - 只支持 Windows 10/11 x64；安装为 PowerShell 脚本（无签名安装器、无自动更新）。
-- 官方 CLI 的订阅登录只读取用量，不转发请求（ADR-009）；`codex-sub` 是逐账号 opt-in 的例外（ADR-012）；Command Code 的额度无法通过 API key 读取，显示为估算值。
+- 官方 CLI 的订阅登录只读取用量，不转发请求（ADR-009）；`codex-sub` 是逐账号 opt-in 的例外（ADR-012）；Command Code 的额度来自 CLI 使用的未公开 `/alpha/billing/*` 接口，接口变化时用量会读取失败（推理不受影响）。
 - 延迟阈值为初始值，需要你的真实数据校准；`balanced` / `quality` / `economy` 等产品文档中的打分式路由在 v1 中未实现（ADR-003）。
 - 每日限额与"今天"的统计按 UTC 日计算（北京时间 08:00 重置）。
 

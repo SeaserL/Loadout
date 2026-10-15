@@ -39,24 +39,32 @@ impl MockUpstream {
     }
 
     async fn respond(path: &str, status: u16, body: String) -> Self {
+        Self::routes(&[(path, status, body)]).await
+    }
+
+    /// Serves several `(path, status, body)` routes; `last_header` reports the latest request.
+    pub async fn routes(routes: &[(&str, u16, String)]) -> Self {
         let headers: Arc<Mutex<Option<HeaderMap>>> = Arc::default();
-        let seen = headers.clone();
-        let app = Router::new().route(
-            path,
-            get(move |h: HeaderMap| {
-                let body = body.clone();
-                let seen = seen.clone();
-                async move {
-                    *seen.lock().expect("lock") = Some(h);
-                    (
-                        StatusCode::from_u16(status).expect("status"),
-                        [("content-type", "application/json")],
-                        body,
-                    )
-                        .into_response()
-                }
-            }),
-        );
+        let mut app = Router::new();
+        for (path, status, body) in routes {
+            let (status, body, seen) = (*status, body.clone(), headers.clone());
+            app = app.route(
+                path,
+                get(move |h: HeaderMap| {
+                    let body = body.clone();
+                    let seen = seen.clone();
+                    async move {
+                        *seen.lock().expect("lock") = Some(h);
+                        (
+                            StatusCode::from_u16(status).expect("status"),
+                            [("content-type", "application/json")],
+                            body,
+                        )
+                            .into_response()
+                    }
+                }),
+            );
+        }
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind");
