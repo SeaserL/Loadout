@@ -80,6 +80,13 @@ impl<'a> ProviderRepo<'a> {
                 ],
             )
             .map_err(|e| StorageError::from_insert(e, format!("provider '{}'", new.slug)))?;
+            // New providers go last (ExecPlan 023).
+            c.execute(
+                "UPDATE providers SET position =
+                     (SELECT COALESCE(MAX(position), -1) + 1 FROM providers WHERE id <> ?1)
+                 WHERE id = ?1",
+                params![p.id],
+            )?;
             Ok(())
         })?;
         Ok(p)
@@ -87,9 +94,30 @@ impl<'a> ProviderRepo<'a> {
 
     pub fn list(&self) -> Result<Vec<Provider>, StorageError> {
         self.db.with_conn(|c| {
-            let mut stmt = c.prepare(&format!("SELECT {COLUMNS} FROM providers ORDER BY slug"))?;
+            let mut stmt = c.prepare(&format!(
+                "SELECT {COLUMNS} FROM providers ORDER BY position, slug"
+            ))?;
             let rows = stmt.query_map([], map_provider)?;
             Ok(rows.collect::<Result<_, _>>()?)
+        })
+    }
+
+    /// Display order: positions 0, 1, 2… for the slugs given; others keep theirs after them.
+    pub fn reorder(&self, slugs: &[String]) -> Result<(), StorageError> {
+        let now = now_ms();
+        self.db.with_tx(|tx| {
+            let offset = slugs.len() as i64;
+            tx.execute(
+                "UPDATE providers SET position = position + ?1",
+                params![offset],
+            )?;
+            for (i, slug) in slugs.iter().enumerate() {
+                tx.execute(
+                    "UPDATE providers SET position = ?2, updated_at = ?3 WHERE slug = ?1",
+                    params![slug, i as i64, now],
+                )?;
+            }
+            Ok(())
         })
     }
 

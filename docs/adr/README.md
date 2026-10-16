@@ -16,6 +16,7 @@
 | [012](ADR-012-subscription-transport-opt-in.md) | Opt-in Subscription Transport (Codex) | Accepted |
 | [013](ADR-013-upstream-conversation-session.md) | Upstream Conversation Session Header | Accepted |
 | [014](ADR-014-browser-session-transport.md) | Opt-in Browser Session Transport (`WEB_SESSION`) | Accepted |
+| [015](ADR-015-dedicated-endpoints.md) | Dedicated Endpoints（专用端点，如商汤总 API） | Accepted |
 
 ## Status 含义
 

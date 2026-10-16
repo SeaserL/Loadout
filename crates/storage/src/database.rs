@@ -8,7 +8,7 @@ use rusqlite::{Connection, Transaction};
 use rusqlite_migration::SchemaVersion;
 
 use crate::migrations::{LATEST_VERSION, migrations};
-use crate::{ClientRepo, SettingsRepo, StorageError};
+use crate::{AccountSetRepo, ClientRepo, EndpointRepo, SettingsRepo, StorageError};
 
 /// Milliseconds since the Unix epoch; the timestamp unit for every table.
 pub fn now_ms() -> i64 {
@@ -99,6 +99,14 @@ impl Database {
         let value = f(&tx)?;
         tx.commit()?;
         Ok(value)
+    }
+
+    pub fn endpoints(&self) -> EndpointRepo<'_> {
+        EndpointRepo::new(self)
+    }
+
+    pub fn account_sets(&self) -> AccountSetRepo<'_> {
+        AccountSetRepo::new(self)
     }
 
     pub fn settings(&self) -> SettingsRepo<'_> {

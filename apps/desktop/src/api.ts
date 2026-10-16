@@ -144,6 +144,8 @@ export interface AccountInfo {
   login_expires_at_ms: number | null;
   /** Per-account quota reserve, e.g. {default: 10, weekly: 20}; null = global setting. */
   quota_reserve?: Record<string, number> | null;
+  /** Models Loadout turned off because the plan does not include them (ExecPlan 022). */
+  unavailable_models?: string[];
 }
 
 /** Browser-session account state (ADR-014). */
@@ -204,6 +206,8 @@ export interface ModelInfo {
   input_price: number | null;
   output_price: number | null;
   tier_override: string | null;
+  /** Why Loadout turned the model off itself, e.g. "not_in_plan" (ExecPlan 022). */
+  disabled_reason?: string | null;
 }
 
 export interface TargetStatus {
@@ -217,6 +221,9 @@ export interface TargetStatus {
   successes: number;
   failures: number;
   last_error: string | null;
+  /** Last failure, and last recovery from a blocking state (ExecPlan 021). */
+  last_failure_ms?: number | null;
+  recovered_at_ms?: number | null;
   tier: string;
   tier_pinned: boolean;
   ttft_p50_ms: number | null;
@@ -413,6 +420,11 @@ export const api = {
   accounts: () => call<AccountInfo[]>("account.list", { provider: null }),
   addAccount: (p: { provider: string; alias: string; api_key: string | null; display_name: string | null }) =>
     call<AccountAdded>("account.add", { ...p, sync_models: true }),
+  /** New order of a provider's accounts, also their failover order (ExecPlan 022). */
+  /** Display order of the provider cards (ExecPlan 023); routing is unaffected. */
+  reorderProviders: (slugs: string[]) => call<ProviderInfo[]>("provider.reorder", { slugs }),
+  reorderAccounts: (provider: string, aliases: string[]) =>
+    call<AccountInfo[]>("account.reorder", { provider, aliases }),
   setAccountEnabled: (provider: string, alias: string, enabled: boolean) =>
     call<AccountInfo>("account.set_enabled", { provider, alias, enabled }),
   setAccountKey: (provider: string, alias: string, api_key: string) =>

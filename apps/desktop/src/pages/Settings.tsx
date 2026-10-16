@@ -28,7 +28,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
   const s = props.status;
 
   return (
-    <Page title={t("settings.title")}>
+    <Page title={t("settings.title")} narrow>
       <ErrorText error={action.error ?? settings.error?.message} />
       <div className="grid cols-2 collapse" style={{ marginBottom: 16 }}>
         <Card title={t("settings.gateway")}>

@@ -31,6 +31,7 @@ fn catalog_status(e: &ProviderError) -> (&'static str, Option<u16>, String) {
                 FailureKind::Timeout | FailureKind::Connect => "unreachable",
                 FailureKind::Server
                 | FailureKind::ModelNotFound
+                | FailureKind::ModelUnavailable
                 | FailureKind::InvalidRequest
                 | FailureKind::Other => "upstream_error",
             };

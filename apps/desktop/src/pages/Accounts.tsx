@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AppWindow,
+  Download,
+  GripVertical,
   ExternalLink,
   KeyRound,
   LogIn,
@@ -14,6 +16,7 @@ import {
   ShieldAlert,
   Stethoscope,
   Trash,
+  Upload,
   Zap,
 } from "lucide-react";
 import {
@@ -47,6 +50,17 @@ import { ago, date, num, resetIn, usd } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { t, tv, type MessageKey } from "../i18n";
 import { WebAddDialog, WebPanel, WebRiskList, WebSettingsDialog } from "./WebSession";
+import { KeysExportDialog, KeysImportDialog, SubpoolBar, SubpoolManager, subpoolApi } from "./Subpools";
+import { type GripProps, usePointerReorder } from "../reorder";
+import {
+  EndpointButton,
+  EndpointDialog,
+  type EndpointInfo,
+  HealthBadge,
+  accountHealth,
+  endpointApi,
+} from "./Endpoints";
+import type { TargetStatus } from "../api";
 import type { WebSessionStatus } from "../api";
 
 /** Toast text and tone for an `account.check` result (ExecPlan 014). */
@@ -71,7 +85,11 @@ type Dialog =
   | { kind: "login"; alias?: string }
   | { kind: "transport"; account: AccountInfo; web?: boolean }
   | { kind: "webAdd" }
-  | { kind: "webSettings"; status: WebSessionStatus };
+  | { kind: "webSettings"; status: WebSessionStatus }
+  | { kind: "subpools" }
+  | { kind: "keysExport" }
+  | { kind: "keysImport" }
+  | { kind: "endpoint"; provider: ProviderInfo };
 
 /** Built-in provider that signs in through Loadout (ADR-012). */
 const SUBSCRIPTION_SLUG = "codex-sub";
@@ -82,6 +100,10 @@ export function Accounts() {
   const usage = usePoll(() => api.usage(false), 10000);
   const kinds = usePoll(api.providerKinds, 60000);
   const models = usePoll(api.models, 30000);
+  const subpools = usePoll(subpoolApi.state, 10000);
+  // Account health and dedicated endpoints (ExecPlan 021).
+  const statuses = usePoll(api.routeStatus, 5000);
+  const endpoints = usePoll(endpointApi.list, 10000);
   const action = useAction();
   const toast = useToast();
   const [dialog, setDialog] = useState<Dialog>();
@@ -89,8 +111,26 @@ export function Accounts() {
   const [query, setQuery] = useState("");
 
   const reloadAll = async () => {
-    await Promise.all([providers.reload(), accounts.reload(), usage.reload(), models.reload()]);
+    await Promise.all([
+      providers.reload(),
+      accounts.reload(),
+      usage.reload(),
+      models.reload(),
+      subpools.reload(),
+      statuses.reload(),
+      endpoints.reload(),
+    ]);
   };
+
+  // Accounts outside the active sub-pool are not routable (ExecPlan 019).
+  const activePool = subpools.data?.subpools.find((p) => p.active);
+  const outside = (a: AccountInfo) => !!activePool && !activePool.accounts.includes(`${a.provider}/${a.alias}`);
+  const switchPool = (name: string | null) =>
+    void action.run(async () => {
+      await subpoolApi.activate(name);
+      await reloadAll();
+      toast(t("sp.switched", { name: name ?? t("sp.main") }), "ok");
+    });
 
   const usageOf = (a: AccountInfo) =>
     usage.data?.find((u) => u.provider === a.provider && u.alias === a.alias);
@@ -109,15 +149,59 @@ export function Accounts() {
     `${a.provider}/${a.alias}`.includes(q) ||
     (a.display_name ?? "").toLowerCase().includes(q) ||
     (usageOf(a)?.account_label ?? "").toLowerCase().includes(q);
-  const shown = (providers.data ?? []).filter(
-    (p) => (!only || p.slug === only) && (!q || p.slug.includes(q) || (byProvider.get(p.slug) ?? []).some(matches)),
-  );
 
   const onAction = (f: () => Promise<unknown>) =>
     void action.run(async () => {
       await f();
       await reloadAll();
     });
+
+  // The board in the user's order (ExecPlan 023); the ChatGPT kinds share one card.
+  const isChatGpt = (p: ProviderInfo) => (CHATGPT_KINDS as readonly string[]).includes(p.kind);
+  const chatGpt = (providers.data ?? []).filter(isChatGpt);
+  const items: string[] = [];
+  for (const p of providers.data ?? []) {
+    const id = isChatGpt(p) ? CHATGPT_ITEM : p.slug;
+    if (!items.includes(id)) items.push(id);
+  }
+  if (!items.includes(CHATGPT_ITEM)) items.push(CHATGPT_ITEM);
+  const providerOf = (id: string) => (providers.data ?? []).find((p) => p.slug === id);
+  const slugsOf = (id: string) => (id === CHATGPT_ITEM ? chatGpt.map((p) => p.slug) : [id]);
+  const board = usePointerReorder({
+    scope: "main",
+    scopeAttr: "board",
+    itemAttr: "board-item",
+    ids: items,
+    onReorder: (ids) =>
+      onAction(async () => {
+        await api.reorderProviders(ids.flatMap(slugsOf));
+        toast(t("acc.providersReordered"), "ok");
+      }),
+  });
+  const visibleItem = (id: string) =>
+    (!only || only === id) &&
+    (!q ||
+      id.includes(q) ||
+      (id === CHATGPT_ITEM && ("chatgpt codex".includes(q) || chatGpt.some((p) => p.slug.includes(q)))) ||
+      slugsOf(id).some((slug) => (byProvider.get(slug) ?? []).some(matches)));
+  const shown = items.filter(visibleItem);
+  const ctx: BoardCtx = {
+    kindOf: (p) => kinds.data?.find((k) => k.kind === p.kind),
+    accountsOf: (slug) => byProvider.get(slug) ?? [],
+    usageOf,
+    outside,
+    statuses: statuses.data,
+    endpointOf: (slug) => endpoints.data?.find((e) => e.provider === slug),
+    busy: action.busy,
+    onAction,
+    onBench: (a) => bench(a),
+    onDialog: setDialog,
+    onReorderAccounts: (provider, aliases) =>
+      onAction(async () => {
+        await api.reorderAccounts(provider, aliases);
+        toast(t("acc.reordered"), "ok");
+      }),
+  };
 
   const bench = (a: AccountInfo) =>
     void action.run(async () => {
@@ -144,6 +228,12 @@ export function Accounts() {
             onClick={() => void action.run(async () => api.usage(true).then(() => usage.reload()))}
           >
             {t("acc.refresh")}
+          </Button>
+          <Button icon={<Upload size={16} />} onClick={() => setDialog({ kind: "keysImport" })}>
+            {t("keys.import")}
+          </Button>
+          <Button icon={<Download size={16} />} onClick={() => setDialog({ kind: "keysExport" })}>
+            {t("keys.export")}
           </Button>
           <Button icon={<ScanSearch size={16} />} onClick={() => setDialog({ kind: "scan" })}>
             {t("acc.scan")}
@@ -182,46 +272,15 @@ export function Accounts() {
 
       {(providers.data ?? []).length > 0 && (
         <>
-          <div className="provider-grid">
-            {(providers.data ?? []).map((p) => (
-              <button
-                key={p.slug}
-                type="button"
-                className={`provider-tile ${only === p.slug ? "active" : ""}`}
-                aria-pressed={only === p.slug}
-                title={only === p.slug ? t("acc.showAll") : t("acc.showOnly", { name: p.display_name })}
-                onClick={() => setOnly(only === p.slug ? undefined : p.slug)}
-              >
-                <span className="tile-name ellipsis">{p.display_name}</span>
-                <span className="mono small muted">{p.slug}</span>
-                <span className="tile-count">{t("acc.accountCount", { n: p.accounts })}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              className="provider-tile tile-signin"
-              title={t("sub.tileHint")}
-              onClick={() => setDialog({ kind: "login" })}
-            >
-              <span className="tile-name ellipsis">
-                <LogIn size={14} aria-hidden /> {t("sub.tileTitle")}
-              </span>
-              <span className="small muted">{t("sub.tileHint")}</span>
-            </button>
-            <button
-              type="button"
-              className="provider-tile tile-signin"
-              title={t("web.tileHint")}
-              onClick={() => setDialog({ kind: "webAdd" })}
-            >
-              <span className="tile-name ellipsis">
-                <AppWindow size={14} aria-hidden /> {t("web.tileTitle")}
-              </span>
-              <span className="small muted">{t("web.tileHint")}</span>
-            </button>
-          </div>
-          <div className="row" style={{ marginBottom: 16 }}>
-            <label className="search" style={{ flex: 1, maxWidth: 420 }}>
+          <SubpoolBar
+            state={subpools.data}
+            busy={action.busy}
+            onSwitch={switchPool}
+            onManage={() => setDialog({ kind: "subpools" })}
+          />
+          {/* Filter chips: one per card, in board order. */}
+          <div className="board-toolbar">
+            <label className="search">
               <Search size={16} aria-hidden />
               <input
                 value={query}
@@ -230,30 +289,62 @@ export function Accounts() {
                 aria-label={t("acc.search")}
               />
             </label>
-            {only && (
-              <Button onClick={() => setOnly(undefined)}>{t("acc.showAll")}</Button>
-            )}
+            <div className="provider-chips" role="group" aria-label={t("acc.filterProviders")}>
+              <button
+                type="button"
+                className={`chip ${only ? "" : "active"}`}
+                aria-pressed={!only}
+                onClick={() => setOnly(undefined)}
+              >
+                {t("acc.allProviders")}
+              </button>
+              {items.map((id) => {
+                const name = id === CHATGPT_ITEM ? t("cg.title") : (providerOf(id)?.display_name ?? id);
+                const n = slugsOf(id).reduce((sum, slug) => sum + (byProvider.get(slug)?.length ?? 0), 0);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`chip ${only === id ? "active" : ""}`}
+                    aria-pressed={only === id}
+                    title={t("acc.showOnly", { name })}
+                    onClick={() => setOnly(only === id ? undefined : id)}
+                  >
+                    <span className="ellipsis">{name}</span>
+                    <span className="chip-count">{n}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}
 
-      {shown.length > 0 && (
-        <div className="provider-board">
-          {shown.map((p) => (
-            <ProviderSection
-              key={p.slug}
-              provider={p}
-              usageSources={kinds.data?.find((k) => k.kind === p.kind)?.usage_sources ?? []}
-              signIn={kinds.data?.find((k) => k.kind === p.kind)?.auth === "oauth"}
-              web={kinds.data?.find((k) => k.kind === p.kind)?.auth === "browser_login"}
-              accounts={(byProvider.get(p.slug) ?? []).filter(matches)}
-              usageOf={usageOf}
-              busy={action.busy}
-              onAction={onAction}
-              onBench={bench}
-              onDialog={setDialog}
-            />
-          ))}
+      {shown.length > 0 && (providers.data ?? []).length > 0 && (
+        <div className="provider-board" data-board="main">
+          {shown.map((id) =>
+            id === CHATGPT_ITEM ? (
+              <ChatGptSection
+                key={id}
+                providers={chatGpt}
+                visible={matches}
+                ctx={ctx}
+                boardGrip={board.grip(id)}
+                boardClass={board.stateClass(id)}
+              />
+            ) : (
+              providerOf(id) && (
+                <ProviderSection
+                  key={id}
+                  provider={providerOf(id) as ProviderInfo}
+                  accounts={(byProvider.get(id) ?? []).filter(matches)}
+                  ctx={ctx}
+                  boardGrip={board.grip(id)}
+                  boardClass={board.stateClass(id)}
+                />
+              )
+            ),
+          )}
         </div>
       )}
       {shown.length === 0 && (providers.data ?? []).length > 0 && <Empty>{t("acc.noMatch")}</Empty>}
@@ -290,6 +381,30 @@ export function Accounts() {
           onDone={() => void reloadAll()}
         />
       )}
+      {dialog?.kind === "subpools" && (
+        <SubpoolManager
+          state={subpools.data}
+          accounts={accounts.data ?? []}
+          onClose={() => setDialog(undefined)}
+          onDone={() => void reloadAll()}
+        />
+      )}
+      {dialog?.kind === "keysExport" && (
+        <KeysExportDialog accounts={accounts.data ?? []} onClose={() => setDialog(undefined)} />
+      )}
+      {dialog?.kind === "keysImport" && (
+        <KeysImportDialog onClose={() => setDialog(undefined)} onDone={() => void reloadAll()} />
+      )}
+      {dialog?.kind === "endpoint" && (
+        <EndpointDialog
+          provider={dialog.provider}
+          accounts={byProvider.get(dialog.provider.slug) ?? []}
+          endpoint={endpoints.data?.find((e) => e.provider === dialog.provider.slug)}
+          statuses={statuses.data}
+          onClose={() => setDialog(undefined)}
+          onDone={() => void reloadAll()}
+        />
+      )}
       {dialog?.kind === "plan" && (
         <PlanDialog
           account={dialog.account}
@@ -302,29 +417,124 @@ export function Accounts() {
   );
 }
 
-function ProviderSection(props: {
+/** A drag handle for cards (ExecPlan 022/023). */
+function DragGrip(props: { grip: GripProps | undefined; label: string }) {
+  if (!props.grip) return null;
+  return (
+    <span className="drag-grip" role="button" tabIndex={0} aria-label={props.label} title={props.label} {...props.grip}>
+      <GripVertical size={16} aria-hidden />
+    </span>
+  );
+}
+
+/** Header controls of a provider: dedicated API, usage source, removal. */
+function ProviderControls(props: {
   provider: ProviderInfo;
   usageSources: string[];
-  /** Accounts sign in through Loadout (ADR-012). */
-  signIn: boolean;
-  /** Browser-session accounts (ADR-014). */
-  web: boolean;
-  accounts: AccountInfo[];
-  usageOf: (a: AccountInfo) => AccountUsage | undefined;
+  /** The provider serves inference with API keys, so a dedicated endpoint makes sense. */
+  inference: boolean;
+  endpoint: EndpointInfo | undefined;
   busy: boolean;
   onAction: (f: () => Promise<unknown>) => void;
-  onBench: (a: AccountInfo) => void;
   onDialog: (d: Dialog) => void;
 }) {
   const p = props.provider;
   const confirm = useConfirm();
   const source = typeof p.settings?.usage_source === "string" ? p.settings.usage_source : "auto";
+  return (
+    <div className="provider-controls">
+      {props.inference && (
+        <EndpointButton endpoint={props.endpoint} onOpen={() => props.onDialog({ kind: "endpoint", provider: p })} />
+      )}
+      {props.usageSources.length > 0 && (
+        <label className="select-label" title={t("acc.usageSourceHint")}>
+          {t("acc.usageSource")}
+          <select
+            value={source}
+            disabled={props.busy}
+            onChange={(e) => {
+              const value = e.target.value;
+              props.onAction(() => api.setProviderSettings(p.slug, { usage_source: value }));
+            }}
+          >
+            {["auto", ...props.usageSources, "off"].map((v) => (
+              <option key={v} value={v}>
+                {tv("usageSource", v)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <IconButton
+        label={t("acc.removeProvider")}
+        danger
+        disabled={props.busy}
+        onClick={() =>
+          void confirm({
+            title: t("acc.removeProviderTitle", { slug: p.slug }),
+            message: t("acc.confirmRemoveProvider", { slug: p.slug }),
+            confirmLabel: t("acc.removeProvider"),
+            danger: true,
+          }).then((ok) => ok && props.onAction(() => api.removeProvider(p.slug)))
+        }
+      >
+        <Trash size={16} />
+      </IconButton>
+    </div>
+  );
+}
+
+/** What every card on the board needs from the page. */
+interface BoardCtx {
+  kindOf: (p: ProviderInfo) => ProviderKind | undefined;
+  accountsOf: (slug: string) => AccountInfo[];
+  usageOf: (a: AccountInfo) => AccountUsage | undefined;
+  /** Not in the active sub-pool (ExecPlan 019). */
+  outside: (a: AccountInfo) => boolean;
+  /** Route health, for the account badges (ExecPlan 021). */
+  statuses: TargetStatus[] | undefined;
+  endpointOf: (slug: string) => EndpointInfo | undefined;
+  busy: boolean;
+  onAction: (f: () => Promise<unknown>) => void;
+  onBench: (a: AccountInfo) => void;
+  onDialog: (d: Dialog) => void;
+  onReorderAccounts: (provider: string, aliases: string[]) => void;
+}
+
+const isInference = (k: ProviderKind | undefined) => k?.auth === "api_key" || k?.auth === "optional_api_key";
+
+function ProviderSection(props: {
+  provider: ProviderInfo;
+  /** Accounts shown (after the search filter). */
+  accounts: AccountInfo[];
+  ctx: BoardCtx;
+  /** Board drag (provider order, ExecPlan 023). */
+  boardGrip: GripProps | undefined;
+  boardClass: string;
+}) {
+  const p = props.provider;
+  const c = props.ctx;
+  const kind = c.kindOf(p);
+  const signIn = kind?.auth === "oauth";
+  const web = kind?.auth === "browser_login";
+  const all = c.accountsOf(p.slug).map((a) => a.alias);
+  // Account order is also the failover order (ExecPlan 022).
+  const cards = usePointerReorder({
+    scope: p.slug,
+    scopeAttr: "section",
+    itemAttr: "alias",
+    ids: all,
+    onReorder: (aliases) => c.onReorderAccounts(p.slug, aliases),
+  });
   // One account fills a regular board cell; several share one wider panel.
   const n = props.accounts.length;
   const span = n <= 1 ? "single" : n >= 4 ? "multi span-all" : `multi span-${n}`;
+  // Said once for the provider instead of on every card.
+  const allEstimated = n > 1 && props.accounts.every((a) => !c.usageOf(a)?.supported);
   return (
-    <section className={`provider-group ${span}`}>
+    <section className={`provider-group ${span} ${props.boardClass}`} data-board-item={p.slug}>
       <div className="provider-head">
+        <DragGrip grip={props.boardGrip} label={t("acc.dragProviderHint")} />
         <div className="provider-title">
           <div className="row" style={{ gap: 8, minWidth: 0 }}>
             <h2 className="ellipsis" title={p.display_name}>
@@ -337,61 +547,152 @@ function ProviderSection(props: {
               {p.base_url}
             </div>
           )}
+          {allEstimated && <div className="small muted">{t("acc.usageEstimatedAll")}</div>}
         </div>
-        <div className="provider-controls">
-          {props.usageSources.length > 0 && (
-            <label className="select-label" title={t("acc.usageSourceHint")}>
-              {t("acc.usageSource")}
-              <select
-                value={source}
-                disabled={props.busy}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  props.onAction(() => api.setProviderSettings(p.slug, { usage_source: value }));
-                }}
-              >
-                {["auto", ...props.usageSources, "off"].map((v) => (
-                  <option key={v} value={v}>
-                    {tv("usageSource", v)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <IconButton
-            label={t("acc.removeProvider")}
-            danger
-            disabled={props.busy}
-            onClick={() =>
-              void confirm({
-                title: t("acc.removeProviderTitle", { slug: p.slug }),
-                message: t("acc.confirmRemoveProvider", { slug: p.slug }),
-                confirmLabel: t("acc.removeProvider"),
-                danger: true,
-              }).then((ok) => ok && props.onAction(() => api.removeProvider(p.slug)))
-            }
-          >
-            <Trash size={16} />
-          </IconButton>
-        </div>
+        <ProviderControls
+          provider={p}
+          usageSources={kind?.usage_sources ?? []}
+          inference={isInference(kind)}
+          endpoint={c.endpointOf(p.slug)}
+          busy={c.busy}
+          onAction={c.onAction}
+          onDialog={c.onDialog}
+        />
       </div>
       {props.accounts.length === 0 ? (
         <Empty>{t("acc.noAccounts")}</Empty>
       ) : (
-        <div className="account-grid">
+        <div className="account-grid" data-section={p.slug}>
           {props.accounts.map((a) => (
-            <AccountCard
-              key={a.alias}
-              account={a}
-              usage={props.usageOf(a)}
-              signIn={props.signIn}
-              web={props.web}
-              busy={props.busy}
-              onAction={props.onAction}
-              onBench={props.onBench}
-              onDialog={props.onDialog}
-            />
+            <div key={a.alias} data-alias={a.alias} className={`account-slot ${cards.stateClass(a.alias)}`}>
+              <AccountCard
+                account={a}
+                usage={c.usageOf(a)}
+                outside={c.outside(a)}
+                health={accountHealth(c.statuses, a)}
+                signIn={signIn}
+                web={web}
+                busy={c.busy}
+                onAction={c.onAction}
+                onBench={c.onBench}
+                onDialog={c.onDialog}
+                grip={cards.grip(a.alias)}
+                hideEstimatedNote={allEstimated}
+              />
+            </div>
           ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Kinds shown together as one ChatGPT card: usage from the Codex CLI, the opt-in Codex
+ * subscription transport (ADR-012) and the opt-in web session (ADR-014). */
+export const CHATGPT_KINDS = ["codex", "codex-subscription", "web-chatgpt"] as const;
+export const CHATGPT_ITEM = "chatgpt";
+
+/**
+ * One card for everything ChatGPT. It starts as the Codex usage; the subscription transport
+ * and the web session join it as they are turned on, and the card widens. The quota is shown
+ * once, from the first account that reports it; the others only show their own requests.
+ */
+function ChatGptSection(props: {
+  providers: ProviderInfo[];
+  /** Accounts shown, after the search filter. */
+  visible: (a: AccountInfo) => boolean;
+  ctx: BoardCtx;
+  boardGrip: GripProps | undefined;
+  boardClass: string;
+}) {
+  const c = props.ctx;
+  const byKind = (kind: string) => props.providers.find((p) => p.kind === kind);
+  const features = [
+    { kind: "codex", title: t("cg.usage"), provider: byKind("codex") },
+    { kind: "codex-subscription", title: t("cg.proxy"), provider: byKind("codex-subscription") },
+    { kind: "web-chatgpt", title: t("cg.web"), provider: byKind("web-chatgpt") },
+  ];
+  const accountsOf = (p: ProviderInfo | undefined) => (p ? c.accountsOf(p.slug).filter(props.visible) : []);
+  const aliases: string[] = [];
+  for (const f of features) for (const a of accountsOf(f.provider)) if (!aliases.includes(a.alias)) aliases.push(a.alias);
+  const widest = Math.max(
+    1,
+    ...aliases.map((alias) => features.filter((f) => accountsOf(f.provider).some((a) => a.alias === alias)).length),
+  );
+  const span = widest <= 1 ? "single" : `multi span-${widest}`;
+  const has = (kind: string) => accountsOf(features.find((f) => f.kind === kind)?.provider).length > 0;
+
+  return (
+    <section className={`provider-group chatgpt-group ${span} ${props.boardClass}`} data-board-item={CHATGPT_ITEM}>
+      <div className="provider-head">
+        <DragGrip grip={props.boardGrip} label={t("acc.dragProviderHint")} />
+        <div className="provider-title">
+          <h2 className="ellipsis">{t("cg.title")}</h2>
+          <div className="small muted">{t("cg.subtitle")}</div>
+        </div>
+      </div>
+      {aliases.map((alias) => {
+        const present = features
+          .map((f) => ({ ...f, account: accountsOf(f.provider).find((a) => a.alias === alias) }))
+          .filter((f): f is typeof f & { account: AccountInfo; provider: ProviderInfo } => !!f.account && !!f.provider);
+        // The quota of a ChatGPT account is one number: show it from the first source that has it.
+        const primary =
+          present.find((f) => (c.usageOf(f.account)?.windows.length ?? 0) > 0) ?? present[0];
+        return (
+          <div key={alias} className="cg-features">
+            {present.map((f) => {
+              const kind = c.kindOf(f.provider);
+              return (
+                <div key={f.kind} className="cg-feature">
+                  <div className="cg-feature-head">
+                    <span className="strong">{f.title}</span>
+                    <span className="mono small muted nowrap">{f.provider.slug}</span>
+                    <ProviderControls
+                      provider={f.provider}
+                      usageSources={kind?.usage_sources ?? []}
+                      inference={false}
+                      endpoint={undefined}
+                      busy={c.busy}
+                      onAction={c.onAction}
+                      onDialog={c.onDialog}
+                    />
+                  </div>
+                  <AccountCard
+                    account={f.account}
+                    usage={c.usageOf(f.account)}
+                    outside={c.outside(f.account)}
+                    health={accountHealth(c.statuses, f.account)}
+                    signIn={kind?.auth === "oauth"}
+                    web={kind?.auth === "browser_login"}
+                    busy={c.busy}
+                    onAction={c.onAction}
+                    onBench={c.onBench}
+                    onDialog={c.onDialog}
+                    hideUsage={f !== primary}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      {(!has("codex") || !has("codex-subscription") || !has("web-chatgpt")) && (
+        <div className="cg-add">
+          {!has("codex") && (
+            <Button icon={<ScanSearch size={16} />} onClick={() => c.onDialog({ kind: "scan" })} title={t("cg.addUsageHint")}>
+              {t("cg.addUsage")}
+            </Button>
+          )}
+          {!has("codex-subscription") && (
+            <Button icon={<LogIn size={16} />} onClick={() => c.onDialog({ kind: "login" })} title={t("sub.tileHint")}>
+              {t("cg.addProxy")}
+            </Button>
+          )}
+          {!has("web-chatgpt") && (
+            <Button icon={<AppWindow size={16} />} onClick={() => c.onDialog({ kind: "webAdd" })} title={t("web.tileHint")}>
+              {t("cg.addWeb")}
+            </Button>
+          )}
         </div>
       )}
     </section>
@@ -401,12 +702,20 @@ function ProviderSection(props: {
 function AccountCard(props: {
   account: AccountInfo;
   usage: AccountUsage | undefined;
+  outside: boolean;
+  health: ReturnType<typeof accountHealth>;
   signIn: boolean;
   web: boolean;
   busy: boolean;
   onAction: (f: () => Promise<unknown>) => void;
   onBench: (a: AccountInfo) => void;
   onDialog: (d: Dialog) => void;
+  /** Handlers of the drag grip; absent when the card cannot be reordered. */
+  grip?: GripProps;
+  /** Another card already shows this account's quota: only show its own requests. */
+  hideUsage?: boolean;
+  /** The provider says "estimated" once for all its cards. */
+  hideEstimatedNote?: boolean;
 }) {
   const a = props.account;
   const u = props.usage;
@@ -421,8 +730,9 @@ function AccountCard(props: {
   const name = `${a.provider}/${a.alias}`;
   const subtitle = [a.display_name, u?.account_label].filter(Boolean).join(" · ");
   return (
-    <div className={`account-card ${a.enabled ? "" : "off"}`}>
+    <div className={`account-card ${a.enabled ? "" : "off"} ${props.outside ? "outside" : ""}`}>
       <div className="account-head">
+        <DragGrip grip={props.grip} label={t("acc.dragHint")} />
         <Switch
           checked={a.enabled}
           disabled={props.busy}
@@ -507,6 +817,24 @@ function AccountCard(props: {
           </IconButton>
         </div>
       </div>
+      {/* Full width under the header so long states never cover the buttons. */}
+      {(props.health || props.outside || (a.unavailable_models ?? []).length > 0) && (
+        <div className="account-status">
+          <HealthBadge health={props.health} />
+          {(a.unavailable_models ?? []).length > 0 && (
+            <Badge tone="warn" title={(a.unavailable_models ?? []).join(", ")}>
+              <span className="ellipsis">
+                {t("acc.notInPlan", { n: (a.unavailable_models ?? []).length, list: (a.unavailable_models ?? []).join(", ") })}
+              </span>
+            </Badge>
+          )}
+          {props.outside && (
+            <Badge tone="warn" title={t("sp.outside")}>
+              {t("sp.outside")}
+            </Badge>
+          )}
+        </div>
+      )}
       <div className="account-tags">
         <Badge tone={a.account_type === "subscription" ? "accent" : "info"}>{tv("accountType", a.account_type)}</Badge>
         {!a.enabled && <Badge>{t("common.disabled")}</Badge>}
@@ -563,12 +891,20 @@ function AccountCard(props: {
           )}
         </div>
       )}
-      {u && <UsageDetail usage={u} />}
+      {u &&
+        (props.hideUsage ? (
+          <div className="account-foot">
+            <span>{t("acc.today", { n: u.spend_today.requests, cost: usd(u.spend_today.cost_usd) })}</span>
+            <span>{t("acc.month", { n: u.spend_month.requests, cost: usd(u.spend_month.cost_usd) })}</span>
+          </div>
+        ) : (
+          <UsageDetail usage={u} hideEstimatedNote={props.hideEstimatedNote} />
+        ))}
     </div>
   );
 }
 
-function UsageDetail(props: { usage: AccountUsage }) {
+function UsageDetail(props: { usage: AccountUsage; hideEstimatedNote?: boolean }) {
   const u = props.usage;
   const price = u.plan?.price_usd_monthly;
   const hasData = u.windows.length > 0 || u.balances.length > 0;
@@ -604,7 +940,7 @@ function UsageDetail(props: { usage: AccountUsage }) {
             )}
           </div>
         ))}
-        {!hasData && !u.error && (
+        {!hasData && !u.error && (u.supported || !props.hideEstimatedNote) && (
           <div className="small muted">{u.supported ? t("dash.noData") : t("acc.usageEstimated")}</div>
         )}
       </div>

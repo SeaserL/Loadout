@@ -16,6 +16,7 @@
 | **Transport** | 真正发送请求的方式（如 OpenAI-compatible HTTP、Anthropic HTTP）。每个 Transport 有一个 Trust Level。 | |
 | **RouteTarget** | `Account + Model + Transport`，路由选择的最小单位。 | 同一模型经不同 Account/Provider 是不同 RouteTarget。 |
 | **Pool** | RouteTarget 的**有序**列表。 | 成员是 RouteTarget，不是 Provider。 |
+| **Account Sub-pool（子号池）** | 账号的命名子集（代码中 `AccountSet`）。生效时路由表只包含其中账号，效果等同切换账户；未生效即**主号池**（全部账号）。 | 与 Pool 无关：成员是 Account。见 ExecPlan 019。 |
 | **Virtual Model** | `loadout/<name>` 形式的模型名，Router 拥有选择权。 | 见 §4。 |
 | **Exact Model** | `provider/account/model` 或 `provider/model` 形式的模型名。 | 见 ADR-010。 |
 | **RouteSnapshot** | 后台编译出的只读路由表，热路径只读它。 | 见 ADR-003。 |

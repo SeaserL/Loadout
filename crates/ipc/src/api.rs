@@ -273,6 +273,10 @@ pub struct AccountInfo {
     /// `routing.quota_reserve_percent` applies (ADR-003 §9).
     #[serde(default)]
     pub quota_reserve: Option<serde_json::Value>,
+    /// Models Loadout turned off because the account's plan does not include them
+    /// (ExecPlan 022).
+    #[serde(default)]
+    pub unavailable_models: Vec<String>,
 }
 
 /// Starts a Loadout-managed device-code login (ADR-012). The account is created (or its
@@ -390,6 +394,9 @@ pub struct ModelInfo {
     /// Latency tier pinned by the user (`ULTRA_FAST`, `FAST`, `NORMAL`).
     #[serde(default)]
     pub tier_override: Option<String>,
+    /// Why Loadout turned the model off itself, e.g. `not_in_plan` (ExecPlan 022).
+    #[serde(default)]
+    pub disabled_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -441,6 +448,11 @@ pub struct TargetStatus {
     pub successes: u64,
     pub failures: u64,
     pub last_error: Option<String>,
+    /// Last failure and last recovery from a blocking state (ExecPlan 021).
+    #[serde(default)]
+    pub last_failure_ms: Option<i64>,
+    #[serde(default)]
+    pub recovered_at_ms: Option<i64>,
     /// `ULTRA_FAST`, `FAST`, `NORMAL` or `UNMEASURED` (ExecPlan 004).
     #[serde(default)]
     pub tier: String,
@@ -1136,4 +1148,215 @@ method!(
     "account.set_reserve",
     AccountReserveParams,
     AccountInfo
+);
+
+// ---- account sub-pools (ExecPlan 019) ------------------------------------------------------
+
+/// A named subset of accounts. While one is active only its accounts are routable; no active
+/// sub-pool means the main pool (every account).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubpoolInfo {
+    pub name: String,
+    pub active: bool,
+    /// Members as `provider/alias`, sorted.
+    pub accounts: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubpoolState {
+    /// The active sub-pool; `None` = the main pool.
+    pub active: Option<String>,
+    /// `subpool.remember_active`: keep the active sub-pool after a restart.
+    pub remember: bool,
+    pub subpools: Vec<SubpoolInfo>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubpoolSaveParams {
+    pub name: String,
+    /// Rename this sub-pool to `name` (keeps its active state).
+    #[serde(default)]
+    pub rename_from: Option<String>,
+    /// Members as `provider/alias`.
+    pub accounts: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubpoolRef {
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SubpoolActivateParams {
+    /// Sub-pool to switch to; `None` returns to the main pool.
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+method!(SubpoolList, "subpool.list", (), SubpoolState);
+method!(SubpoolSave, "subpool.save", SubpoolSaveParams, SubpoolInfo);
+method!(SubpoolRemove, "subpool.remove", SubpoolRef, Revoked);
+method!(
+    SubpoolActivate,
+    "subpool.activate",
+    SubpoolActivateParams,
+    SubpoolState
+);
+
+// ---- encrypted API-key export (ExecPlan 020, ADR-004 §6) -----------------------------------
+
+/// What the user types to confirm an export of every API key (second confirmation step).
+pub const KEYS_EXPORT_CONFIRM: &str = "EXPORT";
+
+/// A passphrase in transit from the CLI/UI to the daemon. `Debug` never shows it.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Passphrase(pub String);
+
+impl std::fmt::Debug for Passphrase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Passphrase([REDACTED])")
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct KeysExportParams {
+    /// Target file; default: `<data dir>\backups\loadout-keys-<time>.loadout-keys`.
+    #[serde(default)]
+    pub path: Option<String>,
+    pub passphrase: Passphrase,
+    /// Must equal [`KEYS_EXPORT_CONFIRM`].
+    pub confirm: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct KeysExportResult {
+    pub path: String,
+    pub providers: usize,
+    pub accounts: usize,
+    /// API-key accounts whose key could not be read (left out).
+    pub skipped: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct KeysImportParams {
+    pub path: String,
+    pub passphrase: Passphrase,
+    /// Replace the key of accounts that already exist (default: skip them).
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct KeysImportReport {
+    pub providers: usize,
+    pub accounts: usize,
+    /// Existing accounts whose key was replaced (`overwrite`).
+    pub keys_updated: usize,
+    /// Items that already existed or could not be imported, with the reason.
+    pub skipped: Vec<String>,
+    /// `provider/alias: error` for imported accounts whose model list did not sync.
+    pub sync_errors: Vec<String>,
+}
+
+method!(
+    KeysExport,
+    "keys.export",
+    KeysExportParams,
+    KeysExportResult
+);
+method!(
+    KeysImport,
+    "keys.import",
+    KeysImportParams,
+    KeysImportReport
+);
+
+// ---- dedicated endpoints (ADR-015, ExecPlan 021) -------------------------------------------
+
+/// A provider-scoped entry point at `/e/<name>/v1` where clients use bare model names and
+/// requests fail over across the member accounts.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EndpointInfo {
+    pub name: String,
+    pub provider: String,
+    pub enabled: bool,
+    /// Account aliases; `None` = every account of the provider in the current pool.
+    pub members: Option<Vec<String>>,
+    pub default_model: Option<String>,
+    /// How long a request may wait for a rate-limited member to recover (0 = never).
+    pub wait_secs: u32,
+    /// Members routable right now (enabled, in the current pool), in failover order.
+    pub active_accounts: Vec<String>,
+    /// Bare model names served.
+    pub models: Vec<String>,
+    /// Base URL for OpenAI-compatible clients, e.g. `http://127.0.0.1:8317/e/sensenova/v1`.
+    pub openai_base_url: String,
+    /// Base URL for Anthropic SDKs (they append `/v1/messages`).
+    pub anthropic_base_url: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EndpointSaveParams {
+    /// Endpoint name; default: the provider slug.
+    #[serde(default)]
+    pub name: Option<String>,
+    pub provider: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Account aliases; `None` = every account of the provider in the current pool.
+    #[serde(default)]
+    pub members: Option<Vec<String>>,
+    #[serde(default)]
+    pub default_model: Option<String>,
+    /// Default 30.
+    #[serde(default)]
+    pub wait_secs: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EndpointRef {
+    pub name: String,
+}
+
+method!(EndpointList, "endpoint.list", (), Vec<EndpointInfo>);
+method!(
+    EndpointSave,
+    "endpoint.save",
+    EndpointSaveParams,
+    EndpointInfo
+);
+method!(EndpointRemove, "endpoint.remove", EndpointRef, Revoked);
+
+// ---- account order (ExecPlan 022) --------------------------------------------------------------
+
+/// New order of a provider's accounts; it is also their failover order.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountReorderParams {
+    pub provider: String,
+    /// Every alias of the provider, first to last.
+    pub aliases: Vec<String>,
+}
+
+method!(
+    AccountReorder,
+    "account.reorder",
+    AccountReorderParams,
+    Vec<AccountInfo>
+);
+
+// ---- provider order (ExecPlan 023) ------------------------------------------------------------
+
+/// Display order of the provider cards (does not change routing).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderReorderParams {
+    /// Provider slugs, first to last; unlisted ones follow in their current order.
+    pub slugs: Vec<String>,
+}
+
+method!(
+    ProviderReorder,
+    "provider.reorder",
+    ProviderReorderParams,
+    Vec<ProviderInfo>
 );

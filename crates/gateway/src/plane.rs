@@ -53,6 +53,10 @@ pub trait TelemetrySink: Send + Sync + 'static {
     /// Quota state an upstream reported on a response (passive usage, ExecPlan 013).
     /// Implementations must not block; the default drops it.
     fn observe_usage(&self, _account_id: &str, _report: UsageReport) {}
+
+    /// A target answered that the account's plan does not include its model (ExecPlan 022).
+    /// Implementations must not block; the default drops it.
+    fn model_unavailable(&self, _target_id: &str) {}
 }
 
 /// `response_id → route target` for stateful Responses conversations (ADR-006 §3).

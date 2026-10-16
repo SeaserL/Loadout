@@ -17,6 +17,11 @@ pub enum ApiFlavor {
 
 impl ApiFlavor {
     pub fn from_path(path: &str) -> Self {
+        // Also `/e/<endpoint>/v1/messages` (ADR-015).
+        let path = match path.strip_prefix("/e/") {
+            Some(rest) => rest.find('/').map_or(path, |i| &rest[i..]),
+            None => path,
+        };
         if path == "/v1/messages" || path.starts_with("/v1/messages/") {
             Self::Anthropic
         } else {

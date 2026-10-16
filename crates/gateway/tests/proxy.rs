@@ -229,7 +229,11 @@ fn responses_stream_text(id: &str, text: &str) -> Vec<String> {
 // ---- gateway harness ------------------------------------------------------------------------
 
 #[derive(Default)]
-struct Records(Mutex<Vec<RequestRecord>>, Mutex<Vec<(String, UsageReport)>>);
+struct Records(
+    Mutex<Vec<RequestRecord>>,
+    Mutex<Vec<(String, UsageReport)>>,
+    Mutex<Vec<String>>,
+);
 
 impl TelemetrySink for Records {
     fn record(&self, r: RequestRecord) {
@@ -240,6 +244,9 @@ impl TelemetrySink for Records {
             .lock()
             .expect("lock")
             .push((account_id.to_owned(), report));
+    }
+    fn model_unavailable(&self, target_id: &str) {
+        self.2.lock().expect("lock").push(target_id.to_owned());
     }
 }
 
@@ -266,10 +273,18 @@ struct TargetSpec {
 }
 
 fn build_target(reg: &HealthRegistry, s: &TargetSpec) -> Arc<RouteTarget> {
-    let module: Arc<dyn ProviderModule> = match s.protocol {
+    build_target_with(reg, s, None)
+}
+
+fn build_target_with(
+    reg: &HealthRegistry,
+    s: &TargetSpec,
+    module: Option<Arc<dyn ProviderModule>>,
+) -> Arc<RouteTarget> {
+    let module: Arc<dyn ProviderModule> = module.unwrap_or_else(|| match s.protocol {
         Protocol::Messages => Arc::new(AnthropicCompatible),
         _ => Arc::new(OpenAiCompatible),
-    };
+    });
     let config = ProviderConfig {
         slug: s.provider.into(),
         kind: module.descriptor().kind.into(),
@@ -1434,4 +1449,222 @@ async fn models_listing_puts_virtuals_and_pools_first_with_details() {
     assert_eq!(default["loadout"]["targets"], 2);
     assert_eq!(list["data"][1]["loadout"]["kind"], "pool");
     assert_eq!(list["data"][2]["loadout"]["state"], "AUTH_FAILED");
+}
+
+// ---- dedicated endpoints (ADR-015) ------------------------------------------------------------
+
+async fn endpoint_harness() -> (Harness, Vec<Mock>) {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    let (mock_c, base_c) = start_mock().await;
+    let (mock_o, base_o) = start_mock().await;
+    let health = Arc::new(HealthRegistry::default());
+    let targets = [
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "a", 0, "m", Protocol::Messages, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+        spec("acme", "c", 2, "m", Protocol::Chat, &base_c),
+        spec("other", "x", 0, "m", Protocol::Chat, &base_o),
+    ]
+    .iter()
+    .map(|s| build_target(&health, s))
+    .collect();
+    let table = RouteTable::new(1, targets).with_endpoint("acme", "acme", None, None, 3);
+    let h = Harness::with_table(health, table).await;
+    (h, vec![mock_a, mock_b, mock_c, mock_o])
+}
+
+#[tokio::test]
+async fn endpoint_fails_over_across_every_account_with_bare_names() {
+    let (h, mocks) = endpoint_harness().await;
+    let limited = || Reply::Status(429, r#"{"error":{"message":"tpm/rpm limit"}}"#.into());
+    mocks[0].push("/v1/chat/completions", limited());
+    mocks[1].push("/v1/chat/completions", limited());
+    mocks[2].push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from c")),
+    );
+
+    let resp = h
+        .post(
+            "/e/acme/v1/chat/completions",
+            json!({"model": "m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/c/m");
+    assert!(resp.text().await.expect("text").contains("from c"));
+    let r = &h.records(1).await[0];
+    assert_eq!(
+        r.attempts, 3,
+        "every account once, beyond routing.max_attempts"
+    );
+    // One attempt per account: account a's Messages target was not tried after its 429.
+    assert!(
+        mocks[0]
+            .seen()
+            .iter()
+            .all(|s| s.path == "/v1/chat/completions")
+    );
+    assert!(
+        mocks[3].seen().is_empty(),
+        "other providers are outside the endpoint"
+    );
+    assert_eq!(mocks[2].seen()[0].body["model"], "m");
+
+    // Listing and unknown names.
+    let list: Value = h
+        .http
+        .get(format!("http://{}/e/acme/v1/models", h.addr))
+        .bearer_auth(&h.key)
+        .send()
+        .await
+        .expect("send")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(list["data"].as_array().expect("data").len(), 1);
+    assert_eq!(list["data"][0]["id"], "m");
+    assert_eq!(list["data"][0]["owned_by"], "acme");
+    let missing = h
+        .post(
+            "/e/acme/v1/chat/completions",
+            json!({"model": "nope", "messages": []}),
+        )
+        .await;
+    assert_eq!(missing.status(), 404);
+    assert!(missing.text().await.expect("text").contains("available: m"));
+    let unknown = h
+        .post(
+            "/e/ghost/v1/messages",
+            json!({"model": "m", "max_tokens": 5, "messages": []}),
+        )
+        .await;
+    assert_eq!(unknown.status(), 404);
+    let body: Value = unknown.json().await.expect("json");
+    assert_eq!(
+        body["type"], "error",
+        "Anthropic error shape on /e/…/v1/messages"
+    );
+
+    // Without the client key the endpoint is closed like /v1.
+    let anon = h
+        .http
+        .post(format!("http://{}/e/acme/v1/chat/completions", h.addr))
+        .json(&json!({"model": "m", "messages": []}))
+        .send()
+        .await
+        .expect("send");
+    assert_eq!(anon.status(), 401);
+}
+
+#[tokio::test]
+async fn endpoint_waits_for_the_first_account_to_recover() {
+    let (h, mocks) = endpoint_harness().await;
+    let now = loadout_router::now_ms();
+    for (id, secs) in [
+        ("acme-a-m:chat", 1),
+        ("acme-a-m:messages", 1),
+        ("acme-b-m:chat", 30),
+        ("acme-c-m:chat", 30),
+    ] {
+        h.health.get(id).expect("health").record_failure(
+            loadout_provider_sdk::FailureKind::RateLimited {
+                retry_after: Some(Duration::from_secs(secs)),
+            },
+            "429",
+            now,
+        );
+    }
+    mocks[0].push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("a is back")),
+    );
+    let started = std::time::Instant::now();
+    let resp = h
+        .post(
+            "/e/acme/v1/chat/completions",
+            json!({"model": "m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert!(
+        started.elapsed() >= Duration::from_millis(800),
+        "waited for account a"
+    );
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/a/m");
+    assert!(resp.text().await.expect("text").contains("a is back"));
+    assert_eq!(
+        h.records(1).await.len(),
+        1,
+        "the waiting round is not recorded"
+    );
+
+    // Longer than the endpoint's 3 s wait: fail fast with the reasons.
+    for id in ["acme-a-m:chat", "acme-a-m:messages"] {
+        h.health.get(id).expect("health").record_failure(
+            loadout_provider_sdk::FailureKind::RateLimited {
+                retry_after: Some(Duration::from_secs(60)),
+            },
+            "429",
+            loadout_router::now_ms(),
+        );
+    }
+    let started = std::time::Instant::now();
+    let resp = h
+        .post(
+            "/e/acme/v1/chat/completions",
+            json!({"model": "m", "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 503);
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[tokio::test]
+async fn model_outside_the_plan_is_reported_and_failed_over() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Status(
+            403,
+            r#"{"error":{"type":"permission_denied_error","code":"7","message":"model is not available in the current token plan"}}"#.into(),
+        ),
+    );
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from b")),
+    );
+    // SenseNova's own module classifies the refusal.
+    let module = loadout_providers::Registry::builtin()
+        .get("sensenova")
+        .expect("sensenova")
+        .clone();
+    let health = Arc::new(HealthRegistry::default());
+    let targets = [("a", 0, base_a), ("b", 1, base_b)]
+        .into_iter()
+        .map(|(alias, pos, base)| {
+            let s = spec("sensenova", alias, pos, "m", Protocol::Chat, &base);
+            build_target_with(&health, &s, Some(module.clone()))
+        })
+        .collect();
+    let h = Harness::with_targets(health, targets).await;
+
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "sensenova/m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers()["x-loadout-route"], "sensenova/b/m");
+    resp.text().await.expect("text");
+    assert_eq!(*h.records.2.lock().expect("lock"), ["sensenova-a-m:chat"]);
+    let state = h.health.get("sensenova-a-m:chat").expect("health").state();
+    assert_eq!(
+        state,
+        HealthState::Cooldown,
+        "not AUTH_FAILED: the key is fine"
+    );
 }

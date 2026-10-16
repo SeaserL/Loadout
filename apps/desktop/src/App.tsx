@@ -56,7 +56,11 @@ export function App() {
   const start = useAction();
 
   useEffect(() => {
-    const onHash = () => setPage(currentPage());
+    const onHash = () => {
+      setPage(currentPage());
+      // A new page starts at the top, not where the previous one was scrolled to.
+      document.querySelector("main")?.scrollTo(0, 0);
+    };
     window.addEventListener("hashchange", onHash);
     const unlisten = listen("daemon-changed", () => void reloadStatus());
     return () => {

@@ -35,6 +35,16 @@ const MIGRATIONS: &[M<'static>] = &[
         .down(include_str!("../migrations/0009_request_decision/down.sql")),
     M::up(include_str!("../migrations/0010_web_session/up.sql"))
         .down(include_str!("../migrations/0010_web_session/down.sql")),
+    M::up(include_str!("../migrations/0011_account_sets/up.sql"))
+        .down(include_str!("../migrations/0011_account_sets/down.sql")),
+    M::up(include_str!("../migrations/0012_endpoints/up.sql"))
+        .down(include_str!("../migrations/0012_endpoints/down.sql")),
+    M::up(include_str!("../migrations/0013_model_unavailable/up.sql")).down(include_str!(
+        "../migrations/0013_model_unavailable/down.sql"
+    )),
+    M::up(include_str!("../migrations/0014_provider_position/up.sql")).down(include_str!(
+        "../migrations/0014_provider_position/down.sql"
+    )),
 ];
 
 /// Schema version after applying every migration.

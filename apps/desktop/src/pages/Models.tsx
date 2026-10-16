@@ -139,6 +139,11 @@ export function Models() {
                             <Copy size={14} />
                           </IconButton>
                           {m.source === "manual" && <Badge>{t("models.manual")}</Badge>}
+                          {m.disabled_reason === "not_in_plan" && (
+                            <Badge tone="warn" title={t("models.notInPlanHint")}>
+                              {t("models.notInPlan")}
+                            </Badge>
+                          )}
                         </div>
                       </td>
                       <td className="small">{m.protocols.join(", ")}</td>

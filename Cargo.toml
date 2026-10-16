@@ -60,6 +60,9 @@ windows-sys = "0.61"
 secrecy = "0.10"
 sha2 = "0.11"
 rand = "0.10"
+# Already the TLS crypto provider; reused for the encrypted key export (ExecPlan 020).
+aws-lc-rs = "1.18"
+zeroize = "1.9"
 
 # Serialization / utilities
 base64 = "0.22"

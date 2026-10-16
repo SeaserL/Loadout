@@ -386,6 +386,29 @@ impl ControlPlane {
             .collect())
     }
 
+    /// Display order of the provider cards (ExecPlan 023); routing is unaffected.
+    pub async fn reorder_providers(
+        &self,
+        slugs: Vec<String>,
+    ) -> Result<Vec<ProviderInfo>, ErrorBody> {
+        let db = self.db.clone();
+        blocking(move || {
+            let known = db.providers().list().map_err(storage)?;
+            let mut seen = HashSet::new();
+            for s in &slugs {
+                if !known.iter().any(|p| &p.slug == s) {
+                    return Err(ErrorBody::not_found(format!("provider {s:?} not found")));
+                }
+                if !seen.insert(s.as_str()) {
+                    return Err(ErrorBody::invalid_params(format!("{s} is listed twice")));
+                }
+            }
+            db.providers().reorder(&slugs).map_err(storage)
+        })
+        .await?;
+        self.list_providers().await
+    }
+
     pub async fn remove_provider(&self, slug: String) -> Result<bool, ErrorBody> {
         let (db, secrets) = (self.db.clone(), self.secrets.clone());
         let removed = blocking(move || {
@@ -452,6 +475,11 @@ impl ControlPlane {
                 .quota_reserve_json
                 .as_deref()
                 .and_then(|j| serde_json::from_str(j).ok()),
+            unavailable_models: models
+                .iter()
+                .filter(|m| m.disabled_reason.is_some())
+                .map(|m| m.upstream_model_id.clone())
+                .collect(),
         })
     }
 
@@ -596,6 +624,43 @@ impl ControlPlane {
             Ok(out)
         })
         .await
+    }
+
+    /// Puts a provider's accounts in the given order, which is also their failover order
+    /// (ExecPlan 022). `aliases` must list every account of the provider exactly once.
+    pub async fn reorder_accounts(
+        &self,
+        provider: String,
+        aliases: Vec<String>,
+    ) -> Result<Vec<AccountInfo>, ErrorBody> {
+        let db = self.db.clone();
+        let slug = provider.clone();
+        blocking(move || {
+            let p = Self::load_provider(&db, &slug)?;
+            let accounts = db.accounts().list(Some(&p.id)).map_err(storage)?;
+            let mut ids = Vec::with_capacity(aliases.len());
+            for alias in &aliases {
+                let a = accounts.iter().find(|a| &a.alias == alias).ok_or_else(|| {
+                    ErrorBody::not_found(format!("account {slug}/{alias} not found"))
+                })?;
+                if ids.contains(&a.id) {
+                    return Err(ErrorBody::invalid_params(format!(
+                        "{alias} is listed twice"
+                    )));
+                }
+                ids.push(a.id.clone());
+            }
+            if ids.len() != accounts.len() {
+                return Err(ErrorBody::invalid_params(format!(
+                    "list every account of {slug} ({} accounts)",
+                    accounts.len()
+                )));
+            }
+            db.accounts().reorder(&ids).map_err(storage)
+        })
+        .await?;
+        self.rebuild_routes().await?;
+        self.list_accounts(Some(provider)).await
     }
 
     pub async fn set_account_enabled(
@@ -1036,6 +1101,8 @@ impl ControlPlane {
                     successes: h.successes,
                     failures: h.failures,
                     last_error: h.last_error,
+                    last_failure_ms: h.last_failure_ms,
+                    recovered_at_ms: h.recovered_at_ms,
                     tier: rank.tier.as_str().to_owned(),
                     tier_pinned: rank.pinned,
                     ttft_p50_ms: stats.ttft_p50_ms,
@@ -1201,5 +1268,6 @@ fn model_info(p: &Provider, a: &Account, m: &AccountModel) -> ModelInfo {
         input_price: m.input_price,
         output_price: m.output_price,
         tier_override: m.tier_override.clone(),
+        disabled_reason: m.disabled_reason.clone(),
     }
 }

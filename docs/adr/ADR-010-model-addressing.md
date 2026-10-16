@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-29
+- **Amended by**: [ADR-015](ADR-015-dedicated-endpoints.md)（专用端点 `/e/<name>/v1` 内可用裸模型名）
 
 ## Context
 

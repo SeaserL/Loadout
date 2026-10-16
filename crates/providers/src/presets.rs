@@ -14,9 +14,11 @@ use loadout_provider_sdk::time::number_field;
 use loadout_provider_sdk::usage::{Balance, Confidence, UsageReport, UsageSource};
 use loadout_provider_sdk::{
     AuthMethod, BoxFuture, Capabilities, CatalogModel, DriverContext, Drivers, Endpoint,
-    ProviderConfig, ProviderDescriptor, ProviderError, ProviderModule, TransportSpec, TrustLevel,
+    FailureKind, ProviderConfig, ProviderDescriptor, ProviderError, ProviderModule, TransportSpec,
+    TrustLevel, UpstreamFailure,
 };
 use loadout_secrets::Secret;
+use reqwest::header::HeaderMap;
 use serde_json::Value;
 
 use crate::common::{self, ANTHROPIC_VERSION, origin_join};
@@ -88,6 +90,11 @@ pub(crate) struct ApiPreset {
     /// Chat Completions models that take `max_completion_tokens` although the platform
     /// default is `max_tokens` (id prefixes).
     max_completion_tokens_models: &'static [&'static str],
+    /// Wait after a 429 without `Retry-After`, when the platform's limit window is known.
+    rate_limit_retry_secs: Option<u64>,
+    /// Error texts (lowercase) meaning "this account's plan does not include the model":
+    /// the model is unavailable on this account, the key itself is fine.
+    model_not_in_plan: &'static [&'static str],
     balance: Option<BalanceApi>,
 }
 
@@ -99,6 +106,8 @@ const fn preset(descriptor: ProviderDescriptor, messages_path: Option<&'static s
         known_models: &[],
         max_tokens_field: chat::MaxTokensField::MaxTokens,
         max_completion_tokens_models: &[],
+        rate_limit_retry_secs: None,
+        model_not_in_plan: &[],
         balance: None,
     }
 }
@@ -114,6 +123,10 @@ pub(crate) static PRESETS: [ApiPreset; 14] = [
             "kimi-k3",
         ],
         max_completion_tokens_models: &["kimi-k3"],
+        // Per-key, per-model TPM/RPM limit; measured recovery ~20 s (sensenova.md).
+        rate_limit_retry_secs: Some(20),
+        // 403 when a Token Plan key asks for a model outside its plan.
+        model_not_in_plan: &["not available in the current token plan"],
         ..preset(
             descriptor(
                 "sensenova",
@@ -431,6 +444,23 @@ impl ProviderModule for Preset {
         }
     }
 
+    fn classify(&self, status: u16, headers: &HeaderMap, body: &str) -> UpstreamFailure {
+        let mut failure = loadout_provider_sdk::classify(status, headers, body);
+        let lower = body.to_ascii_lowercase();
+        if self.0.model_not_in_plan.iter().any(|p| lower.contains(p)) {
+            failure.kind = FailureKind::ModelUnavailable;
+            return failure;
+        }
+        if let (FailureKind::RateLimited { retry_after: None }, Some(secs)) =
+            (failure.kind, self.0.rate_limit_retry_secs)
+        {
+            failure.kind = FailureKind::RateLimited {
+                retry_after: Some(std::time::Duration::from_secs(secs)),
+            };
+        }
+        failure
+    }
+
     fn chat_options(&self, _config: &ProviderConfig) -> chat::EncodeOptions {
         chat::EncodeOptions {
             max_tokens_field: self.0.max_tokens_field,
@@ -609,6 +639,38 @@ mod tests {
         let mut body = json!({"model": "kimi-k3", "max_tokens": 9});
         p.prepare_request(&cfg, Protocol::Messages, &mut body);
         assert_eq!(body["max_tokens"], 9);
+    }
+
+    #[test]
+    fn sensenova_model_outside_the_plan_is_not_a_bad_key() {
+        let h = HeaderMap::new();
+        let body = r#"{"error":{"type":"permission_denied_error","code":"7","message":"model is not available in the current token plan"}}"#;
+        assert_eq!(
+            get("sensenova").classify(403, &h, body).kind,
+            FailureKind::ModelUnavailable
+        );
+        assert_eq!(
+            get("sensenova")
+                .classify(401, &h, r#"{"error":{"code":16,"message":"Forbidden"}}"#)
+                .kind,
+            FailureKind::Auth
+        );
+    }
+
+    #[test]
+    fn sensenova_rate_limits_wait_twenty_seconds() {
+        let h = HeaderMap::new();
+        let body = r#"{"error":{"code":"8","message":"inference exceeds tpm/rpm limit"}}"#;
+        assert_eq!(
+            get("sensenova").classify(429, &h, body).kind,
+            FailureKind::RateLimited {
+                retry_after: Some(std::time::Duration::from_secs(20))
+            }
+        );
+        assert_eq!(
+            get("groq").classify(429, &h, body).kind,
+            FailureKind::RateLimited { retry_after: None }
+        );
     }
 
     #[test]

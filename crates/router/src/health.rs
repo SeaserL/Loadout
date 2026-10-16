@@ -79,6 +79,8 @@ pub struct TargetHealth {
     failures: AtomicU64,
     last_success_ms: AtomicI64,
     last_failure_ms: AtomicI64,
+    /// When a blocking state last ended with a success (ExecPlan 021).
+    last_recovered_ms: AtomicI64,
     last_error: Mutex<Option<String>>,
     /// Recent outcomes: low 32 bits are a shift register (1 = failure, newest in bit 0),
     /// the high bits count how many are valid (at most 32).
@@ -99,6 +101,8 @@ pub struct HealthSnapshot {
     pub failures: u64,
     pub last_success_ms: Option<i64>,
     pub last_failure_ms: Option<i64>,
+    /// When a blocking state (rate limit, cooldown, quota, auth) last ended with a success.
+    pub recovered_at_ms: Option<i64>,
     pub last_error: Option<String>,
     /// Healthy, but failing often recently (Harness §18). Still eligible; ordered later.
     pub degraded: bool,
@@ -160,6 +164,9 @@ impl TargetHealth {
     }
 
     pub fn record_success(&self, now_ms: i64) {
+        if !matches!(self.state(), HealthState::Unknown | HealthState::Healthy) {
+            self.last_recovered_ms.store(now_ms, Ordering::Relaxed);
+        }
         self.push_outcome(false);
         self.state
             .store(HealthState::Healthy as u8, Ordering::Release);
@@ -208,7 +215,9 @@ impl TargetHealth {
                 HealthState::Cooldown,
                 Some(backoff(COOLDOWN_BASE, COOLDOWN_MAX, failures)),
             ),
-            FailureKind::ModelNotFound => (HealthState::Cooldown, Some(COOLDOWN_MAX)),
+            FailureKind::ModelNotFound | FailureKind::ModelUnavailable => {
+                (HealthState::Cooldown, Some(COOLDOWN_MAX))
+            }
             FailureKind::InvalidRequest => return,
         };
         let until = match wait {
@@ -281,6 +290,7 @@ impl TargetHealth {
             failures: self.failures.load(Ordering::Relaxed),
             last_success_ms: nonzero(self.last_success_ms.load(Ordering::Relaxed)),
             last_failure_ms: nonzero(self.last_failure_ms.load(Ordering::Relaxed)),
+            recovered_at_ms: nonzero(self.last_recovered_ms.load(Ordering::Relaxed)),
             last_error: self.last_error.lock().ok().and_then(|e| e.clone()),
             degraded: self.is_degraded(),
             recent_failures: self.recent().0,
@@ -351,9 +361,14 @@ mod tests {
         h.record_failure(FailureKind::Server, "boom", 6_000);
         assert!(!h.is_available(15_999));
         assert!(h.is_available(16_000), "10 s after the second failure");
+        assert_eq!(h.snapshot().recovered_at_ms, None);
         h.record_success(16_000);
         assert_eq!(h.state(), HealthState::Healthy);
         assert_eq!(h.snapshot().consecutive_failures, 0);
+        assert_eq!(h.snapshot().recovered_at_ms, Some(16_000));
+        // A success while healthy is not a recovery.
+        h.record_success(17_000);
+        assert_eq!(h.snapshot().recovered_at_ms, Some(16_000));
     }
 
     #[test]

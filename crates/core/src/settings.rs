@@ -43,6 +43,7 @@ pub const NOTIFY_QUOTA_PERCENT: &str = "notify.quota_percent";
 pub const NOTIFY_BALANCE_USD: &str = "notify.balance_usd";
 pub const WEB_SESSION_ENABLED: &str = "web_session.enabled";
 pub const WEB_SESSION_HEADLESS: &str = "web_session.headless";
+pub const SUBPOOL_REMEMBER: &str = "subpool.remember_active";
 
 pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
@@ -155,6 +156,14 @@ pub const SETTINGS: &[SettingDef] = &[
         default: "false",
         description: "Run browser sessions without a window. Sites detect this easily; the \
                       default visible window is recommended (ADR-014 §2)",
+        restart_required: false,
+        validate: validate_bool,
+    },
+    SettingDef {
+        key: SUBPOOL_REMEMBER,
+        default: "false",
+        description: "Keep the active account sub-pool after a restart; when off, Loadout \
+                      starts in the main pool (ExecPlan 019)",
         restart_required: false,
         validate: validate_bool,
     },

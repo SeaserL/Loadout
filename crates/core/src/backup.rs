@@ -130,7 +130,11 @@ pub(crate) fn backups_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("backups")
 }
 
-fn target_path(data_dir: &Path, path: Option<String>, name: &str) -> Result<PathBuf, String> {
+pub(crate) fn target_path(
+    data_dir: &Path,
+    path: Option<String>,
+    name: &str,
+) -> Result<PathBuf, String> {
     match path.filter(|p| !p.trim().is_empty()) {
         Some(p) => Ok(PathBuf::from(p.trim())),
         None => {

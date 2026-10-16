@@ -15,6 +15,9 @@ pub enum ResolutionKind {
     ProviderModel,
     /// `loadout/<name>`
     Virtual,
+    /// A model inside a dedicated endpoint (`/e/<name>/v1`, ADR-015): that model on the
+    /// endpoint's member accounts, one attempt per account.
+    Endpoint,
 }
 
 #[derive(Debug)]
@@ -32,6 +35,25 @@ pub enum ResolveError {
     NotAddressed(String),
     #[error("model \"{0}\" not found (see GET /v1/models)")]
     UnknownModel(String),
+    #[error("model \"{model}\" is not served by endpoint {endpoint}; available: {available}")]
+    NotInEndpoint {
+        endpoint: String,
+        model: String,
+        available: String,
+    },
+    #[error("endpoint \"{0}\" does not exist or is turned off")]
+    UnknownEndpoint(String),
+}
+
+/// A dedicated endpoint's index (ADR-015): upstream model -> member targets in table order.
+#[derive(Debug, Default)]
+struct EndpointIndex {
+    provider: String,
+    models: HashMap<String, Vec<usize>>,
+    default_model: Option<String>,
+    accounts: usize,
+    /// How long a request may wait for a cooling member to recover.
+    wait_secs: u32,
 }
 
 /// Immutable routing table built by the control plane.
@@ -47,6 +69,8 @@ pub struct RouteTable {
     pools: HashSet<String>,
     /// Latency tier per account model at build time (display only).
     tiers: HashMap<Arc<str>, Tier>,
+    /// Dedicated endpoints by name (ADR-015).
+    endpoints: HashMap<String, EndpointIndex>,
 }
 
 /// What a listed model name addresses.
@@ -131,6 +155,130 @@ impl RouteTable {
     pub fn with_pool(mut self, name: &str, target_ids: &[TargetId]) -> Self {
         self.pools.insert(name.to_owned());
         self.with_virtual(name, target_ids)
+    }
+
+    /// Adds a dedicated endpoint (ADR-015) over the provider's targets, limited to
+    /// `members` (account ids) when given.
+    pub fn with_endpoint(
+        mut self,
+        name: &str,
+        provider: &str,
+        members: Option<&HashSet<String>>,
+        default_model: Option<&str>,
+        wait_secs: u32,
+    ) -> Self {
+        let mut index = EndpointIndex {
+            provider: provider.to_owned(),
+            default_model: default_model.map(str::to_owned),
+            wait_secs,
+            ..EndpointIndex::default()
+        };
+        let mut accounts: HashSet<&str> = HashSet::new();
+        for (i, t) in self.targets.iter().enumerate() {
+            if &*t.provider_slug != provider || members.is_some_and(|m| !m.contains(&*t.account_id))
+            {
+                continue;
+            }
+            accounts.insert(&t.account_id);
+            index
+                .models
+                .entry(t.upstream_model.to_string())
+                .or_default()
+                .push(i);
+        }
+        index.accounts = accounts.len();
+        self.endpoints.insert(name.to_owned(), index);
+        self
+    }
+
+    /// Resolves a model name inside a dedicated endpoint (ADR-015 §2): the bare upstream id,
+    /// `provider/model`, or `provider/account/model` (that account first), else the
+    /// endpoint's default model.
+    pub fn resolve_endpoint(
+        &self,
+        endpoint: &str,
+        model: &str,
+    ) -> Result<Resolution<'_>, ResolveError> {
+        let ep = self
+            .endpoints
+            .get(endpoint)
+            .ok_or_else(|| ResolveError::UnknownEndpoint(endpoint.to_owned()))?;
+        let pick = |idx: &[usize]| idx.iter().map(|&i| &self.targets[i]).collect::<Vec<_>>();
+        let found = |m: &str| ep.models.get(m).filter(|v| !v.is_empty());
+        let mut first_account: Option<&str> = None;
+        let mut idx = found(model);
+        if idx.is_none()
+            && let Some(rest) = model
+                .strip_prefix(ep.provider.as_str())
+                .and_then(|r| r.strip_prefix('/'))
+        {
+            idx = found(rest);
+            if idx.is_none()
+                && let Some(&i) = self.exact.get(model).and_then(|v| v.first())
+            {
+                let t = &self.targets[i];
+                idx = found(&t.upstream_model);
+                first_account = Some(&t.account_id);
+            }
+        }
+        if idx.is_none()
+            && let Some(d) = &ep.default_model
+        {
+            idx = found(d);
+        }
+        let Some(idx) = idx else {
+            return Err(ResolveError::NotInEndpoint {
+                endpoint: endpoint.to_owned(),
+                model: model.to_owned(),
+                available: self
+                    .endpoint_models(endpoint)
+                    .unwrap_or_default()
+                    .join(", "),
+            });
+        };
+        let mut candidates = pick(idx);
+        if let Some(a) = first_account {
+            candidates.sort_by_key(|t| &*t.account_id != a);
+        }
+        Ok(Resolution {
+            kind: ResolutionKind::Endpoint,
+            candidates,
+        })
+    }
+
+    /// Upstream model ids served by an endpoint, sorted; `None` when it does not exist.
+    pub fn endpoint_models(&self, endpoint: &str) -> Option<Vec<&str>> {
+        let ep = self.endpoints.get(endpoint)?;
+        let mut names: Vec<&str> = ep.models.keys().map(String::as_str).collect();
+        names.sort_unstable();
+        Some(names)
+    }
+
+    /// How long a request to the endpoint may wait for a member to recover (ADR-015 §3).
+    pub fn endpoint_wait_secs(&self, endpoint: &str) -> u32 {
+        self.endpoints.get(endpoint).map_or(0, |e| e.wait_secs)
+    }
+
+    /// Every target that belongs to at least one endpoint, in table order.
+    pub fn endpoint_targets(&self) -> Vec<&Arc<RouteTarget>> {
+        let mut idx: Vec<usize> = self
+            .endpoints
+            .values()
+            .flat_map(|e| e.models.values().flatten().copied())
+            .collect();
+        idx.sort_unstable();
+        idx.dedup();
+        idx.into_iter().map(|i| &self.targets[i]).collect()
+    }
+
+    /// The provider an endpoint serves.
+    pub fn endpoint_provider(&self, endpoint: &str) -> Option<&str> {
+        self.endpoints.get(endpoint).map(|e| e.provider.as_str())
+    }
+
+    /// How many member accounts an endpoint has in this table.
+    pub fn endpoint_accounts(&self, endpoint: &str) -> usize {
+        self.endpoints.get(endpoint).map_or(0, |e| e.accounts)
     }
 
     /// Records the latency tier of each account model (display only; the routing order

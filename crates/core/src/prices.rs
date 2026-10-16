@@ -240,6 +240,7 @@ mod tests {
                 tier_override: None,
                 price_source: input.map(|_| "catalog".into()),
                 price_updated_at: None,
+                disabled_reason: None,
             },
         }
     }

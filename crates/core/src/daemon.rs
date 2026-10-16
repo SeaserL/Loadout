@@ -111,6 +111,14 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         let (db, web) = (db.clone(), control.web.clone());
         tokio::task::spawn_blocking(move || {
             web.load_settings(&db);
+            // Start in the main pool unless the user keeps the sub-pool (ExecPlan 019).
+            let remember = crate::settings::value(&db, crate::settings::SUBPOOL_REMEMBER)
+                .ok()
+                .and_then(|v| crate::settings::parse_bool(&v))
+                .unwrap_or(false);
+            if !remember && let Err(e) = db.account_sets().activate(None) {
+                tracing::warn!(error = %e, "could not return to the main pool");
+            }
         })
         .await
         .map_err(|_| DaemonError::ServiceFailed("settings load"))?;
@@ -127,6 +135,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
     // Telemetry writer (ADR-008 §5).
     let (telemetry_writer, telemetry) = TelemetryWriter::spawn(&paths.database, DEFAULT_CAPACITY)?;
     let (passive_tx, passive_rx) = tokio::sync::mpsc::channel(crate::usage::PASSIVE_QUEUE);
+    let (unavailable_tx, unavailable_rx) = tokio::sync::mpsc::channel(crate::unavailable::QUEUE);
     let plane = Arc::new(DataPlane {
         routes: routes.clone(),
         http,
@@ -134,6 +143,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
             latency: control.latency.clone(),
             policies: control.policies.clone(),
             passive_usage: Some(passive_tx),
+            unavailable: Some(unavailable_tx),
             inner: StorageTelemetry {
                 sender: telemetry.clone(),
             },
@@ -189,11 +199,25 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         passive_rx,
         shutdown.clone(),
     ));
+    tokio::spawn(crate::unavailable::run(
+        control.clone(),
+        unavailable_rx,
+        shutdown.clone(),
+    ));
     {
         let (control, token) = (control.clone(), shutdown.clone());
         spawn_restartable("usage", shutdown.clone(), Backoff::default(), move || {
             crate::usage::poll(control.clone(), token.clone())
         });
+    }
+    {
+        let (control, token) = (control.clone(), shutdown.clone());
+        spawn_restartable(
+            "recovery",
+            shutdown.clone(),
+            Backoff::default(),
+            move || control.clone().watch_recovery(token.clone()),
+        );
     }
     {
         let (control, token) = (control.clone(), shutdown.clone());

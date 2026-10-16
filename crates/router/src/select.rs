@@ -122,6 +122,12 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
     {
         out.attempts.retain(|t| t.account_id == named.account_id);
     }
+    if resolution.kind == ResolutionKind::Endpoint {
+        // One attempt per account (ADR-015 §3): another protocol on the same key would hit
+        // the same per-key limit.
+        let mut seen = std::collections::HashSet::new();
+        out.attempts.retain(|t| seen.insert(t.account_id.clone()));
+    }
     if stateful {
         // State lives on one upstream; never fail over (ADR-006 §3).
         out.attempts.truncate(1);
@@ -464,6 +470,75 @@ mod tests {
         assert_eq!(
             select(&exact, &request(Protocol::Chat, &h)).attempts.len(),
             1
+        );
+    }
+
+    #[test]
+    fn endpoints_resolve_bare_names_one_attempt_per_account() {
+        let reg = HealthRegistry::default();
+        let members: std::collections::HashSet<String> =
+            ["main".to_owned(), "backup".to_owned()].into();
+        let t = table(&reg)
+            .with_endpoint("cc", "cc", None, None, 30)
+            .with_endpoint(
+                "only-backup",
+                "cc",
+                Some(&["backup".to_owned()].into()),
+                Some("kimi"),
+                0,
+            )
+            .with_endpoint("both", "cc", Some(&members), None, 30);
+        assert_eq!(
+            t.endpoint_models("cc").expect("ep"),
+            ["kimi", "vendor/deep"]
+        );
+        assert_eq!(t.endpoint_accounts("cc"), 2);
+        assert_eq!(t.endpoint_accounts("only-backup"), 1);
+
+        let r = t.resolve_endpoint("cc", "kimi").expect("bare");
+        assert_eq!(r.kind, ResolutionKind::Endpoint);
+        assert!(r.candidates.iter().all(|c| &*c.provider_slug == "cc"));
+        let h = hints("kimi");
+        let c = select(&r, &request(Protocol::Chat, &h));
+        assert_eq!(ids(&c), vec!["cc-main-kimi:chat", "cc-backup-kimi:chat"]);
+
+        // Prefixed names, and an account named first.
+        assert_eq!(
+            t.resolve_endpoint("cc", "cc/kimi")
+                .expect("p/m")
+                .candidates
+                .len(),
+            3
+        );
+        let r = t.resolve_endpoint("cc", "cc/backup/kimi").expect("p/a/m");
+        assert_eq!(&*r.candidates[0].account_alias, "backup");
+        assert!(t.resolve_endpoint("cc", "cc/main/vendor/deep").is_ok());
+
+        // Members and the default model.
+        let r = t
+            .resolve_endpoint("only-backup", "claude-sonnet")
+            .expect("default");
+        assert!(r.candidates.iter().all(|c| &*c.account_alias == "backup"));
+        assert!(matches!(
+            t.resolve_endpoint("cc", "nope"),
+            Err(crate::ResolveError::NotInEndpoint { .. })
+        ));
+        assert!(matches!(
+            t.resolve_endpoint("missing", "kimi"),
+            Err(crate::ResolveError::UnknownEndpoint(_))
+        ));
+
+        // A rate-limited account is skipped; the next one is tried.
+        reg.get("cc-main-kimi:chat").expect("h").record_failure(
+            FailureKind::RateLimited { retry_after: None },
+            "429",
+            0,
+        );
+        let r = t.resolve_endpoint("both", "kimi").expect("ep");
+        let c = select(&r, &request(Protocol::Chat, &h));
+        assert_eq!(
+            ids(&c),
+            vec!["cc-main-kimi:messages", "cc-backup-kimi:chat"]
         );
     }
 }

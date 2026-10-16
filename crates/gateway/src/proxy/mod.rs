@@ -78,7 +78,7 @@ fn category_for(kind: FailureKind) -> ErrorCategory {
         FailureKind::Server | FailureKind::Other => ErrorCategory::Upstream5xx,
         FailureKind::Timeout => ErrorCategory::UpstreamTimeout,
         FailureKind::Connect => ErrorCategory::TransportUnavailable,
-        FailureKind::ModelNotFound => ErrorCategory::ModelNotFound,
+        FailureKind::ModelNotFound | FailureKind::ModelUnavailable => ErrorCategory::ModelNotFound,
         FailureKind::InvalidRequest => ErrorCategory::InvalidRequest,
     }
 }
@@ -126,6 +126,51 @@ struct Attempt<'a> {
     trail: &'a Trail,
 }
 
+/// A dedicated endpoint request (ADR-015).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Scope<'a> {
+    pub name: &'a str,
+    /// Until when a failed round may still be retried; `None` on the last round.
+    pub retry_until_ms: Option<i64>,
+}
+
+/// Marks a response that must not reach the client: every member was cooling down, retry
+/// the round at this time (ADR-015 §3).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RetryAt(pub i64);
+
+fn retry_marker(at: i64) -> Response {
+    let mut r = StatusCode::SERVICE_UNAVAILABLE.into_response();
+    r.extensions_mut().insert(RetryAt(at));
+    r
+}
+
+/// Earliest end of a blocking state among `targets`, if it falls before `until`.
+fn soonest_recovery(targets: &[&Arc<RouteTarget>], now: i64, until: i64) -> Option<i64> {
+    targets
+        .iter()
+        .filter(|t| !t.health.is_available(now) && !t.health.is_terminal())
+        .filter_map(|t| t.health.snapshot().until_ms)
+        .min()
+        .filter(|at| *at <= until)
+}
+
+pub(crate) async fn read_body(
+    req: Request,
+    max_body: usize,
+    flavor: ApiFlavor,
+) -> Result<(HeaderMap, Bytes), Box<Response>> {
+    let (parts, body) = req.into_parts();
+    match axum::body::to_bytes(body, max_body).await {
+        Ok(b) => Ok((parts.headers, b)),
+        Err(_) => Err(Box::new(error_response(
+            flavor,
+            ErrorCategory::PayloadTooLarge,
+            format!("request body exceeds {max_body} bytes"),
+        ))),
+    }
+}
+
 pub(crate) async fn handle(
     plane: Arc<DataPlane>,
     max_body: usize,
@@ -136,19 +181,32 @@ pub(crate) async fn handle(
     let started = Instant::now();
     let ts_ms = now_ms();
     let flavor = ApiFlavor::for_protocol(ingress);
-    let (parts, body) = req.into_parts();
-
-    let bytes = match axum::body::to_bytes(body, max_body).await {
-        Ok(b) => b,
-        Err(_) => {
-            return error_response(
-                flavor,
-                ErrorCategory::PayloadTooLarge,
-                format!("request body exceeds {max_body} bytes"),
-            );
-        }
+    let (headers, bytes) = match read_body(req, max_body, flavor).await {
+        Ok(v) => v,
+        Err(resp) => return *resp,
     };
-    let json: Value = match serde_json::from_slice(&bytes) {
+    handle_bytes(
+        plane, ingress, client, &headers, &bytes, None, started, ts_ms,
+    )
+    .await
+}
+
+/// One routing round over an already-read body. With a `scope`, model names resolve inside
+/// that dedicated endpoint; when its `retry_until_ms` is set and every member is cooling
+/// down, a [`RetryAt`] marker is returned instead of an error (nothing recorded).
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn handle_bytes(
+    plane: Arc<DataPlane>,
+    ingress: Protocol,
+    client: ClientId,
+    client_headers: &HeaderMap,
+    bytes: &Bytes,
+    scope: Option<Scope<'_>>,
+    started: Instant,
+    ts_ms: i64,
+) -> Response {
+    let flavor = ApiFlavor::for_protocol(ingress);
+    let json: Value = match serde_json::from_slice(bytes) {
         Ok(v) => v,
         Err(e) => {
             return error_response(
@@ -164,15 +222,26 @@ pub(crate) async fn handle(
     };
     // Client policy (ExecPlan 006): default model, allowed models, limits.
     let policy = plane.policies.get(&client);
-    let effective = plane
-        .policies
-        .effective_model(policy.as_deref(), &hints.model)
-        .to_owned();
-    hints.model = effective;
+    let table = plane.routes.load();
+    // Inside an endpoint bare names are normal; the policy sees `provider/model`.
+    let admit_name = match scope {
+        Some(s) => format!(
+            "{}/{}",
+            table.endpoint_provider(s.name).unwrap_or(s.name),
+            hints.model
+        ),
+        None => {
+            hints.model = plane
+                .policies
+                .effective_model(policy.as_deref(), &hints.model)
+                .to_owned();
+            hints.model.clone()
+        }
+    };
     let ctx = RecordCtx::new(&client, ingress, &hints, ts_ms, started);
     if let Err(violation) = plane
         .policies
-        .admit(&client, policy.as_deref(), &hints.model, ts_ms)
+        .admit(&client, policy.as_deref(), &admit_name, ts_ms)
     {
         let category = match violation {
             PolicyViolation::ModelNotAllowed(_) => ErrorCategory::ModelNotAllowed,
@@ -184,8 +253,11 @@ pub(crate) async fn handle(
         return error_response(flavor, category, violation.to_string());
     }
 
-    let table = plane.routes.load();
-    let resolution = match table.resolve(&hints.model) {
+    let resolved = match scope {
+        Some(s) => table.resolve_endpoint(s.name, &hints.model),
+        None => table.resolve(&hints.model),
+    };
+    let resolution = match resolved {
         Ok(r) => r,
         Err(e) => {
             plane
@@ -198,13 +270,11 @@ pub(crate) async fn handle(
         Some(id) => plane.response_routes.get(id).await,
         None => None,
     };
-    let no_failover = parts
-        .headers
+    let no_failover = client_headers
         .get("x-loadout-no-failover")
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
-    let session = parts
-        .headers
+    let session = client_headers
         .get(SESSION_HEADER)
         .and_then(|v| v.to_str().ok())
         .map(str::trim)
@@ -218,6 +288,9 @@ pub(crate) async fn handle(
             now_ms: now_ms(),
             max_attempts: if no_failover {
                 1
+            } else if let Some(s) = scope {
+                // Every member account once (ADR-015 §3).
+                table.endpoint_accounts(s.name).max(1)
             } else {
                 plane.limits.max_attempts
             },
@@ -236,6 +309,11 @@ pub(crate) async fn handle(
     }
 
     if candidates.attempts.is_empty() {
+        if let Some(until) = scope.and_then(|s| s.retry_until_ms)
+            && let Some(at) = soonest_recovery(&resolution.candidates, now_ms(), until)
+        {
+            return retry_marker(at);
+        }
         let (category, message) = if resolution.kind == ResolutionKind::Virtual
             && resolution.candidates.is_empty()
         {
@@ -314,7 +392,7 @@ pub(crate) async fn handle(
                     continue;
                 }
             };
-            let conversation = ConversationSeed::explicit(&client, &parts.headers, &json)
+            let conversation = ConversationSeed::explicit(&client, client_headers, &json)
                 .map(|s| s.for_account(&target.account_id))
                 .and_then(|v| v.to_str().ok().map(str::to_owned));
             attempts += 1;
@@ -323,7 +401,7 @@ pub(crate) async fn handle(
                 target,
                 ingress,
                 hints: &hints,
-                client_headers: &parts.headers,
+                client_headers,
                 conversation: None,
                 ctx: &ctx,
                 attempt_no: attempts,
@@ -386,7 +464,7 @@ pub(crate) async fn handle(
         }
         let conversation = target.module.session_header().map(|name| {
             let seed = seed.get_or_insert_with(|| {
-                ConversationSeed::new(ingress, &client, &parts.headers, &json)
+                ConversationSeed::new(ingress, &client, client_headers, &json)
             });
             (name, seed.for_account(&target.account_id))
         });
@@ -396,7 +474,7 @@ pub(crate) async fn handle(
             target,
             ingress,
             hints: &hints,
-            client_headers: &parts.headers,
+            client_headers,
             conversation,
             ctx: &ctx,
             attempt_no: attempts,
@@ -426,6 +504,10 @@ pub(crate) async fn handle(
                 target
                     .health
                     .record_failure(failure.kind, &failure.message, now_ms());
+                if failure.kind == FailureKind::ModelUnavailable {
+                    // Not in this account's plan: the control plane turns it off (ExecPlan 022).
+                    plane.telemetry.model_unavailable(&target.id);
+                }
                 if !failure.kind.fails_over() {
                     last = Some((failure, target.clone()));
                     break;
@@ -435,6 +517,16 @@ pub(crate) async fn handle(
         }
     }
 
+    if let Some(until) = scope.and_then(|s| s.retry_until_ms)
+        && last.as_ref().is_some_and(|(f, _)| {
+            f.kind.fails_over()
+                && !matches!(f.kind, FailureKind::Auth | FailureKind::AccountDisabled)
+        })
+        && let Some(at) = soonest_recovery(&resolution.candidates, now_ms(), until)
+    {
+        // Every member failed with a recoverable error: wait for the first to recover.
+        return retry_marker(at);
+    }
     let (category, message, target) = match last {
         Some((failure, target)) => (
             category_for(failure.kind),

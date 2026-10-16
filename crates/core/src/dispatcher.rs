@@ -218,6 +218,37 @@ impl Handler for Dispatcher {
                 encode_result::<api::BackupExport>(&result)
             }
 
+            api::KeysExport::NAME => {
+                let p = decode_params::<api::KeysExport>(params)?;
+                let (db, dir) = (s.db.clone(), s.data_dir.clone());
+                let (secrets, registry) = (s.control.secrets.clone(), s.control.registry.clone());
+                let result = tokio::task::spawn_blocking(move || {
+                    crate::keys_export::export(
+                        &db,
+                        secrets.as_ref(),
+                        &registry,
+                        &dir,
+                        p.path,
+                        &p.passphrase,
+                        &p.confirm,
+                    )
+                })
+                .await
+                .map_err(|_| ErrorBody::internal("export task failed"))?
+                .map_err(ErrorBody::invalid_params)?;
+                encode_result::<api::KeysExport>(&result)
+            }
+
+            api::KeysImport::NAME => {
+                let p = decode_params::<api::KeysImport>(params)?;
+                let report = s
+                    .control
+                    .import_keys(p.path, p.passphrase, p.overwrite)
+                    .await?;
+                s.emit(events::ROUTES_CHANGED, Value::Null);
+                encode_result::<api::KeysImport>(&report)
+            }
+
             api::BackupDatabase::NAME => {
                 let p = decode_params::<api::BackupDatabase>(params)?;
                 let (db, dir) = (s.db.clone(), s.data_dir.clone());
@@ -512,6 +543,63 @@ impl Dispatcher {
                 encode_result::<api::PoolSave>(&info)
             }
             api::PoolList::NAME => encode_result::<api::PoolList>(&c.list_pools().await?),
+            api::EndpointList::NAME => {
+                let port = s.gateway_addr.port();
+                encode_result::<api::EndpointList>(&c.list_endpoints(port).await?)
+            }
+            api::EndpointSave::NAME => {
+                let p = decode_params::<api::EndpointSave>(params)?;
+                let info = c
+                    .save_endpoint(
+                        s.gateway_addr.port(),
+                        p.name,
+                        p.provider,
+                        p.enabled,
+                        p.members,
+                        p.default_model,
+                        p.wait_secs,
+                    )
+                    .await?;
+                changed(s);
+                encode_result::<api::EndpointSave>(&info)
+            }
+            api::EndpointRemove::NAME => {
+                let p = decode_params::<api::EndpointRemove>(params)?;
+                let revoked = c.remove_endpoint(p.name).await?;
+                changed(s);
+                encode_result::<api::EndpointRemove>(&api::Revoked { revoked })
+            }
+            api::ProviderReorder::NAME => {
+                let p = decode_params::<api::ProviderReorder>(params)?;
+                let list = c.reorder_providers(p.slugs).await?;
+                changed(s);
+                encode_result::<api::ProviderReorder>(&list)
+            }
+            api::AccountReorder::NAME => {
+                let p = decode_params::<api::AccountReorder>(params)?;
+                let list = c.reorder_accounts(p.provider, p.aliases).await?;
+                changed(s);
+                encode_result::<api::AccountReorder>(&list)
+            }
+            api::SubpoolList::NAME => encode_result::<api::SubpoolList>(&c.list_subpools().await?),
+            api::SubpoolSave::NAME => {
+                let p = decode_params::<api::SubpoolSave>(params)?;
+                let info = c.save_subpool(p.name, p.rename_from, p.accounts).await?;
+                changed(s);
+                encode_result::<api::SubpoolSave>(&info)
+            }
+            api::SubpoolRemove::NAME => {
+                let p = decode_params::<api::SubpoolRemove>(params)?;
+                let revoked = c.remove_subpool(p.name).await?;
+                changed(s);
+                encode_result::<api::SubpoolRemove>(&api::Revoked { revoked })
+            }
+            api::SubpoolActivate::NAME => {
+                let p = decode_params::<api::SubpoolActivate>(params)?;
+                let state = c.activate_subpool(p.name).await?;
+                changed(s);
+                encode_result::<api::SubpoolActivate>(&state)
+            }
             api::PoolRemove::NAME => {
                 let p = decode_params::<api::PoolRemove>(params)?;
                 let revoked = c.remove_pool(p.name).await?;
@@ -793,5 +881,451 @@ mod tests {
         assert_eq!(offer.price_source.as_deref(), Some("user"));
         // Default mix 75/25: 0.75 * 1 + 0.25 * 5 = 2.
         assert!((offer.blended_per_million.expect("known") - 2.0).abs() < 1e-9);
+    }
+
+    async fn mock_catalog() -> String {
+        let app = axum::Router::new().route(
+            "/v1/models",
+            axum::routing::get(|| async {
+                axum::Json(serde_json::json!({"data": [{"id": "m1"}]}))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        format!("http://{addr}/v1")
+    }
+
+    async fn two_accounts(d: &Dispatcher) {
+        let c = &d.state.control;
+        c.add_provider(
+            "acme".into(),
+            "openai-compatible".into(),
+            Some(mock_catalog().await),
+            Value::Object(Default::default()),
+            None,
+        )
+        .await
+        .expect("provider");
+        for alias in ["a", "b"] {
+            c.add_account(
+                "acme".into(),
+                alias.into(),
+                Some(format!("sk-{alias}-secret")),
+                None,
+                true,
+            )
+            .await
+            .expect("account");
+        }
+    }
+
+    fn default_chain(d: &Dispatcher) -> Vec<String> {
+        let table = d.state.control.routes.load();
+        let mut names: Vec<String> = table
+            .resolve("loadout/default")
+            .map(|r| r.candidates.iter().map(|t| t.exact_name()).collect())
+            .unwrap_or_default();
+        names.dedup();
+        names
+    }
+
+    #[tokio::test]
+    async fn subpool_limits_routing_until_switched_back() {
+        let d = Dispatcher { state: state() };
+        two_accounts(&d).await;
+        assert_eq!(default_chain(&d), ["acme/a/m1", "acme/b/m1"]);
+
+        let info = call::<api::SubpoolSave>(
+            &d,
+            &api::SubpoolSaveParams {
+                name: "work".into(),
+                rename_from: None,
+                accounts: vec!["acme/a".into()],
+            },
+        )
+        .await
+        .expect("save");
+        assert_eq!(info.accounts, ["acme/a"]);
+        // Saving does not switch.
+        assert_eq!(default_chain(&d).len(), 2);
+
+        let state = call::<api::SubpoolActivate>(
+            &d,
+            &api::SubpoolActivateParams {
+                name: Some("work".into()),
+            },
+        )
+        .await
+        .expect("activate");
+        assert_eq!(state.active.as_deref(), Some("work"));
+        assert!(!state.remember);
+        assert_eq!(default_chain(&d), ["acme/a/m1"]);
+        let table = d.state.control.routes.load();
+        assert!(table.resolve("acme/b/m1").is_err(), "outside the sub-pool");
+        assert_eq!(
+            table
+                .resolve("acme/m1")
+                .expect("provider/model")
+                .candidates
+                .len(),
+            1
+        );
+
+        let err = call::<api::SubpoolActivate>(
+            &d,
+            &api::SubpoolActivateParams {
+                name: Some("nope".into()),
+            },
+        )
+        .await
+        .expect_err("unknown");
+        assert_eq!(err.code, ErrorCode::NotFound);
+        assert_eq!(default_chain(&d), ["acme/a/m1"]);
+
+        let state = call::<api::SubpoolActivate>(&d, &api::SubpoolActivateParams { name: None })
+            .await
+            .expect("main");
+        assert!(state.active.is_none());
+        assert_eq!(default_chain(&d).len(), 2);
+
+        // Removing the active sub-pool returns to the main pool.
+        call::<api::SubpoolActivate>(
+            &d,
+            &api::SubpoolActivateParams {
+                name: Some("work".into()),
+            },
+        )
+        .await
+        .expect("activate");
+        let removed = call::<api::SubpoolRemove>(
+            &d,
+            &api::SubpoolRef {
+                name: "work".into(),
+            },
+        )
+        .await
+        .expect("remove");
+        assert!(removed.revoked);
+        assert_eq!(default_chain(&d).len(), 2);
+    }
+
+    #[tokio::test]
+    async fn keys_export_then_import_restores_accounts() {
+        let src = Dispatcher { state: state() };
+        two_accounts(&src).await;
+        let dir = tempfile::tempdir().expect("dir");
+        let file = dir.path().join("share.loadout-keys");
+        let pass = api::Passphrase("a long passphrase".into());
+
+        let err = call::<api::KeysExport>(
+            &src,
+            &api::KeysExportParams {
+                path: Some(file.display().to_string()),
+                passphrase: pass.clone(),
+                confirm: "export".into(),
+            },
+        )
+        .await
+        .expect_err("confirmation is exact");
+        assert_eq!(err.code, ErrorCode::InvalidParams);
+
+        let r = call::<api::KeysExport>(
+            &src,
+            &api::KeysExportParams {
+                path: Some(file.display().to_string()),
+                passphrase: pass.clone(),
+                confirm: "EXPORT".into(),
+            },
+        )
+        .await
+        .expect("export");
+        assert_eq!((r.providers, r.accounts), (1, 2));
+        assert!(
+            !std::fs::read_to_string(&file)
+                .expect("read")
+                .contains("secret")
+        );
+
+        let dst = Dispatcher { state: state() };
+        let import = |overwrite: bool, pass: &str| api::KeysImportParams {
+            path: file.display().to_string(),
+            passphrase: api::Passphrase(pass.into()),
+            overwrite,
+        };
+        let err = call::<api::KeysImport>(&dst, &import(false, "wrong passphrase"))
+            .await
+            .expect_err("wrong passphrase");
+        assert!(!err.message.contains("secret"));
+
+        let report = call::<api::KeysImport>(&dst, &import(false, &pass.0))
+            .await
+            .expect("import");
+        assert_eq!((report.providers, report.accounts), (1, 2));
+        assert!(report.sync_errors.is_empty(), "{:?}", report.sync_errors);
+        assert_eq!(default_chain(&dst), ["acme/a/m1", "acme/b/m1"]);
+        let t = dst.state.control.routes.load();
+        let target = t.resolve("acme/a/m1").expect("route").candidates[0].clone();
+        assert_eq!(
+            target.endpoint.headers["authorization"],
+            "Bearer sk-a-secret"
+        );
+
+        let again = call::<api::KeysImport>(&dst, &import(false, &pass.0))
+            .await
+            .expect("import");
+        assert_eq!(
+            (again.accounts, again.keys_updated, again.skipped.len()),
+            (0, 0, 2)
+        );
+        let over = call::<api::KeysImport>(&dst, &import(true, &pass.0))
+            .await
+            .expect("import");
+        assert_eq!(over.keys_updated, 2);
+    }
+
+    #[tokio::test]
+    async fn endpoint_members_follow_the_current_pool() {
+        let d = Dispatcher { state: state() };
+        two_accounts(&d).await;
+        let e = call::<api::EndpointSave>(
+            &d,
+            &api::EndpointSaveParams {
+                name: None,
+                provider: "acme".into(),
+                enabled: true,
+                members: None,
+                default_model: None,
+                wait_secs: None,
+            },
+        )
+        .await
+        .expect("save");
+        assert_eq!(e.name, "acme");
+        assert_eq!(e.active_accounts, ["a", "b"]);
+        assert_eq!(e.models, ["m1"]);
+        assert_eq!(e.wait_secs, 30);
+        assert_eq!(e.openai_base_url, "http://127.0.0.1:8317/e/acme/v1");
+        assert_eq!(e.anthropic_base_url, "http://127.0.0.1:8317/e/acme");
+        let table = d.state.control.routes.load();
+        assert_eq!(table.endpoint_accounts("acme"), 2);
+
+        // A sub-pool with only account a narrows the endpoint too.
+        call::<api::SubpoolSave>(
+            &d,
+            &api::SubpoolSaveParams {
+                name: "one".into(),
+                rename_from: None,
+                accounts: vec!["acme/a".into()],
+            },
+        )
+        .await
+        .expect("subpool");
+        call::<api::SubpoolActivate>(
+            &d,
+            &api::SubpoolActivateParams {
+                name: Some("one".into()),
+            },
+        )
+        .await
+        .expect("activate");
+        let list = call::<api::EndpointList>(&d, &()).await.expect("list");
+        assert_eq!(list[0].active_accounts, ["a"]);
+        assert_eq!(
+            list[0].members, None,
+            "still every account in the current pool"
+        );
+
+        // Explicit members, off, and removal.
+        let e = call::<api::EndpointSave>(
+            &d,
+            &api::EndpointSaveParams {
+                name: Some("acme".into()),
+                provider: "acme".into(),
+                enabled: false,
+                members: Some(vec!["b".into()]),
+                default_model: Some("m1".into()),
+                wait_secs: Some(0),
+            },
+        )
+        .await
+        .expect("save");
+        assert_eq!(e.members.as_deref(), Some(&["b".to_owned()][..]));
+        assert!(e.active_accounts.is_empty());
+        assert!(
+            d.state
+                .control
+                .routes
+                .load()
+                .endpoint_models("acme")
+                .is_none()
+        );
+        let err = call::<api::EndpointSave>(
+            &d,
+            &api::EndpointSaveParams {
+                name: Some("Bad Name".into()),
+                provider: "acme".into(),
+                enabled: true,
+                members: None,
+                default_model: None,
+                wait_secs: None,
+            },
+        )
+        .await
+        .expect_err("bad name");
+        assert_eq!(err.code, ErrorCode::InvalidParams);
+        let removed = call::<api::EndpointRemove>(
+            &d,
+            &api::EndpointRef {
+                name: "acme".into(),
+            },
+        )
+        .await
+        .expect("remove");
+        assert!(removed.revoked);
+    }
+
+    #[tokio::test]
+    async fn reorder_changes_the_failover_order() {
+        let d = Dispatcher { state: state() };
+        two_accounts(&d).await;
+        assert_eq!(default_chain(&d), ["acme/a/m1", "acme/b/m1"]);
+        let list = call::<api::AccountReorder>(
+            &d,
+            &api::AccountReorderParams {
+                provider: "acme".into(),
+                aliases: vec!["b".into(), "a".into()],
+            },
+        )
+        .await
+        .expect("reorder");
+        assert_eq!(
+            list.iter().map(|a| a.alias.as_str()).collect::<Vec<_>>(),
+            ["b", "a"]
+        );
+        assert_eq!(default_chain(&d), ["acme/b/m1", "acme/a/m1"]);
+        for bad in [
+            vec!["a".to_owned()],
+            vec!["a".into(), "a".into()],
+            vec!["a".into(), "zz".into()],
+        ] {
+            assert!(
+                call::<api::AccountReorder>(
+                    &d,
+                    &api::AccountReorderParams {
+                        provider: "acme".into(),
+                        aliases: bad,
+                    },
+                )
+                .await
+                .is_err()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn models_outside_the_plan_are_turned_off_with_a_reason() {
+        let d = Dispatcher { state: state() };
+        two_accounts(&d).await;
+        let c = &d.state.control;
+        let target = c
+            .routes
+            .load()
+            .resolve("acme/a/m1")
+            .expect("route")
+            .candidates[0]
+            .id
+            .to_string();
+        c.mark_model_unavailable(&target).await;
+        c.mark_model_unavailable(&target).await; // repeated reports change nothing
+        assert_eq!(default_chain(&d), ["acme/b/m1"]);
+        let a = c.account("acme", "a").await.expect("account");
+        assert_eq!(a.unavailable_models, ["m1"]);
+        let models = call::<api::ModelList>(
+            &d,
+            &api::ModelListParams {
+                provider: Some("acme".into()),
+                account: Some("a".into()),
+            },
+        )
+        .await
+        .expect("models");
+        assert!(!models[0].enabled);
+        assert_eq!(models[0].disabled_reason.as_deref(), Some("not_in_plan"));
+
+        // Turning it back on clears the reason.
+        call::<api::ModelSetEnabled>(
+            &d,
+            &api::ModelEnableParams {
+                name: "acme/a/m1".into(),
+                enabled: true,
+            },
+        )
+        .await
+        .expect("enable");
+        assert!(
+            c.account("acme", "a")
+                .await
+                .expect("a")
+                .unavailable_models
+                .is_empty()
+        );
+        assert_eq!(default_chain(&d).len(), 2);
+    }
+
+    #[tokio::test]
+    async fn providers_keep_the_display_order_given() {
+        let d = Dispatcher { state: state() };
+        let c = &d.state.control;
+        for slug in ["zeta", "alpha", "mid"] {
+            c.add_provider(
+                slug.into(),
+                "openai-compatible".into(),
+                Some("https://x.test/v1".into()),
+                Value::Object(Default::default()),
+                None,
+            )
+            .await
+            .expect("provider");
+        }
+        let names = |l: Vec<api::ProviderInfo>| l.into_iter().map(|p| p.slug).collect::<Vec<_>>();
+        // New providers are added last.
+        assert_eq!(
+            names(c.list_providers().await.expect("list")),
+            ["zeta", "alpha", "mid"]
+        );
+        let list = call::<api::ProviderReorder>(
+            &d,
+            &api::ProviderReorderParams {
+                slugs: vec!["mid".into(), "zeta".into()],
+            },
+        )
+        .await
+        .expect("reorder");
+        assert_eq!(names(list), ["mid", "zeta", "alpha"]);
+        assert!(
+            call::<api::ProviderReorder>(
+                &d,
+                &api::ProviderReorderParams {
+                    slugs: vec!["mid".into(), "mid".into()],
+                },
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            call::<api::ProviderReorder>(
+                &d,
+                &api::ProviderReorderParams {
+                    slugs: vec!["ghost".into()],
+                },
+            )
+            .await
+            .is_err()
+        );
     }
 }

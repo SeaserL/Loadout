@@ -31,6 +31,9 @@ pub enum FailureKind {
     Connect,
     /// The model does not exist for this account.
     ModelNotFound,
+    /// The account's plan or permissions do not include this model (the key is fine). Loadout
+    /// turns the model off for that account (ExecPlan 022).
+    ModelUnavailable,
     /// The request itself is wrong; another target would reject it too.
     InvalidRequest,
     Other,
@@ -52,6 +55,7 @@ impl FailureKind {
             Self::Timeout => "upstream_timeout",
             Self::Connect => "transport_unavailable",
             Self::ModelNotFound => "model_not_found",
+            Self::ModelUnavailable => "model_unavailable",
             Self::InvalidRequest => "invalid_request",
             Self::Other => "upstream_error",
         }

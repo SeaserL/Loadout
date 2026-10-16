@@ -115,6 +115,17 @@ pub(crate) fn build_router(
         .route("/v1/chat/completions", post(routes::chat))
         .route("/v1/responses", post(routes::responses))
         .route("/v1/messages", post(routes::messages))
+        // Dedicated endpoints (ADR-015).
+        .route("/e/{endpoint}/v1/models", get(routes::endpoint_models))
+        .route(
+            "/e/{endpoint}/v1/chat/completions",
+            post(routes::endpoint_chat),
+        )
+        .route(
+            "/e/{endpoint}/v1/responses",
+            post(routes::endpoint_responses),
+        )
+        .route("/e/{endpoint}/v1/messages", post(routes::endpoint_messages))
         .fallback(routes::not_found)
         .with_state(AppState {
             plane,

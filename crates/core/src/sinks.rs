@@ -63,6 +63,8 @@ pub(crate) struct LatencyTap<S> {
     pub policies: Arc<loadout_gateway::ClientPolicies>,
     /// Passive usage reports for the control plane (ExecPlan 013).
     pub passive_usage: Option<crate::usage::PassiveUsageSender>,
+    /// Models outside an account's plan, for the control plane (ExecPlan 022).
+    pub unavailable: Option<crate::unavailable::UnavailableSender>,
     pub inner: S,
 }
 
@@ -91,6 +93,13 @@ impl<S: TelemetrySink> TelemetrySink for LatencyTap<S> {
         if let Some(tx) = &self.passive_usage {
             // Never wait on the request path; a full queue drops the (redundant) report.
             let _ = tx.try_send((account_id.to_owned(), report));
+        }
+    }
+
+    fn model_unavailable(&self, target_id: &str) {
+        if let Some(tx) = &self.unavailable {
+            // Never wait on the request path; the next refusal reports it again.
+            let _ = tx.try_send(target_id.to_owned());
         }
     }
 }

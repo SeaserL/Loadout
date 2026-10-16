@@ -89,6 +89,26 @@
 - [ ] Settings → Backup → Export configuration：生成的 JSON 中搜索不到任何 API key。
 - [ ] `%LOCALAPPDATA%\Loadout\backups\auto` 中有自动备份（网关启动时生成，之后每天一次）。
 - [ ] （可选）在另一台电脑或另一个 Windows 用户下 Import，重新输入 API key 后一切可用，原 client key 仍有效。
+- [ ] Accounts → **导出 API 账号**：第 1 步不勾选"我了解风险"时无法继续；第 2 步口令少于 8 位、两次不一致、确认词不是 `EXPORT` 都会被拒绝；导出的 `.loadout-keys` 文件中搜索不到任何 key、提供方名或别名。
+- [ ] 在另一台电脑（或删除这些账号后）Accounts → **导入 API 账号**：错误口令报"wrong passphrase…"；正确口令后账号出现并自动同步模型，可直接调用；再次导入时已存在账号被跳过，勾选"覆盖已存在账号的 key"后显示替换数量。
+
+## 8.1 子号池（ExecPlan 019）
+
+- [ ] Accounts → **管理子号池** → 新建"工作"，只勾选部分账号；保存后路由不变（仍是主号池）。
+- [ ] 顶部号池下拉框切到"工作"：横条变色并显示账号数；池外账号卡片变淡并标"不在当前子号池"；Routes 页 `loadout/default` 只含池内账号；用池外账号的 `provider/account/model` 调用返回 model not found。
+- [ ] 点"切回主号池"：所有账号恢复路由。
+- [ ] 切到子号池后重启 Loadout：默认回到主号池；在管理对话框打开"重启后保留当前切换状态"后再重启，保持在子号池。
+- [ ] 删除正在使用的子号池：路由回到主号池。CLI：`loadout subpool list|save|use|remove` 结果一致。
+
+## 8.2 专用端点与账号状态（ADR-015，ExecPlan 021）
+
+- [ ] Accounts → SenseNova 区块 → **总 API** → 创建：显示 OpenAI / Anthropic 两个 Base URL；账号列表为当前号池中的全部商汤账号，并显示顺序。
+- [ ] 用 client key 调用 `http://127.0.0.1:8317/e/sensenova/v1/chat/completions`，`model` 为 `deepseek-v4-flash`（不带前缀）：成功；`GET …/e/sensenova/v1/models` 只列出商汤模型名。
+- [ ] 连续快速调用直到某个账号返回 429：请求自动落到下一个账号（Request log 中的路由决策可见）；该账号卡片显示"限流中 · 模型 · N 秒后恢复"，约 20 秒后变为"已于 HH:MM 恢复"（后台探测确认）。
+- [ ] 所有商汤账号都被限流时，请求等待最多 30 秒后由最先恢复的账号完成，而不是立即报错。
+- [ ] 切到不含某个商汤账号的子号池：总 API 的账号列表随之变化。
+- [ ] 某账号的套餐不含某模型（例如 thomasbro 的 `deepseek-v4.1-flash`）：第一次被拒后请求落到下一个账号；该账号卡片显示"已自动停用 1 个套餐不含的模型"，模型页该模型带"套餐不含"标记且已停用；手动启用后标记消失（ExecPlan 022）。
+- [ ] 同一提供方区块内拖动账号卡片：放下后顺序保存（刷新、重启后仍保持），Routes 页 / 总 API 的账号顺序随之改变。
 
 ## 9. 升级、卸载与恢复
 

@@ -18,6 +18,32 @@ import {
 import { ago, duration, ms, num, resetIn, tierLabel, tokens, usd } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { t } from "../i18n";
+import { endpointApi, type EndpointInfo } from "./Endpoints";
+
+/** The ChatGPT quota is one number per account: the proxy and the web session repeat what the
+ * Codex usage already shows (ExecPlan 023). */
+const CHATGPT_SLUGS = ["codex", "codex-sub", "web-chatgpt"];
+function sameChatGptQuota(usage: AccountUsage[], u: AccountUsage) {
+  const i = CHATGPT_SLUGS.indexOf(u.provider);
+  if (i <= 0) return false;
+  return usage.some(
+    (o) =>
+      o.alias === u.alias &&
+      CHATGPT_SLUGS.indexOf(o.provider) >= 0 &&
+      CHATGPT_SLUGS.indexOf(o.provider) < i &&
+      (o.windows.length > 0 || u.windows.length === 0),
+  );
+}
+
+/** Accounts with nothing to draw (estimated usage, no quota or balance) of one provider. */
+function quietGroups(usage: AccountUsage[]) {
+  const quiet = (u: AccountUsage) => !u.supported && !u.error && u.windows.length === 0 && u.balances.length === 0;
+  const groups = new Map<string, AccountUsage[]>();
+  for (const u of usage) if (quiet(u)) groups.set(u.provider, [...(groups.get(u.provider) ?? []), u]);
+  // Grouping one account gains nothing.
+  for (const [k, v] of groups) if (v.length < 2) groups.delete(k);
+  return groups;
+}
 
 function totals(usage: AccountUsage[] | undefined) {
   const sum = { requests: 0, input: 0, output: 0, cost: 0, monthCost: 0 };
@@ -36,6 +62,7 @@ export function Dashboard(props: { status: DaemonStatus; onDaemonChange: () => P
   const virtuals = usePoll(api.virtuals, 5000);
   const routes = usePoll(api.routeStatus, 5000);
   const recent = usePoll(() => api.recent({ limit: 500, status: "error", since_ms: Date.now() - 86400000 }), 5000);
+  const endpoints = usePoll(endpointApi.list, 15000);
   const sum = totals(usage.data);
   const errorsToday = (recent.data ?? []).filter(
     (r) => r.status !== "ok" && Date.now() - r.ts_ms < 86400000,
@@ -46,7 +73,7 @@ export function Dashboard(props: { status: DaemonStatus; onDaemonChange: () => P
     <Page title={t("dash.title")}>
       <div className="grid cols-2 collapse home-top" style={{ marginBottom: 16 }}>
         <RuntimeCard status={props.status} onDaemonChange={props.onDaemonChange} />
-        <EndpointsCard addr={props.status.gateway.addr} />
+        <EndpointsCard addr={props.status.gateway.addr} endpoints={(endpoints.data ?? []).filter((e) => e.enabled)} />
       </div>
 
       <div className="kpis">
@@ -84,7 +111,20 @@ export function Dashboard(props: { status: DaemonStatus; onDaemonChange: () => P
           {(usage.data ?? []).length === 0 && (
             <Empty action={<a href="#/accounts">{t("dash.goAccounts")}</a>}>{t("dash.noAccounts")}</Empty>
           )}
-          {(usage.data ?? []).map((u) => {
+          {[...quietGroups(usage.data ?? [])].map(([provider, list]) => (
+            <div className="list-row" key={`quiet:${provider}`} style={{ alignItems: "flex-start" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="strong ellipsis">{t("dash.quietGroup", { provider, n: list.length })}</div>
+                <div className="small muted">
+                  {t("dash.estimated")} ·{" "}
+                  {t("dash.thisMonth", { cost: usd(list.reduce((s, u) => s + u.spend_month.cost_usd, 0)) })}
+                </div>
+              </div>
+            </div>
+          ))}
+          {(usage.data ?? [])
+            .filter((u) => !quietGroups(usage.data ?? []).get(u.provider)?.includes(u) && !sameChatGptQuota(usage.data ?? [], u))
+            .map((u) => {
             const tightest = u.windows
               .filter((w) => w.remaining_percent != null)
               .sort((a, b) => (a.remaining_percent ?? 100) - (b.remaining_percent ?? 100))[0];
@@ -194,17 +234,23 @@ function RuntimeCard(props: { status: DaemonStatus; onDaemonChange: () => Promis
   );
 }
 
-function EndpointsCard(props: { addr: string }) {
+function EndpointsCard(props: { addr: string; endpoints: EndpointInfo[] }) {
   const base = `http://${props.addr}`;
   const rows = [
     { name: t("dash.epOpenai"), proto: "/v1/chat/completions", url: `${base}/v1` },
     { name: t("dash.epResponses"), proto: "/v1/responses", url: `${base}/v1` },
     { name: t("dash.epAnthropic"), proto: "/v1/messages", url: base },
+    // Dedicated endpoints such as the SenseNova unified API (ADR-015).
+    ...props.endpoints.map((e) => ({
+      name: t("dash.epDedicated", { name: e.name }),
+      proto: t("dash.epDedicatedHint", { n: e.active_accounts.length }),
+      url: e.openai_base_url,
+    })),
   ];
   return (
     <Card title={t("dash.endpoints")} subtitle={t("dash.endpointsHint")}>
       {rows.map((r) => (
-        <div className="endpoint" key={r.proto}>
+        <div className="endpoint" key={r.name}>
           <div>
             <div className="endpoint-name">{r.name}</div>
             <div className="endpoint-proto mono">{r.proto}</div>

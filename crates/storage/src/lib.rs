@@ -5,9 +5,11 @@
 //! or request content (ADR-008).
 
 mod account_models;
+mod account_sets;
 mod accounts;
 mod clients;
 mod database;
+mod endpoints;
 mod error;
 mod latency;
 mod migrations;
@@ -22,9 +24,11 @@ pub mod telemetry;
 mod usage;
 
 pub use account_models::{AccountModel, AccountModelRepo, ModelInput, SyncCounts};
+pub use account_sets::{AccountSet, AccountSetRepo};
 pub use accounts::{Account, AccountRepo, Credential, NewAccount};
 pub use clients::{Client, ClientId, ClientRepo, NewClient};
 pub use database::{Database, now_ms};
+pub use endpoints::{EndpointRepo, EndpointRow};
 pub use error::StorageError;
 pub use latency::{HistorySample, Pool, ProbeSample};
 pub use migrations::{LATEST_VERSION, migrations};

@@ -8,6 +8,7 @@ mod backup_cmd;
 mod client_cmd;
 mod config_cmd;
 mod daemon_cmd;
+mod endpoint_cmd;
 mod model_cmd;
 mod output;
 mod pool_cmd;
@@ -17,6 +18,7 @@ mod scan_cmd;
 mod setup_cmd;
 mod status_cmd;
 mod statusline_cmd;
+mod subpool_cmd;
 mod usage_cmd;
 mod web_cmd;
 
@@ -79,6 +81,12 @@ enum Command {
     /// Manage pools: your own ordered model lists, used as `loadout/<name>`.
     #[command(subcommand)]
     Pool(pool_cmd::PoolCommand),
+    /// Dedicated endpoints: one provider's accounts behind their own URL (e.g. SenseNova).
+    #[command(subcommand)]
+    Endpoint(endpoint_cmd::EndpointCommand),
+    /// Account sub-pools: switch routing to a subset of your accounts.
+    #[command(subcommand)]
+    Subpool(subpool_cmd::SubpoolCommand),
     /// Compare prices of the same model across your accounts.
     #[command(subcommand)]
     Price(price_cmd::PriceCommand),
@@ -248,6 +256,8 @@ fn main() -> ExitCode {
             Command::Model(cmd) => model_cmd::run(&ctx, cmd).await,
             Command::Route(cmd) => status_cmd::route(&ctx, cmd).await,
             Command::Pool(cmd) => pool_cmd::run(&ctx, cmd).await,
+            Command::Subpool(cmd) => subpool_cmd::run(&ctx, cmd).await,
+            Command::Endpoint(cmd) => endpoint_cmd::run(&ctx, cmd).await,
             Command::Price(cmd) => price_cmd::run(&ctx, cmd).await,
             Command::Backup(cmd) => backup_cmd::run(&ctx, cmd).await,
             Command::Bench { names } => status_cmd::bench(&ctx, names).await,

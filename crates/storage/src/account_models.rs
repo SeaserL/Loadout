@@ -28,6 +28,8 @@ pub struct AccountModel {
     /// `user` (never overwritten by a catalog sync), `catalog`, or `None` (no prices).
     pub price_source: Option<String>,
     pub price_updated_at: Option<i64>,
+    /// Why Loadout turned the model off itself, e.g. `not_in_plan` (ExecPlan 022).
+    pub disabled_reason: Option<String>,
 }
 
 /// Model data from a catalog sync or manual entry.
@@ -61,7 +63,7 @@ pub struct AccountModelRepo<'a> {
 pub(crate) const COLUMNS: &str = "id, account_id, upstream_model_id, model_id, protocols_json, \
      context_window, max_output_tokens, capabilities_json, input_price, output_price, \
      cache_read_price, cache_write_price, enabled, source, tier_override, price_source, \
-     price_updated_at";
+     price_updated_at, disabled_reason";
 
 pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Result<AccountModel> {
     Ok(AccountModel {
@@ -82,6 +84,7 @@ pub(crate) fn map_account_model(row: &Row<'_>, offset: usize) -> rusqlite::Resul
         tier_override: row.get(offset + 14)?,
         price_source: row.get(offset + 15)?,
         price_updated_at: row.get(offset + 16)?,
+        disabled_reason: row.get(offset + 17)?,
     })
 }
 
@@ -287,11 +290,25 @@ impl<'a> AccountModelRepo<'a> {
         })
     }
 
+    /// The user's choice; it also clears a reason Loadout recorded (ExecPlan 022).
     pub fn set_enabled(&self, id: &str, enabled: bool) -> Result<bool, StorageError> {
         self.db.with_conn(|c| {
             Ok(c.execute(
-                "UPDATE account_models SET enabled = ?2, updated_at = ?3 WHERE id = ?1",
+                "UPDATE account_models SET enabled = ?2, disabled_reason = NULL, updated_at = ?3
+                 WHERE id = ?1",
                 params![id, i64::from(enabled), now_ms()],
+            )? > 0)
+        })
+    }
+
+    /// Turns a model off because the upstream refused it for this account, recording why.
+    /// Returns `false` when it was already off (nothing changes then).
+    pub fn mark_unavailable(&self, id: &str, reason: &str) -> Result<bool, StorageError> {
+        self.db.with_conn(|c| {
+            Ok(c.execute(
+                "UPDATE account_models SET enabled = 0, disabled_reason = ?2, updated_at = ?3
+                 WHERE id = ?1 AND enabled = 1",
+                params![id, reason, now_ms()],
             )? > 0)
         })
     }

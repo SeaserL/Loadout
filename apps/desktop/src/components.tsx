@@ -18,9 +18,16 @@ import { type ThemePreference, useTheme } from "./theme";
 
 // ---- layout -------------------------------------------------------------------------------
 
-export function Page(props: { title: string; actions?: ReactNode; toolbar?: ReactNode; children: ReactNode }) {
+export function Page(props: {
+  title: string;
+  actions?: ReactNode;
+  toolbar?: ReactNode;
+  children: ReactNode;
+  /** Forms and long text: keep lines readable on wide windows. */
+  narrow?: boolean;
+}) {
   return (
-    <section className="page">
+    <section className={props.narrow ? "page narrow" : "page"}>
       <header className="page-header">
         <h1>{props.title}</h1>
         {props.toolbar}

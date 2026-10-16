@@ -176,6 +176,11 @@ impl ControlPlane {
             .collect()
             .await;
 
+        for (t, o) in &results {
+            if o.failure == Some(loadout_provider_sdk::FailureKind::ModelUnavailable) {
+                self.mark_model_unavailable(&t.id).await;
+            }
+        }
         let mut rows = Vec::with_capacity(results.len());
         for (t, o) in &results {
             let key = account_model_key(&t.id);

@@ -72,6 +72,17 @@ pub const ALLOWED_METHODS: &[&str] = &[
     api::AccountWebRecheck::NAME,
     api::AccountWebBind::NAME,
     api::AccountWebConfig::NAME,
+    api::SubpoolList::NAME,
+    api::SubpoolSave::NAME,
+    api::SubpoolRemove::NAME,
+    api::SubpoolActivate::NAME,
+    api::KeysExport::NAME,
+    api::KeysImport::NAME,
+    api::EndpointList::NAME,
+    api::EndpointSave::NAME,
+    api::EndpointRemove::NAME,
+    api::AccountReorder::NAME,
+    api::ProviderReorder::NAME,
 ];
 
 /// Error returned to the web UI.

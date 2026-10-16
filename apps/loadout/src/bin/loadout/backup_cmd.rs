@@ -3,7 +3,10 @@
 use std::path::PathBuf;
 
 use clap::Subcommand;
-use loadout_ipc::api::{self, BackupPathParams, ImportParams};
+use loadout_ipc::api::{
+    self, BackupPathParams, ImportParams, KEYS_EXPORT_CONFIRM, KeysExportParams, KeysImportParams,
+    Passphrase,
+};
 
 use crate::{Ctx, Failure, output};
 
@@ -18,6 +21,21 @@ pub enum BackupCommand {
     },
     /// Merge an exported configuration: missing items are created, existing ones kept.
     Import { file: PathBuf },
+    /// Export every API-key account WITH its key, encrypted with a passphrase, to share the
+    /// accounts with another Loadout. Asks for two confirmations.
+    ExportKeys {
+        /// Output file (default: <data dir>\backups\loadout-keys-<time>.loadout-keys).
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Import a file made by `export-keys`: missing providers and accounts are created and
+    /// their models synced.
+    ImportKeys {
+        file: PathBuf,
+        /// Replace the key of accounts that already exist (default: skip them).
+        #[arg(long)]
+        overwrite: bool,
+    },
     /// Copy the whole database, including request history (no secrets).
     Database {
         /// Output file (default: <data dir>\backups\loadout-<time>.db); must not exist.
@@ -82,6 +100,69 @@ pub async fn run(ctx: &Ctx, cmd: BackupCommand) -> Result<(), Failure> {
             }
             Ok(())
         }
+        BackupCommand::ExportKeys { out } => {
+            let path = out.map(absolute).transpose()?;
+            eprintln!(
+                "WARNING: the file will contain EVERY API key of this Loadout. Anyone with the \
+                 file and the passphrase can use these accounts and spend their quota or money. \
+                 Send the passphrase through a different channel than the file, and revoke the \
+                 keys on the provider's site if the file leaks."
+            );
+            let typed = read_line(&format!(
+                "Step 1/2: type {KEYS_EXPORT_CONFIRM} to continue: "
+            ))?;
+            if typed.trim() != KEYS_EXPORT_CONFIRM {
+                return Err(Failure::new("export cancelled"));
+            }
+            let first = hidden("Step 2/2: passphrase (8+ characters, hidden): ")?;
+            let second = hidden("Repeat the passphrase: ")?;
+            if first != second {
+                return Err(Failure::new("the passphrases do not match"));
+            }
+            let r = ipc
+                .call::<api::KeysExport>(&KeysExportParams {
+                    path,
+                    passphrase: Passphrase(first),
+                    confirm: typed.trim().to_owned(),
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&r);
+            }
+            println!(
+                "Exported {} accounts of {} providers (encrypted) to {}",
+                r.accounts, r.providers, r.path
+            );
+            if !r.skipped.is_empty() {
+                println!("Key unreadable, left out: {}", r.skipped.join(", "));
+            }
+            Ok(())
+        }
+        BackupCommand::ImportKeys { file, overwrite } => {
+            let path = absolute(file)?;
+            let passphrase = hidden("Passphrase of the export (hidden): ")?;
+            let r = ipc
+                .call::<api::KeysImport>(&KeysImportParams {
+                    path,
+                    passphrase: Passphrase(passphrase),
+                    overwrite,
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&r);
+            }
+            println!(
+                "Imported {} providers and {} accounts; {} existing keys replaced.",
+                r.providers, r.accounts, r.keys_updated
+            );
+            if !r.skipped.is_empty() {
+                println!("Skipped: {}", r.skipped.join(", "));
+            }
+            for e in &r.sync_errors {
+                println!("Model sync failed: {e}");
+            }
+            Ok(())
+        }
         BackupCommand::Database { out } => {
             let path = out.map(absolute).transpose()?;
             let r = ipc
@@ -94,4 +175,19 @@ pub async fn run(ctx: &Ctx, cmd: BackupCommand) -> Result<(), Failure> {
             Ok(())
         }
     }
+}
+
+fn read_line(prompt: &str) -> Result<String, Failure> {
+    use std::io::Write;
+    eprint!("{prompt}");
+    std::io::stderr().flush().ok();
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .map_err(|e| Failure::new(e.to_string()))?;
+    Ok(line)
+}
+
+fn hidden(prompt: &str) -> Result<String, Failure> {
+    loadout_platform::read_hidden_line(prompt).map_err(|e| Failure::new(e.to_string()))
 }

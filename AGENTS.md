@@ -152,6 +152,9 @@ loadout route status | loadout logs               路由健康、Tier、延迟 /
 loadout route list                                loadout/realtime|fast|default 与 Pool 的路由顺序
 loadout bench [name…]                             立即测速（默认：所有未测量的路由）
 loadout pool set <name> <models…> [--ordering latency]
+loadout endpoint enable <provider> | list | disable | remove   专用端点 /e/<name>/v1（ADR-015，如商汤总 API）
+loadout subpool save|use|list|remove …            子号池：只在部分账号中路由（ExecPlan 019；`use main` 回到主号池）
+loadout backup export-keys | import-keys <file>   加密导出 / 导入全部 API key（ExecPlan 020，二步确认）
 loadout account web add|status|show|bind|config …  ChatGPT 网页会话（ADR-014；需先开启 web_session.enabled）
 loadout-app                                       桌面管理界面（托盘常驻；未运行 daemon 时自动拉起）
 loadout daemon stop

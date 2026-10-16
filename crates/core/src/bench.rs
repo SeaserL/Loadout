@@ -53,6 +53,8 @@ pub(crate) struct ProbeOutcome {
     pub duration_ms: u64,
     pub output_tokens: Option<u64>,
     pub error: Option<String>,
+    /// What went wrong upstream, when it answered with an error.
+    pub failure: Option<FailureKind>,
     /// `None` when no stream was received (HTTP error, timeout before the response).
     pub stream: Option<StreamHealth>,
 }
@@ -106,13 +108,14 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
     let mut stream = None;
     let result = tokio::time::timeout(TOTAL_TIMEOUT, run(http, target, started, &mut stream)).await;
     let duration_ms = started.elapsed().as_millis() as u64;
-    let outcome = |ok, ttft_ms, output_tokens, error| ProbeOutcome {
+    let outcome = |ok, ttft_ms, output_tokens, error, failure| ProbeOutcome {
         ts_ms,
         ok,
         ttft_ms,
         duration_ms,
         output_tokens,
         error,
+        failure,
         stream,
     };
     match result {
@@ -121,7 +124,7 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
             output_tokens,
         })) => {
             target.health.record_success(now_ms());
-            outcome(true, Some(ttft), output_tokens, None)
+            outcome(true, Some(ttft), output_tokens, None, None)
         }
         Ok(Ok(Measured { output_tokens, .. })) => {
             // The upstream works but gave no visible output within the token budget (e.g. a
@@ -132,7 +135,7 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
             } else {
                 format!("no output within {PROBE_MAX_TOKENS} tokens")
             };
-            outcome(false, None, output_tokens, Some(error))
+            outcome(false, None, output_tokens, Some(error), None)
         }
         Ok(Err(failure)) => {
             target
@@ -143,13 +146,20 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
                 None,
                 None,
                 Some(format!("{}: {}", failure.kind.code(), failure)),
+                Some(failure.kind),
             )
         }
         Err(_) => {
             target
                 .health
                 .record_failure(FailureKind::Timeout, "probe timed out", now_ms());
-            outcome(false, None, None, Some("timed out".to_owned()))
+            outcome(
+                false,
+                None,
+                None,
+                Some("timed out".to_owned()),
+                Some(FailureKind::Timeout),
+            )
         }
     }
 }
@@ -296,6 +306,7 @@ mod tests {
             duration_ms: 200,
             output_tokens: Some(1),
             error: None,
+            failure: None,
             stream: Some(StreamHealth::Clean),
         };
         let s = ok.sample().expect("sample");

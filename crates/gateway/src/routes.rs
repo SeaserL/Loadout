@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Request, State};
+use axum::extract::{Path, Request, State};
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
@@ -123,6 +123,121 @@ pub(crate) async fn messages(
     req: Request,
 ) -> Response {
     proxy::handle(app.plane, app.max_body, Protocol::Messages, client, req).await
+}
+
+/// `GET /e/<endpoint>/v1/models`: the endpoint's bare model names (ADR-015).
+pub(crate) async fn endpoint_models(
+    State(app): State<AppState>,
+    Path(endpoint): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let table = app.plane.routes.load();
+    let anthropic = headers.contains_key("anthropic-version");
+    let flavor = if anthropic {
+        ApiFlavor::Anthropic
+    } else {
+        ApiFlavor::OpenAi
+    };
+    let Some(models) = table.endpoint_models(&endpoint) else {
+        return ApiError::new(
+            ErrorCategory::NotFound,
+            format!("endpoint {endpoint:?} does not exist or is turned off"),
+        )
+        .into_response_for(flavor);
+    };
+    let owner = table.endpoint_provider(&endpoint).unwrap_or("loadout");
+    if anthropic {
+        let data: Vec<_> = models
+            .iter()
+            .map(|n| json!({ "type": "model", "id": n, "display_name": n, "created_at": "1970-01-01T00:00:00Z" }))
+            .collect();
+        return Json(json!({
+            "data": data,
+            "has_more": false,
+            "first_id": models.first(),
+            "last_id": models.last(),
+        }))
+        .into_response();
+    }
+    let data: Vec<_> = models
+        .iter()
+        .map(|n| json!({ "id": n, "object": "model", "created": 0, "owned_by": owner }))
+        .collect();
+    Json(json!({ "object": "list", "data": data })).into_response()
+}
+
+/// A request to a dedicated endpoint: routing rounds until one answers or the endpoint's
+/// recovery wait runs out (ADR-015 §3).
+async fn endpoint_proxy(
+    app: AppState,
+    endpoint: String,
+    ingress: Protocol,
+    client: ClientId,
+    req: Request,
+) -> Response {
+    let started = std::time::Instant::now();
+    let ts_ms = now_ms();
+    let flavor = ApiFlavor::for_protocol(ingress);
+    let (headers, bytes) = match proxy::read_body(req, app.max_body, flavor).await {
+        Ok(v) => v,
+        Err(resp) => return *resp,
+    };
+    let wait_ms = i64::from(app.plane.routes.load().endpoint_wait_secs(&endpoint)) * 1000;
+    let deadline = ts_ms + wait_ms;
+    loop {
+        let now = now_ms();
+        let scope = proxy::Scope {
+            name: &endpoint,
+            retry_until_ms: (now < deadline).then_some(deadline),
+        };
+        let resp = proxy::handle_bytes(
+            app.plane.clone(),
+            ingress,
+            client.clone(),
+            &headers,
+            &bytes,
+            Some(scope),
+            started,
+            ts_ms,
+        )
+        .await;
+        let Some(proxy::RetryAt(at)) = resp.extensions().get::<proxy::RetryAt>().copied() else {
+            return resp;
+        };
+        // Just after the recovery time, and never past the deadline.
+        let wake = (at + 100).min(deadline).max(now + 50);
+        tokio::time::sleep(std::time::Duration::from_millis(
+            u64::try_from(wake - now).unwrap_or(50),
+        ))
+        .await;
+    }
+}
+
+pub(crate) async fn endpoint_chat(
+    State(app): State<AppState>,
+    Path(endpoint): Path<String>,
+    Extension(client): Extension<ClientId>,
+    req: Request,
+) -> Response {
+    endpoint_proxy(app, endpoint, Protocol::Chat, client, req).await
+}
+
+pub(crate) async fn endpoint_responses(
+    State(app): State<AppState>,
+    Path(endpoint): Path<String>,
+    Extension(client): Extension<ClientId>,
+    req: Request,
+) -> Response {
+    endpoint_proxy(app, endpoint, Protocol::Responses, client, req).await
+}
+
+pub(crate) async fn endpoint_messages(
+    State(app): State<AppState>,
+    Path(endpoint): Path<String>,
+    Extension(client): Extension<ClientId>,
+    req: Request,
+) -> Response {
+    endpoint_proxy(app, endpoint, Protocol::Messages, client, req).await
 }
 
 pub(crate) async fn not_found(req: Request) -> Response {

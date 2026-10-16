@@ -183,6 +183,11 @@ pub(crate) fn build(
     version: u64,
 ) -> Result<(RouteTable, BuildReport), StorageError> {
     let rows: Vec<RoutableModel> = db.routable_models()?;
+    // An active sub-pool keeps only its accounts, like switching accounts (ExecPlan 019).
+    let scope: Option<HashSet<String>> = db
+        .account_sets()
+        .active()?
+        .map(|s| s.members.into_iter().collect());
     let mut report = BuildReport::default();
     let mut configs: HashMap<String, Arc<ProviderConfig>> = HashMap::new();
     let mut keys: HashMap<String, Option<Secret>> = HashMap::new();
@@ -190,8 +195,16 @@ pub(crate) fn build(
     let mut ids: HashSet<TargetId> = HashSet::new();
     let mut web_accounts: HashSet<String> = HashSet::new();
     let mut web_warned: HashSet<String> = HashSet::new();
+    let mut kept_models: HashSet<String> = HashSet::new();
 
     for row in rows {
+        if scope.as_ref().is_some_and(|s| !s.contains(&row.account_id)) {
+            // Out of the sub-pool, not gone: keep its health, latency and browser session
+            // for when the user switches back.
+            web_accounts.insert(row.account_id.clone());
+            kept_models.insert(row.model.id.clone());
+            continue;
+        }
         let Some(module) = registry.get(&row.provider.kind) else {
             report.warnings.push(format!(
                 "provider {} uses unknown kind {}",
@@ -322,14 +335,23 @@ pub(crate) fn build(
             }));
         }
     }
-    health.retain(|id| ids.contains(id));
+    health.retain(|id| ids.contains(id) || kept_models.contains(account_model_key(id)));
     web.retain(&web_accounts);
     let models: HashSet<&str> = ids.iter().map(|id| account_model_key(id)).collect();
-    latency.retain(|key| models.contains(key));
+    latency.retain(|key| models.contains(key) || kept_models.contains(key));
     report.targets = targets.len();
     let pools = db.pools()?;
-    Ok((
-        add_virtuals(RouteTable::new(version, targets), latency, &pools),
-        report,
-    ))
+    let mut table = add_virtuals(RouteTable::new(version, targets), latency, &pools);
+    // Dedicated endpoints (ADR-015) over what is routable now, i.e. the current pool.
+    for e in db.endpoints().list()?.into_iter().filter(|e| e.enabled) {
+        let members: Option<HashSet<String>> = e.members.map(|m| m.into_iter().collect());
+        table = table.with_endpoint(
+            &e.name,
+            &e.provider_slug,
+            members.as_ref(),
+            e.default_model.as_deref(),
+            e.wait_secs,
+        );
+    }
+    Ok((table, report))
 }

@@ -184,6 +184,20 @@ impl<'a> AccountRepo<'a> {
         })
     }
 
+    /// Gives the accounts positions 0, 1, 2… in the order given (one transaction).
+    pub fn reorder(&self, ids: &[String]) -> Result<(), StorageError> {
+        let now = now_ms();
+        self.db.with_tx(|tx| {
+            for (i, id) in ids.iter().enumerate() {
+                tx.execute(
+                    "UPDATE accounts SET position = ?2, updated_at = ?3 WHERE id = ?1",
+                    params![id, i as i64, now],
+                )?;
+            }
+            Ok(())
+        })
+    }
+
     pub fn set_position(&self, id: &str, position: i64) -> Result<bool, StorageError> {
         self.db.with_conn(|c| {
             Ok(c.execute(

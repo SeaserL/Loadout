@@ -326,12 +326,17 @@ main {
   }
 }
 
+/* Pages use the window's width; forms (Settings) stay readable. */
 main > .notice {
-  max-width: 1320px;
+  max-width: 2400px;
 }
 
 .page {
-  max-width: 1320px;
+  max-width: 2400px;
+}
+
+.page.narrow {
+  max-width: 1120px;
 }
 
 .page-header {
@@ -1251,48 +1256,11 @@ pre.snippet {
 
 /* ---- accounts ---------------------------------------------------------------------------- */
 
-.provider-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 10px;
-  margin-bottom: 16px;
-}
 
-.provider-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  min-width: 0;
-}
 
-.provider-tile:hover {
-  border-color: var(--border-strong);
-}
 
-.provider-tile.active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
 
-.provider-tile .tile-name {
-  font-weight: 600;
-  max-width: 100%;
-}
 
-.provider-tile .tile-count {
-  margin-top: 6px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
 
 /* One board cell per provider; a provider with several accounts spans as many cells as fit.
    Thresholds below are where the auto-fill grid reaches 2 / 3 columns (n * 340 + (n - 1) * 14). */
@@ -1423,14 +1391,17 @@ pre.snippet {
 
 .account-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
+/* The name keeps room to be read; on narrow cards the buttons move to the next line. */
 .account-name {
   font-weight: 600;
-  min-width: 0;
+  flex: 1 1 90px;
+  min-width: 90px;
 }
 
 .account-tags {
@@ -1747,17 +1718,7 @@ ol.routes li:first-child::before {
 }
 
 /* ExecPlan 010: subscription sign-in */
-.provider-tile.tile-signin {
-  border-style: dashed;
-  background: transparent;
-}
 
-.provider-tile.tile-signin .tile-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--accent);
-}
 
 .signin-code {
   font-size: 26px;
@@ -1789,4 +1750,299 @@ ol.routes li:first-child::before {
   gap: 8px;
   margin: 12px 0;
   cursor: pointer;
+}
+
+/* Account sub-pools (ExecPlan 019) */
+.subpool-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.subpool-bar.on {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.subpool-bar select {
+  width: auto;
+  min-width: 160px;
+}
+
+.subpool-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.subpool-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.subpool-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  margin: 8px 0;
+}
+
+.subpool-pick fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  margin: 0;
+}
+
+.subpool-pick .check-row {
+  margin: 6px 0;
+}
+
+.account-card.outside {
+  opacity: 0.55;
+}
+
+/* Dedicated endpoints (ExecPlan 021) */
+.endpoint-urls {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.endpoint-members .check-row {
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+
+/* Account health line (ExecPlan 021): its own row, never over the action buttons. */
+.account-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.health-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.health-line .badge {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.health-line .badge .ellipsis {
+  min-width: 0;
+}
+
+.health-line > .small {
+  max-width: 100%;
+}
+
+/* Drag to reorder account cards (ExecPlan 022) */
+.account-slot {
+  display: flex;
+  min-width: 0;
+  border-radius: var(--radius);
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+
+.account-slot > .account-card {
+  flex: 1;
+}
+
+.account-slot.dragging {
+  opacity: 0.4;
+}
+
+.account-slot.drop-target {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.drag-grip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  margin-left: -6px;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--muted, #888);
+  opacity: 0.7;
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-grip:hover,
+.drag-grip:focus-visible {
+  opacity: 1;
+  background: var(--accent-soft);
+}
+
+body.reordering,
+body.reordering * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.account-status .badge {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Board toolbar: search and one filter chip per card (ExecPlan 023) */
+.board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.board-toolbar .search {
+  flex: 0 1 300px;
+  min-width: 200px;
+}
+
+.provider-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 400px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.chip-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Provider cards can be dragged too (display order). */
+.provider-group {
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+
+.provider-group.dragging {
+  opacity: 0.4;
+}
+
+.provider-group.drop-target {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.provider-head > .drag-grip {
+  margin-top: 3px;
+}
+
+/* Wide windows: groups with four or more accounts can use four columns. */
+@container board (min-width: 1374px) {
+  .provider-group.span-4 {
+    grid-column: span 4;
+  }
+}
+
+/* The merged ChatGPT card (ExecPlan 023) */
+.cg-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.cg-features + .cg-features {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.cg-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.provider-group.single .cg-feature {
+  background: none;
+  border: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding-top: 12px;
+}
+
+.cg-feature-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cg-feature-head .provider-controls {
+  margin-left: auto;
+}
+
+.cg-feature .account-card {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.cg-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

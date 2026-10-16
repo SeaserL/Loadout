@@ -365,6 +365,8 @@ mod tests {
             successes: 0,
             failures: 0,
             last_error: None,
+            last_failure_ms: None,
+            recovered_at_ms: None,
             tier: "UNMEASURED".into(),
             tier_pinned: false,
             ttft_p50_ms: None,
@@ -389,6 +391,7 @@ mod tests {
             transport_opt_in: true,
             login_expires_at_ms: expires,
             quota_reserve: None,
+            unavailable_models: Vec::new(),
         }
     }
 
