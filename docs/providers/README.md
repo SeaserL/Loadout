@@ -9,6 +9,20 @@
 | `kimi-code` | Chat / Messages | 官方 API / 官方 CLI 登录 | [kimi-code.md](kimi-code.md) |
 | `openrouter` | Chat | 官方 API（余额与消费） | [openrouter.md](openrouter.md) |
 | `deepseek` | Chat / Messages | 官方 API（余额） | [deepseek.md](deepseek.md) |
+| `sensenova` | Chat / Messages | 估算（Token Plan 额度只在控制台） | [sensenova.md](sensenova.md) |
+| `moonshot` | Chat / Messages | 官方 API（余额） | [moonshot.md](moonshot.md) |
+| `zhipu` | Chat / Messages | 估算 | [zhipu.md](zhipu.md) |
+| `dashscope` | Chat / Messages | 估算 | [dashscope.md](dashscope.md) |
+| `volcengine` | Chat / Messages | 估算 | [volcengine.md](volcengine.md) |
+| `siliconflow` | Chat / Messages | 估算（余额接口已下线） | [siliconflow.md](siliconflow.md) |
+| `minimax` | Chat / Messages | 估算 | [minimax.md](minimax.md) |
+| `stepfun` | Chat / Messages | 估算 | [stepfun.md](stepfun.md) |
+| `qianfan` | Chat / Messages | 估算 | [qianfan.md](qianfan.md) |
+| `xai` | Chat | 估算 | [xai.md](xai.md) |
+| `gemini` | Chat（OpenAI 兼容端点） | 估算 | [gemini.md](gemini.md) |
+| `mistral` | Chat | 估算 | [mistral.md](mistral.md) |
+| `groq` | Chat | 估算 | [groq.md](groq.md) |
+| `cerebras` | Chat | 估算 | [cerebras.md](cerebras.md) |
 | `openai` | Chat / Responses（含有状态） | 估算 | [openai.md](openai.md) |
 | `anthropic` | Messages | 估算 | [anthropic.md](anthropic.md) |
 | `ollama` | Chat（本地） | — | [ollama.md](ollama.md) |
@@ -21,3 +35,5 @@
 | `gemini-cli` | **不支持**（ADR-009） | 私有端点 | [gemini-cli.md](gemini-cli.md) |
 
 "估算"：由 Loadout 自己的请求记录（token 与价格）计算，置信度 `ESTIMATED`。
+
+`sensenova` 到 `cerebras` 这 14 个是表驱动的预设（`crates/providers/src/presets.rs`，ExecPlan 018）：固定 slug、默认国内 / 官方 Base URL，国际站或专属 Plan 主机用 `loadout provider add <slug> --base-url …` 覆盖。

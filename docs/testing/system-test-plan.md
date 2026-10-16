@@ -21,6 +21,9 @@
 | Kimi Code | Add account → Kimi Code（国内账号：先用命令行 `loadout provider add kimi-code --setting region=china`） | 模型同步；显示每周额度与 5 小时窗口 |
 | OpenRouter | Add account → OpenRouter | 模型含价格；显示余额 / 今日与本月花费 |
 | DeepSeek | Add account → DeepSeek | 显示余额 |
+| SenseNova 商汤日日新 | Add account → SenseNova，填 platform.sensenova.cn/console/keys 的 `sk-` key | 模型同步（不含 U1.5 图像模型）；`sensenova/<别名>/sensenova-6.8-flash-lite` 可对话 |
+| Moonshot（Kimi API） | Add account → Moonshot AI | 显示人民币余额（可用 / 代金券 / 现金） |
+| 其他预设（智谱、百炼、火山方舟、硅基流动、MiniMax、阶跃、千帆、xAI、Gemini、Mistral、Groq、Cerebras） | Add account → 对应名称 | 模型同步或回退到文档模型列表；火山方舟同步失败时用 `loadout model add` 手动添加 |
 | OpenAI / Anthropic | Add account | 模型同步（OpenAI 只保留对话类模型） |
 | Ollama（如有） | Add account → Ollama，key 留空 | 本地模型同步 |
 | 其他兼容端点 | Add account → OpenAI-compatible，填 Base URL | 模型同步或手动添加 |

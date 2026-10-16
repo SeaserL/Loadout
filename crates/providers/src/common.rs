@@ -85,7 +85,17 @@ pub(crate) async fn list_openai_models(
     base: &str,
     protocols_for: impl Fn(&str, &Value) -> Vec<Protocol>,
 ) -> Result<Vec<CatalogModel>, ProviderError> {
-    let v = get_bearer(ctx, base, "/models", ctx.key, CATALOG_TIMEOUT).await?;
+    list_openai_models_at(ctx, base, "/models", protocols_for).await
+}
+
+/// [`list_openai_models`] with a catalog path other than `/models`.
+pub(crate) async fn list_openai_models_at(
+    ctx: &DriverContext<'_>,
+    base: &str,
+    path: &str,
+    protocols_for: impl Fn(&str, &Value) -> Vec<Protocol>,
+) -> Result<Vec<CatalogModel>, ProviderError> {
+    let v = get_bearer(ctx, base, path, ctx.key, CATALOG_TIMEOUT).await?;
     let raw: Vec<Value> = v
         .get("data")
         .and_then(Value::as_array)

@@ -13,7 +13,9 @@ pub enum ProviderCommand {
     /// Add a provider.
     ///
     /// Built-in: `loadout provider add opencode-go` (also commandcode, kimi-code, openrouter,
-    /// deepseek, openai, anthropic, ollama). Any other endpoint:
+    /// deepseek, sensenova, moonshot, zhipu, dashscope, volcengine, siliconflow, minimax,
+    /// stepfun, qianfan, xai, gemini, mistral, groq, cerebras, openai, anthropic, ollama).
+    /// Any other endpoint:
     /// `loadout provider add my-llm --kind openai-compatible --base-url https://…/v1`
     Add {
         /// Short name used in model names, e.g. `deepseek` in `deepseek/main/deepseek-chat`.

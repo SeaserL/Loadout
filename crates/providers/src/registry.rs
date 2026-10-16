@@ -7,7 +7,8 @@ use loadout_provider_sdk::ProviderModule;
 
 use crate::{
     Anthropic, AnthropicCompatible, ClaudeCode, Codex, CodexSubscription, CommandCode, DeepSeek,
-    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter, WebChatGpt,
+    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter, Preset,
+    WebChatGpt,
 };
 
 /// All compiled-in provider modules, keyed by `kind`.
@@ -43,6 +44,10 @@ impl Registry {
         r.register(Arc::new(OpenAi));
         r.register(Arc::new(Anthropic));
         r.register(Arc::new(Ollama));
+        // Table-driven API platforms (ExecPlan 018).
+        for p in Preset::all() {
+            r.register(Arc::new(p));
+        }
         // Subscriptions: discovery and usage only (ADR-009).
         r.register(Arc::new(Codex));
         r.register(Arc::new(ClaudeCode));
@@ -84,6 +89,10 @@ mod tests {
         assert!(r.get("openai-compatible").is_some());
         assert!(r.get("anthropic-compatible").is_some());
         assert!(r.get("nope").is_none());
+        assert_eq!(
+            r.by_fixed_slug("sensenova").map(|m| m.descriptor().kind),
+            Some("sensenova")
+        );
         assert_eq!(
             r.by_fixed_slug("opencode-go").map(|m| m.descriptor().kind),
             Some("opencode-go")

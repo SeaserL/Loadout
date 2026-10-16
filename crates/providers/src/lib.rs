@@ -18,6 +18,7 @@ mod official;
 mod openai_compatible;
 mod opencode_go;
 mod openrouter;
+mod presets;
 mod registry;
 mod web_chatgpt;
 
@@ -33,6 +34,7 @@ pub use official::{Anthropic, Ollama, OpenAi};
 pub use openai_compatible::OpenAiCompatible;
 pub use opencode_go::OpenCodeGo;
 pub use openrouter::OpenRouter;
+pub use presets::Preset;
 pub use registry::Registry;
 pub use web_chatgpt::WebChatGpt;
 
