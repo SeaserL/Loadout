@@ -1,6 +1,7 @@
 # ExecPlan 021: 专用端点（商汤总 API）与账号健康状态
 
-- **Status**: Active
+- **Status**: Completed
+- **Completed**: 2026-10-17（v0.3.0）
 - **Created**: 2026-10-17
 - **Decision**: [ADR-015](../../adr/ADR-015-dedicated-endpoints.md)
 - **Related**: ADR-003（快照路由与 failover）、ExecPlan 019（子号池）
@@ -92,4 +93,4 @@
 - [x] 2026-10-17 Stage 4 恢复监视
 - [x] 2026-10-17 Stage 5 桌面端
 - [x] 2026-10-17 Stage 6 验证：fmt / clippy / cargo test --workspace（389 通过）/ npm run build；benchmark：route_selection 0.25–0.52 µs、snapshot build 44 µs（+8%，多了端点索引），其余为噪声级波动
-- [ ] 项目所有者实机测试
+- [x] 2026-10-17 项目所有者实机测试（v0.3.0）

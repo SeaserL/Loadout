@@ -1,6 +1,7 @@
 # ExecPlan 023: 账号页大卡片排序、合并 ChatGPT 卡片与响应式布局
 
-- **Status**: Active
+- **Status**: Completed
+- **Completed**: 2026-10-17（v0.3.0）
 - **Created**: 2026-10-17
 - **Related**: ExecPlan 022（账号小卡片拖动排序）、ADR-012（Codex 订阅转发）、ADR-014（网页会话）、ADR-015（专用端点）
 
@@ -46,4 +47,4 @@
 - [x] 2026-10-17 前端：通用拖动 hook、大卡片拖动、合并 ChatGPT 卡片、筛选标签、布局与 UI 修复、总览页
 - [x] 2026-10-17 内置浏览器验证（mock 已删除）
 - [x] 2026-10-17 fmt / clippy / cargo test --workspace（394 通过）/ npm run build / release 构建
-- [ ] 项目所有者实机测试
+- [x] 2026-10-17 项目所有者实机测试（v0.3.0）

@@ -1,6 +1,7 @@
 # ExecPlan 020: 一键导出 / 导入全部 API 账号（加密）
 
-- **Status**: Active
+- **Status**: Completed
+- **Completed**: 2026-10-17（v0.3.0）
 - **Created**: 2026-10-17
 - **Decision**: [ADR-004 §6](../../adr/ADR-004-secret-storage.md)（含 secret 的导出必须用用户口令加密并显示警告）
 - **Related**: ExecPlan 006（不含 secret 的配置导出 `backup.export`）
@@ -61,4 +62,4 @@
 - [x] 2026-10-17 IPC / CLI
 - [x] 2026-10-17 桌面端
 - [x] 2026-10-17 验证：fmt / clippy / cargo test --workspace（383 通过）/ npm run build / 许可证检查通过；benchmark 只有噪声级波动（Router 未改，子号池只在构建路由表时过滤）
-- [ ] 项目所有者实机测试
+- [x] 2026-10-17 项目所有者实机测试（v0.3.0）

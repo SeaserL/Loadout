@@ -1,6 +1,7 @@
 # ExecPlan 018: 内置 API 平台预设（SenseNova 等 14 家）
 
-- **Status**: Active（代码与文档完成；待用真实 key 验证 SenseNova）
+- **Status**: Completed
+- **Completed**: 2026-10-17（v0.3.0）
 - **Created**: 2026-10-17
 - **Related**: ADR-005（Provider 模块与文档）、ADR-003 / ADR-010（模型寻址与不换模型）、ADR-009（Tier A）
 
@@ -46,7 +47,7 @@
 1. 调研 SenseNova 与其他平台官方文档 ✅
 2. `presets.rs` + 注册 + 单元测试 ✅
 3. Provider 文档、README、系统测试计划、CLI 帮助 ✅
-4. 用真实 key 验证 SenseNova（项目所有者）⏳
+4. 用真实 key 验证 SenseNova（项目所有者）✅
 
 ## 8. Tests
 
@@ -93,7 +94,7 @@
 - [x] 2026-10-17 调研（官方文档 + 无效 key 路由探测）
 - [x] 2026-10-17 `presets.rs`、注册、测试；fmt / clippy 通过
 - [x] 2026-10-17 文档
-- [ ] 真实 SenseNova key 验证（项目所有者）
+- [x] 2026-10-17 真实 SenseNova key 验证（11 个账号，总 API 实测可用）
 
 ## 15. Decisions
 

@@ -1,6 +1,7 @@
 # ExecPlan 022: 自动停用套餐不含的模型；拖动调整账号顺序
 
-- **Status**: Active
+- **Status**: Completed
+- **Completed**: 2026-10-17（v0.3.0）
 - **Created**: 2026-10-17
 - **Related**: ADR-003（顺序即 failover 顺序）、ADR-015 / ExecPlan 021（商汤总 API）
 
@@ -49,4 +50,4 @@
 - [x] 2026-10-17 后端（错误类型、上报、停用、迁移、排序 IPC）+ 测试
 - [x] 2026-10-17 桌面端（状态行、模型页标记、拖动排序）
 - [x] 2026-10-17 验证：fmt / clippy / cargo test --workspace（393 通过）/ npm run build；benchmark 与上次持平（route_selection 0.23–0.53 µs，snapshot build 42 µs，经网关 TTFT 585 µs）
-- [ ] 项目所有者实机测试
+- [x] 2026-10-17 项目所有者实机测试（v0.3.0）
