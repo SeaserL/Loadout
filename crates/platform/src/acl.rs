@@ -135,6 +135,42 @@ pub fn dacl_sddl(path: &Path) -> Result<String, PlatformError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertSidToStringSidW, ConvertStringSidToSidW,
+    };
+
+    /// Full `S-1-...` form of an SDDL trustee, which may be an alias such as `SY`, or `LA`
+    /// when the current user is the built-in Administrator (as on CI runners).
+    fn canonical_sid(trustee: &str) -> String {
+        let wide = to_wide(trustee);
+        let mut sid = ptr::null_mut();
+        // SAFETY: `wide` is NUL-terminated; `sid` receives a LocalAlloc'd SID.
+        assert_ne!(
+            unsafe { ConvertStringSidToSidW(wide.as_ptr(), &mut sid) },
+            0,
+            "trustee {trustee}"
+        );
+        let mut text = ptr::null_mut();
+        // SAFETY: `sid` is valid until freed below; `text` is a valid out-pointer.
+        let ok = unsafe { ConvertSidToStringSidW(sid, &mut text) };
+        // SAFETY: both allocated by the calls above, freed once.
+        let s = unsafe {
+            let s = (ok != 0).then(|| from_wide_ptr(text));
+            LocalFree(text.cast());
+            LocalFree(sid);
+            s
+        };
+        s.expect("ConvertSidToStringSidW")
+    }
+
+    /// Canonical trustee SIDs of the ACEs in a `D:...` SDDL string.
+    fn trustees(sddl: &str) -> Vec<String> {
+        sddl.split(')')
+            .filter_map(|ace| ace.split_once('('))
+            .filter_map(|(_, body)| body.rsplit(';').next())
+            .map(canonical_sid)
+            .collect()
+    }
 
     #[test]
     fn restricted_dir_grants_only_the_user_and_system() {
@@ -144,19 +180,17 @@ mod tests {
         restrict_dir_to_current_user(&inner).expect("restrict");
         let sddl = dacl_sddl(&inner).expect("sddl");
         let sid = current_user_sid().expect("sid");
+        let system = canonical_sid("SY");
         assert!(sddl.starts_with("D:P"), "protected: {sddl}");
-        let aces: Vec<&str> = sddl
-            .trim_start_matches("D:P")
-            .split(')')
-            .filter(|a| !a.is_empty())
-            .collect();
-        assert_eq!(aces.len(), 2, "{sddl}");
-        assert!(aces.iter().any(|a| a.ends_with(&format!(";{sid}"))));
-        assert!(aces.iter().any(|a| a.ends_with(";SY")));
+        let got = trustees(&sddl);
+        assert_eq!(got.len(), 2, "{sddl}");
+        assert!(got.contains(&sid), "user {sid} in {sddl}");
+        assert!(got.contains(&system), "SYSTEM in {sddl}");
 
         // New files inherit the restricted DACL and stay writable for the user.
         let file = inner.join("Cookies");
         std::fs::write(&file, b"x").expect("write");
-        assert!(dacl_sddl(&file).expect("file sddl").contains(&sid));
+        let file_sddl = dacl_sddl(&file).expect("file sddl");
+        assert!(trustees(&file_sddl).contains(&sid), "{file_sddl}");
     }
 }
