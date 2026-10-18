@@ -114,6 +114,7 @@ export interface ProviderKind {
   default_base_url: string | null;
   auth: "api_key" | "optional_api_key" | "external_managed" | "oauth" | "browser_login";
   protocols: string[];
+  requires_transport_opt_in?: boolean;
   drivers: string[];
   /** Values `usage_source` accepts besides "auto" and "off". */
   usage_sources: string[];

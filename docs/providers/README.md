@@ -31,6 +31,8 @@
 | `codex` | **不支持**（ADR-009） | 官方 CLI app-server / 本地日志 | [codex.md](codex.md) |
 | `codex-sub` (`codex-subscription`) | Responses（逐账号 opt-in，`PRIVATE_ENDPOINT`，ADR-012） | — | [codex-subscription.md](codex-subscription.md) |
 | `web-chatgpt` | ChatGPT 网页会话：Chat / Responses / Messages，只限文本（全局开关 + 逐账号 opt-in，`WEB_SESSION`，ADR-014） | 估算 | [web-chatgpt.md](web-chatgpt.md) |
+| `workbuddy` (`workbuddy-bridge`) | 国际版已登录客户端 IPC；文本 Chat / 缓冲 SSE，逐账号 opt-in，`PRIVATE_ENDPOINT`，ADR-016 | 额度未知 | [workbuddy.md](workbuddy.md) |
+| `opencode-free` (`opencode-bridge`) | 官方 v2 Agent 单轮文本 Chat / 缓冲 SSE，逐账号 opt-in，`CLI_BRIDGE`，ADR-017 | 额度未知 | [opencode-free.md](opencode-free.md) |
 | `claude-code` | **不支持**（ADR-009 / ADR-012：维持只读） | 桌面应用本地文件 / 私有端点（可切换） | [claude-code.md](claude-code.md) |
 | `gemini-cli` | **不支持**（ADR-009） | 私有端点 | [gemini-cli.md](gemini-cli.md) |
 

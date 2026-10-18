@@ -1,0 +1,73 @@
+{
+  "revision": "83d623d541c47a17cd832ee4f53bd7c95f3a18fa",
+  "at": "2026-10-18T10:35:22.864472+00:00",
+  "model": "deepseek-v4.1-flash-free",
+  "binary_sha256": "f380be892585fbb4b2a33eb2467edef9fdb8229b09ba0fdebed8245ba513c6cf",
+  "source_patch": "Disable manager.startAvailabilityChecks only",
+  "proxy": "direct",
+  "upstream_credentials": "anonymous public only",
+  "production_changed": false,
+  "cases": [
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:35:22.874098+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.915
+    },
+    {
+      "path": "opencode2api_json",
+      "at": "2026-10-18T10:35:26.477566+00:00",
+      "status": 403,
+      "seconds": 0.525,
+      "response": {
+        "error": {
+          "code": null,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic",
+          "param": null,
+          "type": "upstream_error"
+        }
+      },
+      "passed": false
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:35:26.787271+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.912
+    }
+  ],
+  "isolated_pid": 208508,
+  "exact_model_listed": true,
+  "extended_tests": "skipped: basic inference failed",
+  "isolated_process_stopped": true,
+  "source_changes": [
+    "opencode2api-83d623d541c47a17cd832ee4f53bd7c95f3a18fa/internal/gateway/runtime.go"
+  ],
+  "official_binary_sha256": "045c13859180608981b87abb901a31f9fb0d1845e1c40f273f8d421a16182903",
+  "upstream_attempt_observability": "Final HTTP response only; individual legacy/inference attempt statuses were not captured.",
+  "temporary_state_removed": true
+}

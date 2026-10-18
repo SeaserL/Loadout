@@ -7,8 +7,8 @@ use loadout_provider_sdk::ProviderModule;
 
 use crate::{
     Anthropic, AnthropicCompatible, ClaudeCode, Codex, CodexSubscription, CommandCode, DeepSeek,
-    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeGo, OpenRouter, Preset,
-    WebChatGpt,
+    GeminiCli, KimiCode, Ollama, OpenAi, OpenAiCompatible, OpenCodeBridge, OpenCodeGo, OpenRouter,
+    Preset, WebChatGpt, WorkBuddyBridge,
 };
 
 /// All compiled-in provider modules, keyed by `kind`.
@@ -37,6 +37,7 @@ impl Registry {
         r.register(Arc::new(OpenAiCompatible));
         r.register(Arc::new(AnthropicCompatible));
         r.register(Arc::new(OpenCodeGo));
+        r.register(Arc::new(OpenCodeBridge));
         r.register(Arc::new(CommandCode));
         r.register(Arc::new(KimiCode));
         r.register(Arc::new(OpenRouter));
@@ -56,6 +57,8 @@ impl Registry {
         r.register(Arc::new(CodexSubscription::default()));
         // Opt-in browser-session transport (ADR-014).
         r.register(Arc::new(WebChatGpt));
+        // User-owned international desktop session (ADR-016).
+        r.register(Arc::new(WorkBuddyBridge));
         r
     }
 
@@ -103,16 +106,17 @@ mod tests {
                 assert!(slugs.insert(s), "duplicate fixed slug {s}");
             }
             for t in m.descriptor().transports {
-                // Lower-trust transports exist only behind a Loadout-managed, per-account
-                // opt-in login (ADR-012, ADR-014).
+                // Lower-trust transports require per-account opt-in. ADR-016 adds a
+                // local bridge key while the desktop client owns the upstream login.
                 assert!(
                     t.trust.allowed_for_inference()
                         || matches!(
                             m.descriptor().auth,
                             loadout_provider_sdk::AuthMethod::OAuth
                                 | loadout_provider_sdk::AuthMethod::BrowserLogin
-                        ),
-                    "{} transport must be tier A or opt-in (ADR-009, ADR-012, ADR-014)",
+                        )
+                        || matches!(m.descriptor().kind, "workbuddy-bridge" | "opencode-bridge"),
+                    "{} transport must be tier A or opt-in (ADR-009, ADR-012, ADR-014, ADR-016, ADR-017)",
                     m.descriptor().kind
                 );
             }

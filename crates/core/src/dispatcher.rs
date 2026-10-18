@@ -22,6 +22,7 @@ const MAX_CLIENT_NAME: usize = 64;
 
 #[derive(Debug)]
 pub(crate) struct DaemonState {
+    pub updates: Arc<crate::updates::Updates>,
     pub db: Arc<Database>,
     pub control: Arc<ControlPlane>,
     pub keys: Arc<ClientKeyIndex>,
@@ -121,6 +122,14 @@ impl Handler for Dispatcher {
     async fn handle(&self, method: &str, params: Value) -> Result<Value, ErrorBody> {
         let s = &self.state;
         match method {
+            api::UpdatesStatus::NAME => encode_result::<api::UpdatesStatus>(&s.updates.status()),
+            api::UpdatesCheck::NAME => {
+                s.updates.start(true);
+                encode_result::<api::UpdatesCheck>(&s.updates.status())
+            }
+            api::UpdatesInstall::NAME => {
+                encode_result::<api::UpdatesInstall>(&s.updates.install().await?)
+            }
             api::Status::NAME => {
                 let schema_version = s.db(|db| db.schema_version()).await?;
                 encode_result::<api::Status>(&api::DaemonStatus {
@@ -689,6 +698,9 @@ mod tests {
             std::path::PathBuf::from("."),
         ));
         Arc::new(DaemonState {
+            updates: Arc::new(crate::updates::Updates::new(PathBuf::from(
+                "unused-test-updates",
+            ))),
             db,
             control,
             keys: Arc::default(),

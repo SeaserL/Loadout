@@ -26,6 +26,12 @@
 
 ## 为什么用 Loadout
 
+v0.4 起，“设置 → 软件更新”每六小时检查本仓库的正式 Release，默认自动下载并校验 SHA-256。可手动安装，或显式开启自动安装与重启。只有 `%LOCALAPPDATA%\Programs\Loadout` 标准安装支持内置替换；开发目录只下载。安装前备份程序，失败恢复旧程序，数据库迁移的回退能力仍取决于版本兼容性。v0.3 用户需先用 v0.4 发布包升级一次。
+
+私有仓库更新读取本机 Git Credential Manager 已有的 GitHub 登录，账号须有仓库读取权限；不交互登录、不另存凭据。安装失败会暂停自动安装，避免反复重启，需手动重试。
+
+OpenCode 免费模型仍属实验性连接，存在官方原生调用也返回 403 的情况。v0.4 提供单并发、120 秒间隔、403 后 30 分钟冷却保护，无法保证避免上游限制。已有外部桥接还须应用同 Release 的 `opencode-bridge.zip` 脚本更新包，详见 [OpenCode 限制与安装说明](docs/providers/opencode-free.md)。
+
 | | |
 |---|---|
 | 🔌 **一个地址接入所有工具** | Claude Code、OpenCode、Cursor 类工具、你自己的脚本，只要支持 OpenAI 或 Anthropic API，填一个 Base URL 和一把 client key 就能用。三种协议（Chat / Responses / Messages）自动互转，流式同样支持。 |

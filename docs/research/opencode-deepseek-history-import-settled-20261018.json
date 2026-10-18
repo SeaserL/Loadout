@@ -1,0 +1,16 @@
+{
+  "expected": "HISTORY_bf185caabf",
+  "text": "HISTORY_bf185caabf",
+  "model": {
+    "id": "deepseek-v4.1-flash-free",
+    "providerID": "opencode",
+    "variant": "default"
+  },
+  "finish": "stop",
+  "error": null,
+  "imported_types": [
+    "assistant",
+    "user"
+  ],
+  "passed": true
+}

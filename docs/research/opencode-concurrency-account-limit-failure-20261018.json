@@ -1,0 +1,15 @@
+{
+  "scope": "isolated-loadout",
+  "production_changed": false,
+  "cleanup": [
+    {
+      "sessions": 0,
+      "mcp": []
+    },
+    {
+      "sessions": 0,
+      "mcp": []
+    }
+  ],
+  "error": "{\"error\":{\"message\":\"request cannot be served by any route: opencode-free/main/deepseek-v4.1-flash-free: account concurrency limit\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"unsupported_capability\"}}"
+}

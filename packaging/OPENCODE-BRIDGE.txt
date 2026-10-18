@@ -1,0 +1,20 @@
+Loadout v0.4 OpenCode bridge protection update
+
+This optional package updates an EXISTING LoadoutOpenCodeBridge installation.
+It does not contain OpenCode, Python, credentials or a new bridge installer.
+Requires the existing official OpenCode 2.0.32 installation and helper files.
+
+Extract the zip, then run in PowerShell:
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-OpenCodeBridge.ps1
+For a nonstandard existing installation, add -BridgeDir <absolute directory>.
+The script verifies process ownership, backs up scripts, restarts the bridge,
+and restores scripts if startup fails. It does not make model inference calls.
+
+Policy: one official worker, minimum 120 seconds between request starts,
+30-minute persistent cooldown after upstream 403, no automatic retry/probe.
+Locally rejected requests return 429 with Retry-After at the bridge endpoint.
+This reduces traffic; it does not guarantee upstream access or reliable coding.
+Each coding-agent tool round is a separate request and is subject to the interval.
+
+The Loadout in-app updater updates the main program package only. This external
+bridge kit must be applied separately. Do not overwrite an active bridge manually.

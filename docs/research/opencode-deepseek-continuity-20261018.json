@@ -1,0 +1,101 @@
+{
+  "model": "deepseek-v4.1-flash-free",
+  "rounds": [
+    {
+      "round": 1,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 6.641,
+      "message_count": 2
+    },
+    {
+      "round": 2,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.894,
+      "message_count": 4
+    },
+    {
+      "round": 3,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 7.527,
+      "message_count": 6
+    },
+    {
+      "round": 4,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.856,
+      "message_count": 8
+    },
+    {
+      "round": 5,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.837,
+      "message_count": 10
+    },
+    {
+      "round": 6,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.828,
+      "message_count": 12
+    },
+    {
+      "round": 7,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 2.898,
+      "message_count": 14
+    },
+    {
+      "round": 8,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.857,
+      "message_count": 16
+    },
+    {
+      "round": 9,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.482,
+      "message_count": 18
+    },
+    {
+      "round": 10,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 1.686,
+      "message_count": 20
+    },
+    {
+      "round": 11,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 2.739,
+      "message_count": 22
+    },
+    {
+      "round": 12,
+      "returned_model": "deepseek-v4.1-flash-free",
+      "passed": true,
+      "seconds": 2.57,
+      "message_count": 24
+    }
+  ],
+  "interval_seconds": 30,
+  "elapsed_seconds": 364.827,
+  "passed": true,
+  "planned_bridge_restarts_during_probe": 1,
+  "official_restarts_during_probe": 0,
+  "remaining_sessions": 0,
+  "database_files": 0,
+  "latency_seconds": {
+    "min": 1.482,
+    "median": 1.8755,
+    "max": 7.527
+  }
+}

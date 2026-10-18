@@ -1,0 +1,8 @@
+{
+  "messages": 64,
+  "text": "FIRST_ca760fabc35d",
+  "expected": "FIRST_ca760fabc35d",
+  "model": "deepseek-v4.1-flash-free",
+  "passed": true,
+  "seconds": 1.444
+}

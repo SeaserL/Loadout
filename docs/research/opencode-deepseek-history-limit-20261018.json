@@ -1,0 +1,11 @@
+{
+  "messages": 64,
+  "status": 502,
+  "error": {
+    "error": {
+      "message": "history_import_incomplete",
+      "type": "history_import_incomplete"
+    }
+  },
+  "passed": false
+}

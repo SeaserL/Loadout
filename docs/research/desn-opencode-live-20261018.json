@@ -1,0 +1,72 @@
+{
+  "revision": "b48d93ef91a6eae3c71f04b99a49294e7af9d28a",
+  "at": "2026-10-18T10:48:59.004780+00:00",
+  "model": "deepseek-v4.1-flash-free",
+  "source_modified": false,
+  "upstream": "https://opencode.ai/zen/v1",
+  "upstream_auth": "public",
+  "model_fallback": false,
+  "production_changed": false,
+  "cases": [
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:49:00.641377+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.99
+    },
+    {
+      "path": "desn_proxy_chat",
+      "at": "2026-10-18T10:49:03.898395+00:00",
+      "status": 403,
+      "response": {
+        "type": "error",
+        "error": {
+          "type": "FreeTierError",
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      },
+      "seconds": 0.285,
+      "passed": false
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:49:05.088569+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.967
+    }
+  ],
+  "official_sha256": "045c13859180608981b87abb901a31f9fb0d1845e1c40f273f8d421a16182903",
+  "source_sha256": "89cbb98c68597d351e6757c39b544e02180f640d5cfa99f2a90e40633f90f4b9",
+  "node_version": "v22.18.0",
+  "isolated_pid": 221128,
+  "health_ok": true,
+  "model_catalog_status": 200,
+  "exact_model_listed": true,
+  "extended_tests": "skipped: basic inference failed",
+  "isolated_process_stopped": true,
+  "temporary_directory_removed": true
+}

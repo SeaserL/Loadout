@@ -1,0 +1,21 @@
+{
+  "model": "deepseek-v4.1-flash-free",
+  "isolated": true,
+  "rounds": [
+    {
+      "label": "before_restart",
+      "model": "deepseek-v4.1-flash-free",
+      "text": "RESTART_cc19e543c2b5",
+      "seconds": 2.229
+    },
+    {
+      "label": "full_history_after_restart",
+      "model": "deepseek-v4.1-flash-free",
+      "text": "RESTART_cc19e543c2b5",
+      "seconds": 2.26
+    }
+  ],
+  "old_session_http_status": 404,
+  "passed": true,
+  "isolated_processes_stopped": true
+}

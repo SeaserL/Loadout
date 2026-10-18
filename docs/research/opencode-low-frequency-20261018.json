@@ -1,0 +1,70 @@
+{
+  "cases": [
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T22:20:03.755985+11:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.962
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T22:22:51.864671+11:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 5.213,
+      "gap_from_previous_start_seconds": 168.108686
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T11:25:06.746922+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 0,
+      "errors": [],
+      "text": "HELLO",
+      "tool_calls": [],
+      "passed": true,
+      "seconds": 3.238,
+      "gap_from_previous_start_seconds": 134.882251
+    }
+  ],
+  "production_changed": false,
+  "planned_gap_seconds": 120,
+  "production_log_metadata": {
+    "deepseek_count": 15,
+    "first_utc": "2026-10-18T11:04:49.2340000Z",
+    "last_utc": "2026-10-18T11:05:30.8440000Z",
+    "start_span_seconds": 41.61,
+    "failed": 0,
+    "latest_any_opencode_utc": "2026-10-18T11:06:11.7320000Z"
+  },
+  "limitations": [
+    "No controlled high-frequency or concurrency challenge",
+    "No measurement of other devices or all desktop client traffic",
+    "No historical public egress IP comparison",
+    "Official CLI internal HTTP attempts not instrumented"
+  ]
+}

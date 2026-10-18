@@ -18,3 +18,5 @@ pub use secret::{Secret, SecretRef, SecretRefParseError};
 pub use store::{SecretStore, SecretStoreError};
 #[cfg(windows)]
 pub use windows::CredentialManagerStore;
+#[cfg(windows)]
+pub use windows::github_git_credential;

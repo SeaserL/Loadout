@@ -30,3 +30,9 @@ powershell -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\Programs\Loadout\uninst
 Add -RemoveData to delete your data and stored API keys as well.
 
 License: Apache-2.0 (LICENSE). Third-party licenses: THIRD_PARTY_LICENSES.md.
+
+Private repositories: the updater reads your existing default Git Credential Manager
+GitHub login from Windows Credential Manager, without prompting or storing new keys.
+That account must have repository read access. Missing/expired login is shown as an
+update error; sign in with Git for Windows and check again. Main program updates do
+not replace separately installed OpenCode/WorkBuddy bridge directories.

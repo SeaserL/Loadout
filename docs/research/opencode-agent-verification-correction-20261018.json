@@ -1,0 +1,11 @@
+{
+  "stage": "isolated Loadout SSE",
+  "initial_check": "failed expected response.model to equal provider/account/model",
+  "observed_response_model": "deepseek-v4.1-flash-free",
+  "observed_finish": "stop",
+  "observed_chunks": 25,
+  "first_text_seconds": 4.354,
+  "total_seconds": 7.31,
+  "cause": "Loadout passthrough retains upstream model ID; route identity is in x-loadout-route",
+  "correction": "check exact upstream model and exact route header separately"
+}

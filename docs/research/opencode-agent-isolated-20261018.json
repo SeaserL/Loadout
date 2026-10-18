@@ -1,0 +1,51 @@
+{
+  "model": "deepseek-v4.1-flash-free",
+  "roundtrips": [
+    {
+      "stream": false,
+      "call_id_preserved": true,
+      "arguments_verified": true,
+      "external_result_verified": true,
+      "call": {
+        "total": 4.213,
+        "model": "deepseek-v4.1-flash-free"
+      },
+      "continuation": {
+        "total": 2.684,
+        "model": "deepseek-v4.1-flash-free"
+      }
+    },
+    {
+      "stream": true,
+      "call_id_preserved": true,
+      "arguments_verified": true,
+      "external_result_verified": true,
+      "call": {
+        "model": "deepseek-v4.1-flash-free",
+        "total": 2.259,
+        "text_chunks": 0,
+        "first_text": null,
+        "last_text": null
+      },
+      "continuation": {
+        "model": "deepseek-v4.1-flash-free",
+        "total": 3.469,
+        "text_chunks": 1,
+        "first_text": 3.418,
+        "last_text": 3.418
+      }
+    }
+  ],
+  "realtime": {
+    "model": "deepseek-v4.1-flash-free",
+    "total": 5.194,
+    "text_chunks": 22,
+    "first_text": 2.758,
+    "last_text": 5.173
+  },
+  "cancel_cleanup_passed": true,
+  "remaining_sessions": 0,
+  "mcp_servers": [],
+  "database_files": 0,
+  "scope": "isolated"
+}

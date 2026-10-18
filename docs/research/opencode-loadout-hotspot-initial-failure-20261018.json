@@ -1,0 +1,83 @@
+{
+  "scope": "hotspot-isolated-loadout",
+  "production_changed": false,
+  "capabilities": {
+    "model": "opencode-free/main/deepseek-v4.1-flash-free",
+    "checks": [
+      {
+        "name": "realtime",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 4.627,
+          "text_chunks": 18,
+          "first_text": 2.598,
+          "last_text": 4.585
+        },
+        "finish": "stop",
+        "passed": true
+      },
+      {
+        "name": "max_tokens_16_False",
+        "timing": {
+          "total": 1.79,
+          "model": "deepseek-v4.1-flash-free"
+        },
+        "finish": "length",
+        "passed": true
+      },
+      {
+        "name": "max_tokens_16_True",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 1.645,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "length",
+        "passed": true
+      },
+      {
+        "name": "tool_choice_\"none\"",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 3.355,
+          "text_chunks": 5,
+          "first_text": 2.862,
+          "last_text": 3.325
+        },
+        "finish": "stop",
+        "passed": true
+      },
+      {
+        "name": "tool_choice_\"required\"",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 2.291,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      },
+      {
+        "name": "tool_choice_{\"type\": \"function\", \"function\": {\"name\": \"lookup_code\"}}",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 4.189,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      }
+    ],
+    "passed": false,
+    "error": "{\"error\":{\"message\":\"opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: invalid_message_order\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":\"invalid_request\"}}"
+  },
+  "remaining_sessions": 0,
+  "mcp_servers": [],
+  "database_files": 0
+}

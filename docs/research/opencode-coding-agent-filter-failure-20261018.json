@@ -1,0 +1,473 @@
+{
+  "requests": [
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 502,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed",
+        "type": "api_error",
+        "param": null,
+        "code": "upstream_error"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 502,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed",
+        "type": "api_error",
+        "param": null,
+        "code": "upstream_error"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 502,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed",
+        "type": "api_error",
+        "param": null,
+        "code": "upstream_error"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 502,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed",
+        "type": "api_error",
+        "param": null,
+        "code": "upstream_error"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 503,
+      "error": {
+        "message": "no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)",
+        "type": "api_error",
+        "param": null,
+        "code": "no_eligible_target"
+      }
+    }
+  ],
+  "scope": "isolated-loadout-real-opencode",
+  "client_exit": 1,
+  "seconds": 90.55,
+  "client_output": "{\"type\":\"step_start\",\"timestamp\":1792317982207,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7a05ff0015O71Yy4poY3p3w\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792317984098,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7a0d62001Q2C0kG6YGKKwPP\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792317988585,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7a1ee9001FIWLKXB2x6UIU7\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792317996348,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7a3d3c001AgkLyGD3Mcqgrh\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792318007460,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7a68a4001ouF4IHN6WLZdVJ\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792318016881,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7a8d71001snxqZpXsgz7h1Z\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792318026599,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7ab367001Z7N6C7fR14mDqu\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792318037907,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7adf93001STSuBCPBt2dRI2\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792318049087,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7b0b3f001EtL8ZVJujmpqpA\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"step_start\",\"timestamp\":1792318060870,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"part\":{\"id\":\"prt_14e7b3946001Mlmp9mKvDaJbKK\",\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"messageID\":\"msg_14e7a00db001DEKVwvGpH57V1s\",\"type\":\"step-start\"}}\n{\"type\":\"error\",\"timestamp\":1792318070266,\"sessionID\":\"ses_eb18600e7ffeBy2u3dh0kj6AxK\",\"error\":{\"type\":\"provider.internal\",\"message\":\"no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)\",\"status\":503,\"response\":{\"body\":\"{\\\"error\\\":{\\\"message\\\":\\\"no available route for opencode-free/main/deepseek-v4.1-flash-free: opencode-free/main/deepseek-v4.1-flash-free: unavailable (circuit breaker)\\\",\\\"type\\\":\\\"api_error\\\",\\\"param\\\":null,\\\"code\\\":\\\"no_eligible_target\\\"}}\"}}}\n",
+  "independent_test_exit": 1,
+  "result_source": "def total(values):\n    raise NotImplementedError()\n",
+  "remaining_sessions": 0
+}

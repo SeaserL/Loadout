@@ -17,6 +17,9 @@
 | [013](ADR-013-upstream-conversation-session.md) | Upstream Conversation Session Header | Accepted |
 | [014](ADR-014-browser-session-transport.md) | Opt-in Browser Session Transport (`WEB_SESSION`) | Accepted |
 | [015](ADR-015-dedicated-endpoints.md) | Dedicated Endpoints（专用端点，如商汤总 API） | Accepted |
+| [016](ADR-016-workbuddy-international-ipc-bridge.md) | WorkBuddy International local IPC bridge | Accepted |
+| [017](ADR-017-opencode-official-bridge.md) | OpenCode official server text bridge | Accepted |
+| [018](ADR-018-release-updater.md) | Stable release updater and OpenCode protection | Accepted |
 
 ## Status 含义
 

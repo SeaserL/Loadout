@@ -46,6 +46,12 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Bridge and update transaction contracts (offline)
+        run: |
+          python -m unittest discover -s scripts -p "test_opencode*.py"
+          python -m unittest discover -s scripts -p "test_update_package.py"
+          node --test scripts/opencode_controls.test.mjs scripts/workbuddy_bridge.test.mjs
+
       - name: Benchmarks compile
         run: cargo bench -p loadout-benchmarks --no-run
 

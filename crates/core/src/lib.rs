@@ -26,6 +26,7 @@ mod sinks;
 mod subpool;
 pub mod supervisor;
 mod unavailable;
+mod updates;
 mod usage;
 mod web_session;
 

@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-18T10:55:04.837865+00:00",
+  "network": "user switched broadband Wi-Fi to phone 5G hotspot",
+  "network_switch_by": "user",
+  "model": "deepseek-v4.1-flash-free",
+  "production_changed": false,
+  "cases": [
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:55:04.837880+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 0,
+      "errors": [],
+      "text": "HELLO",
+      "tool_calls": [],
+      "passed": true,
+      "seconds": 3.44
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:55:08.282582+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 0,
+      "errors": [],
+      "text": "HELLO",
+      "tool_calls": [],
+      "passed": true,
+      "seconds": 4.527
+    }
+  ]
+}

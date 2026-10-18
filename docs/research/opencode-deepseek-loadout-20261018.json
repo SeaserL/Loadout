@@ -1,0 +1,52 @@
+{
+  "official_version": "2.0.32",
+  "exact_model": "opencode-free/main/deepseek-v4.1-flash-free",
+  "models": [
+    {
+      "name": "opencode-free/main/big-pickle",
+      "provider": "opencode-free",
+      "account": "main",
+      "upstream_model": "big-pickle",
+      "protocols": [
+        "chat"
+      ],
+      "enabled": true,
+      "source": "catalog",
+      "context_window": null,
+      "input_price": null,
+      "output_price": null,
+      "tier_override": null,
+      "disabled_reason": null
+    },
+    {
+      "name": "opencode-free/main/deepseek-v4.1-flash-free",
+      "provider": "opencode-free",
+      "account": "main",
+      "upstream_model": "deepseek-v4.1-flash-free",
+      "protocols": [
+        "chat"
+      ],
+      "enabled": true,
+      "source": "catalog",
+      "context_window": null,
+      "input_price": null,
+      "output_price": null,
+      "tier_override": null,
+      "disabled_reason": null
+    }
+  ],
+  "isolated_history_json": true,
+  "isolated_history_sse": true,
+  "production_history_json": true,
+  "production_history_sse": true,
+  "python_tests_passed": 8,
+  "provider_tests_passed": 2,
+  "workspace_clippy_passed": true,
+  "workspace_release_build_passed": true,
+  "ui_visual_acceptance": false,
+  "binary_backup_pointer": "%LOCALAPPDATA%/LoadoutOpenCodeBridge/deepseek-backup-path.txt",
+  "production_big_pickle_history_json": true,
+  "production_big_pickle_history_sse": true,
+  "production_deepseek_reverified_after_pagination_fix": true,
+  "default_pool_bridge_occurrences": 0
+}

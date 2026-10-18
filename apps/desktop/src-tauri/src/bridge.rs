@@ -19,6 +19,9 @@ const POLL: Duration = Duration::from_millis(150);
 
 /// Methods the UI may call. Anything else is rejected before it reaches the pipe.
 pub const ALLOWED_METHODS: &[&str] = &[
+    api::UpdatesStatus::NAME,
+    api::UpdatesCheck::NAME,
+    api::UpdatesInstall::NAME,
     api::Status::NAME,
     api::ClientCreate::NAME,
     api::ClientList::NAME,

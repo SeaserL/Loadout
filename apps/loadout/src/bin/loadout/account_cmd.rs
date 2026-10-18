@@ -248,14 +248,14 @@ fn read_key(input: &KeyInput, what: &str) -> Result<Option<String>, Failure> {
 }
 
 const RISK_NOTICE: &str = "\
-WARNING — subscription transport (ADR-012)
-  * This is not an official API. Requests go to an undocumented endpoint of the
-    subscription service with a login Loadout obtained for you.
+WARNING — lower-trust transport (ADR-012 / ADR-014 / ADR-016)
+  * This is not an official third-party API. Authentication may be managed by
+    Loadout or by an external client, as described in the provider documentation.
   * The provider's terms may not allow it. The provider can limit, suspend or close
     the account, without notice. You take that risk; Loadout cannot undo it.
   * Loadout identifies itself honestly, limits each account to a few concurrent
     requests, and keeps it out of loadout/default — but cannot make this safe.
-  Details: docs/providers/codex-subscription.md";
+  Details: docs/providers/README.md";
 
 pub(crate) fn ask(prompt: &str) -> Result<String, Failure> {
     use std::io::Write;

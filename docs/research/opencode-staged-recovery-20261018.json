@@ -1,0 +1,57 @@
+{
+  "production_changed": false,
+  "official_baseline": [
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T11:51:11.801888+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 2.059
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T11:54:24.500807+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 0,
+      "errors": [],
+      "text": "HELLO",
+      "tool_calls": [],
+      "passed": true,
+      "seconds": 3.403,
+      "gap_from_previous_start_seconds": 192.698919
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T11:56:24.765442+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.915,
+      "gap_from_previous_start_seconds": 120.264635
+    }
+  ],
+  "stages": [],
+  "baseline_gate_passed": false
+}

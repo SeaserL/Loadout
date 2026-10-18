@@ -19,6 +19,7 @@ import { time } from "../format";
 import { useAction, usePoll } from "../hooks";
 import { settingDescription, t } from "../i18n";
 import { WebRiskList } from "./WebSession";
+import { Updates } from "./Updates";
 
 export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Promise<void> }) {
   const settings = usePoll(api.settings, 0);
@@ -104,6 +105,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
         </Card>
       </div>
       <BackupCard />
+      <Updates />
       <Card title={t("settings.options")}>
         <div className="table-wrap">
           <table>
@@ -115,7 +117,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
               </tr>
             </thead>
             <tbody>
-              {(settings.data ?? []).map((setting) => (
+              {(settings.data ?? []).filter(s => !s.key.startsWith("updates.")).map((setting) => (
                 <SettingRow
                   key={setting.key}
                   setting={setting}

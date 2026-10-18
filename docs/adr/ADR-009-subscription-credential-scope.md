@@ -6,6 +6,10 @@
 
 ## Context
 
+2026-10-18 补充：[ADR-017](ADR-017-opencode-official-bridge.md) 允许未修改官方 OpenCode v2 的本地常驻文本 bridge，逐账号 opt-in；使用内存数据库，不批准 Agent 工具。
+
+2026-10-17 补充：[ADR-016](ADR-016-workbuddy-international-ipc-bridge.md) 允许本人已登录 WorkBuddy 国际版客户端的本地 IPC bridge，逐账号 opt-in；不提取上游 token。
+
 产品文档 §4 / §31 设想 Claude Code、Codex、Kimi Code、Gemini CLI 等订阅类账号可选作为推理 Transport（"optional subscription transport"）。
 
 风险：

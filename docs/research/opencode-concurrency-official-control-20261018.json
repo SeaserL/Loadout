@@ -1,0 +1,18 @@
+{
+  "path": "official_cli_no_plugin",
+  "at": "2026-10-18T11:17:21.175246+00:00",
+  "model": "deepseek-v4.1-flash-free",
+  "plugins": [],
+  "exit": 1,
+  "errors": [
+    {
+      "type": "provider.auth",
+      "status": 403,
+      "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+    }
+  ],
+  "text": "",
+  "tool_calls": [],
+  "passed": false,
+  "seconds": 1.997
+}

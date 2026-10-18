@@ -1,0 +1,17 @@
+{
+  "health": {
+    "status": "ok",
+    "version": "2.0.32"
+  },
+  "files": {
+    "opencode_bridge.py": "ebe42fdfafa27d36f72e2a34113259f1b4df7767cc6ea36edad12d5fda213f6c",
+    "opencode_protocol.py": "9b0a1ca58d9979da5cec86f0e7ee16e304897063418c48e7f40e238ff7652e88",
+    "opencode_events.py": "46d7a794143db95267f2e9b642851db1cdd6d15191ab1cac0bea34083be139a6",
+    "opencode_controls.mjs": "74c5e6a080e953a8ac2783f5fb83daca26bef75dea67cf68da8956ec947ce912",
+    "Start-OpenCodeBridge.ps1": "03dff8be2aab065de26eef4a46a11155048f0f88ba3a5c4112975fc88dc500dc"
+  },
+  "plugin_matches_source": true,
+  "backup_path": "C:\\Users\\edlin\\AppData\\Local\\LoadoutOpenCodeBridge\\deployment-backup-20261018-220429",
+  "official_pid": 216256,
+  "bridge_pid": 220232
+}

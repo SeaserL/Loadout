@@ -1,0 +1,26 @@
+[
+  {
+    "receipt": "opencode-coding-agent-first-pass-20261018.json",
+    "first_event_utc": "2026-10-18T10:09:23.853000+00:00",
+    "last_event_utc": "2026-10-18T10:09:36.248000+00:00",
+    "exit": 0,
+    "request_count": 5,
+    "passed": true
+  },
+  {
+    "receipt": "opencode-coding-agent-20261018.json",
+    "first_event_utc": "2026-10-18T10:12:52.294000+00:00",
+    "last_event_utc": "2026-10-18T10:13:06.056000+00:00",
+    "exit": 0,
+    "request_count": 5,
+    "passed": true
+  },
+  {
+    "receipt": "opencode-coding-agent-production-failure-20261018.json",
+    "first_event_utc": "2026-10-18T10:14:01.568000+00:00",
+    "last_event_utc": "2026-10-18T10:14:01.568000+00:00",
+    "exit": 1,
+    "request_count": 1,
+    "passed": false
+  }
+]

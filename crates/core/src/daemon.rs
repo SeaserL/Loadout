@@ -250,7 +250,17 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         );
     }
     let web = control.web.clone();
+    let updates = Arc::new(crate::updates::Updates::new(paths.root.clone()));
+    // Isolated test instances must not contact GitHub in the background.
+    if options.instance_id.is_none() && options.secret_prefix.is_none() {
+        tokio::spawn(crate::updates::run(
+            updates.clone(),
+            db.clone(),
+            shutdown.clone(),
+        ));
+    }
     let state = Arc::new(DaemonState {
+        updates,
         db: db.clone(),
         control,
         keys,

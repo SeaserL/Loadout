@@ -1,0 +1,30 @@
+{
+  "scope": "isolated-loadout",
+  "production_changed": false,
+  "result": {
+    "tool_flows": [],
+    "coding": [],
+    "stage": "consecutive-users"
+  },
+  "upstream_errors": [
+    {
+      "worker": 0,
+      "error": {
+        "type": "provider.auth",
+        "status": 403,
+        "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "sessions": 0,
+      "mcp": []
+    },
+    {
+      "sessions": 0,
+      "mcp": []
+    }
+  ],
+  "error": "{\"error\":{\"message\":\"opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed\",\"type\":\"api_error\",\"param\":null,\"code\":\"upstream_error\"}}"
+}

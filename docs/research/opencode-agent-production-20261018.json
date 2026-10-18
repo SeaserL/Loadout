@@ -1,0 +1,56 @@
+{
+  "model": "opencode-free/main/deepseek-v4.1-flash-free",
+  "roundtrips": [
+    {
+      "stream": false,
+      "call_id_preserved": true,
+      "arguments_verified": true,
+      "external_result_verified": true,
+      "call": {
+        "total": 2.252,
+        "model": "deepseek-v4.1-flash-free"
+      },
+      "continuation": {
+        "total": 1.979,
+        "model": "deepseek-v4.1-flash-free"
+      }
+    },
+    {
+      "stream": true,
+      "call_id_preserved": true,
+      "arguments_verified": true,
+      "external_result_verified": true,
+      "call": {
+        "model": "deepseek-v4.1-flash-free",
+        "total": 2.526,
+        "text_chunks": 0,
+        "first_text": null,
+        "last_text": null
+      },
+      "continuation": {
+        "model": "deepseek-v4.1-flash-free",
+        "total": 2.168,
+        "text_chunks": 1,
+        "first_text": 2.117,
+        "last_text": 2.117
+      }
+    }
+  ],
+  "realtime": {
+    "model": "deepseek-v4.1-flash-free",
+    "total": 4.917,
+    "text_chunks": 20,
+    "first_text": 2.787,
+    "last_text": 4.878
+  },
+  "parallel_reverse_result_order_verified": true,
+  "scope": "production",
+  "remaining_sessions": 0,
+  "mcp_servers": [],
+  "database_files": 0,
+  "big_pickle_history_json_sse_regression": true,
+  "python_tests": 15,
+  "provider_tests": 2,
+  "workspace_clippy": true,
+  "release_build": true
+}

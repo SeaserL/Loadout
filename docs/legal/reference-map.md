@@ -297,6 +297,8 @@ Do not copy code.
 
 ## Master Table
 
+OpenCode 官方 v2 API / Windows runtime：本次 OpenCode Free bridge 的 primary reference 为官方 `https://opencode.ai/v2/docs/api`，发行包 `@opencode/cli-windows-x64@2.0.32`；只调用原生服务，未复制源码。v1 与 v2 安装渠道独立，不以 opencode-ai/latest 判断 v2 版本。9router 的身份/工具指纹改写不采用。验证见 ExecPlan 026、ADR-017。
+
 | Project | License | Priority | Loadout feature to study | Agent should look for | Reuse mode |
 |---|---|---:|---|---|---|
 | **CLIProxyAPI** | MIT | **A** | Subscription/OAuth → unified API; multi-account providers; protocol translation; SSE; provider executors | `auths/`, `internal/`, `sdk/`, provider executors/translators, Responses/Claude/Gemini conversion | **Direct reference / port with notice** |
@@ -1037,4 +1039,38 @@ review separately from code license
 
 # 15. One-Line Rule for the Agent
 
+## WorkBuddy International（2026-10-17）
+
+- Primary audit: [Zhengyuuuui/workbuddy2api](https://github.com/Zhengyuuuui/workbuddy2api), revision `1cc32c9a98abb53796d8d4e8d477736fe1f0c4cc`, root MIT. Checked `server/codebuddy_proxy.py`, `server/codebuddy_client_demo.py`, `server/workbuddy_ai_client_demo.py`, `server/test_nonstream_hardening.py`. No source copied. Reject stock deployment: cross-model retry, implicit conversation merge, plaintext session, no local API authentication.
+- Secondary audit: [VentourF/WorkBuddy2api](https://github.com/VentourF/WorkBuddy2api), revision `ed6c2d9e380b53028a74a70da18d8f36b2fb8414`. Exact path `proxy/wbproxy.py` license not verified; no reuse. Capture writer includes request headers/body; unsuitable for stock deployment.
+- Prefer installed official international client IPC: `resources/app.asar` entries `main/server.js` (`wb.request/http.fetch`, HMAC handshake) and `main/file-authentication-storage.js` (account metadata path). Interface/concept reference only; no official implementation copied. New scripts are original, use Node/Python standard libraries and keep tokens in the desktop client.
+- [Official international pricing](https://www.workbuddy.ai/pricing/), [official FAQ](https://www.tencentcloud.com/document/product/1256/77297): Free 30 / Pro 50 daily active credits, qualifying client activity, next-day settlement. No claim that API bridge traffic qualifies.
+- See [ADR-016](../adr/ADR-016-workbuddy-international-ipc-bridge.md) and [Provider notes](../providers/workbuddy.md).
+
 > **Reuse permissive code deliberately, preserve provenance, treat AGPL as architecture-only, and always prefer official provider behavior over community reverse engineering.**
+
+
+## AxonHub targeted reference (2026-10-18)
+用户指定 [looplj/axonhub](https://github.com/looplj/axonhub)，固定研究 commit `a946fca495c52344ed073abb6c3562b9ff728b12`。作为 B 类协议状态机参考：`llm/pipeline/stream.go`、`llm/transformer/openai/inbound_stream.go`（取消、工具增量按 index 聚合、终止事件校验）。注意根 LICENSE 是 Apache-2.0，但根 NOTICE 与 `llm/LICENSE` 明确 **llm/ 为 LGPL-3.0**。本任务仅研究概念，不复制/翻译实现、不引入依赖。官方 OpenCode 源码与本机实测决定 bridge 能力。
+
+## opencode2api targeted reference (2026-10-18)
+用户指定 [jasonxu114514/opencode2api](https://github.com/jasonxu114514/opencode2api)，固定 commit `83d623d541c47a17cd832ee4f53bd7c95f3a18fa`。检查根 LICENSE（GPL-3.0）及 `internal/identity/request.go`、`internal/gateway/upstream.go`、`internal/gateway/gateway.go`、`internal/gateway/probe.go`、`internal/protocol/request.go`、`internal/protocol/stream.go`、`internal/httpx/client.go`；tree 未发现这些路径的嵌套 LICENSE。仅概念参考，无代码复制/翻译或依赖引入。
+该项目直接调用上游，不使用官方 serve；生成官方形状 session、声明 CLI User-Agent，匿名路径补入/覆盖内置工具 schema，并在 legacy/new upstream 与代理间重试。该身份/工具模拟路线不符合 ADR-017；不作为现有官方桥接的直接修复。可参考 SSE 终止/取消、工具增量关联等一般协议概念。项目源码注释对上游校验规则的描述是作者推断，不是官方保证。
+Issue [120](https://github.com/jasonxu114514/opencode2api/issues/120) 报告 FreeTierError，回复称当前无法解决并建议代理池；[109](https://github.com/jasonxu114514/opencode2api/issues/109) 报告尝试 IP 池仍失败。社区反馈不证明本机当前可用性或本次阻断原因。
+
+## OpenCode freshness search (2026-10-18)
+用户要求扩展到最新开源实现，故扩大候选元数据/README/issue 搜索范围；新增源码重点仅 primary KochC 与 secondary DESN131，未复制或引入代码。
+- [KochC/opencode-llm-proxy](https://github.com/KochC/opencode-llm-proxy), `cc1ad58450ef15e5a1ecafa531a77a6dc4d22e0b`, default-branch commit 2026-10-18 08:39 UTC, v1.11.1, root MIT (路径许可证复用前需再核验)。检查 README、opencode-v2.js。今日修复 silent event stream；V2 context hook 删除非 proxy tools，替换 system；README 明确 max-token controls accepted but not enforced。可参考官方 plugin 生命周期，但不满足本任务严格输出预算，且删内置工具与本机此前失败实验相似。
+- [DESN131/opencode-zen-proxy](https://github.com/DESN131/opencode-zen-proxy), `b48d93ef91a6eae3c71f04b99a49294e7af9d28a`, 2026-10-18 05:24 UTC。检查 README、opencode-zen-proxy.mjs；tree 仅 README 两份、mjs、package.json，没有 LICENSE，不复用。轻量 Node 网关，Chat/Responses/Anthropic、stream/tools，legacy Zen 请求形状和 read marker；未发现本机同一错误已修复的证据。作为隔离实测候选，不声称可用。
+- [ebouther/opencode-unlimited-proxy](https://github.com/ebouther/opencode-unlimited-proxy), `67e3034945ab7083c210e6268f0e83fc214eb511`, 2026-10-18 09:40 UTC。README/commit 元数据审查；自有文件声明 MIT，推理引擎仍是 GPL opencode2api，新增 WARP/代理出口池而非独立协议引擎。未部署、未改变本机网络，不把 unlimited 命名作为容量证据。
+- [Fast-Editor/OpenCode-Wrap](https://github.com/Fast-Editor/OpenCode-Wrap), `81aafcccba831f60375785026604f8ef5df1c1f2`, 2026-10-15；V2/Windows bootstrap 修复，license 未确认，无同错误修复证据。
+- [FishBottle7/opencode2dsh](https://github.com/FishBottle7/opencode2dsh), `06a702931abcb7505147e848bf817f577f1cd577`, 2026-10-14, v0.3.12；9月及10月 session gate 修复是历史适配证据，不能推断10月18日可用。
+- 已测 opencode2api 的 83d623d 仍为此次查询时最新 main（10月17日），含10月16日 legacy shape/read alias 修复；不应把本次失败归为使用旧版本。
+
+证据索引：官方仓库 [#56756](https://github.com/anomalyco/opencode/issues/56756) 出现精确 Detect Abuse Traffic（10月18日），回复来自 opencode-agent bot，非人工服务端根因报告；[#56334](https://github.com/anomalyco/opencode/issues/56334) 包含同 DeepSeek 2.0.32 同机同账号 Wi-Fi 0/5、热点5/5用户报告，亦有间歇失败报告。均不能代替本机网络因果对照。历史 [opencode2dsh #9](https://github.com/FishBottle7/opencode2dsh/issues/9)、[#62](https://github.com/FishBottle7/opencode2dsh/issues/62) 支持门槛多次变化，但精确检查规则仍是社区逆向结论。
+
+### Release updater reference (031)
+
+- Primary: GitHub REST official releases API, https://docs.github.com/en/rest/releases/releases#get-the-latest-release (2026-10-18). Metadata and binary assets only; no third-party updater code copied.
+- Installation uses the existing Windows spawn_detached abstraction and a locally embedded PowerShell helper. SHA-256 is integrity checking under repository/HTTPS trust, not an independent signature.
+- Official GCM credential-store documentation: https://github.com/git-ecosystem/git-credential-manager/blob/main/docs/credstores.md and docs/environment.md. Windows default `git:https://github.com` entry is read-only; no GCM code copied. Private asset downloads use GitHub's releases/assets API, not anonymous browser URLs.

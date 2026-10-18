@@ -1,0 +1,52 @@
+{
+  "model": "opencode-free/main/deepseek-v4.1-flash-free",
+  "roundtrips": [
+    {
+      "stream": false,
+      "call_id_preserved": true,
+      "arguments_verified": true,
+      "external_result_verified": true,
+      "call": {
+        "total": 2.725,
+        "model": "deepseek-v4.1-flash-free"
+      },
+      "continuation": {
+        "total": 2.342,
+        "model": "deepseek-v4.1-flash-free"
+      }
+    },
+    {
+      "stream": true,
+      "call_id_preserved": true,
+      "arguments_verified": true,
+      "external_result_verified": true,
+      "call": {
+        "model": "deepseek-v4.1-flash-free",
+        "total": 2.227,
+        "text_chunks": 0,
+        "first_text": null,
+        "last_text": null
+      },
+      "continuation": {
+        "model": "deepseek-v4.1-flash-free",
+        "total": 1.686,
+        "text_chunks": 1,
+        "first_text": 1.656,
+        "last_text": 1.656
+      }
+    }
+  ],
+  "realtime": {
+    "model": "deepseek-v4.1-flash-free",
+    "total": 6.302,
+    "text_chunks": 28,
+    "first_text": 2.576,
+    "last_text": 6.259
+  },
+  "parallel_reverse_result_order_verified": true,
+  "cancel_cleanup_passed": true,
+  "remaining_sessions": 0,
+  "mcp_servers": [],
+  "database_files": 0,
+  "scope": "isolated-loadout"
+}

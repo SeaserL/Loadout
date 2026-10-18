@@ -66,3 +66,11 @@ Reuse: DERIVED (visual design only: colour and spacing values, sidebar / card / 
 Local files: apps/desktop/src/{styles.css,theme.ts,components.tsx,App.tsx,pages/*}
 Notes: ExecPlan 009
 ```
+
+## OpenCode official runtime (optional local deployment)
+
+Component: @opencode/cli-windows-x64 2.0.32, MIT, Copyright (c) 2025 opencode.
+Source: https://registry.npmjs.org/@opencode/cli-windows-x64/-/cli-windows-x64-2.0.32.tgz
+Reuse: unmodified external executable installed locally; no OpenCode or 9router source copied into Loadout.
+The optional runtime is not included in the Loadout source tree or standard release archive.
+The local deployment retains OPENCODE-LICENSE.txt. Integrity and verification: docs/research/opencode-official-server-20261018.json.

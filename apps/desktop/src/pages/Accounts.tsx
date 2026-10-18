@@ -571,6 +571,7 @@ function ProviderSection(props: {
                 outside={c.outside(a)}
                 health={accountHealth(c.statuses, a)}
                 signIn={signIn}
+                requiresTransportOptIn={kind?.requires_transport_opt_in}
                 web={web}
                 busy={c.busy}
                 onAction={c.onAction}
@@ -705,6 +706,7 @@ function AccountCard(props: {
   outside: boolean;
   health: ReturnType<typeof accountHealth>;
   signIn: boolean;
+  requiresTransportOptIn?: boolean;
   web: boolean;
   busy: boolean;
   onAction: (f: () => Promise<unknown>) => void;
@@ -723,7 +725,7 @@ function AccountCard(props: {
   const toast = useToast();
   // Official-CLI subscription logins only show usage; Loadout sign-ins and browser sessions
   // can route.
-  const optIn = props.signIn || props.web;
+  const optIn = props.signIn || props.web || props.requiresTransportOptIn;
   const usageOnly = a.account_type === "subscription" && !optIn;
   const routable = !usageOnly && (!optIn || a.transport_opt_in);
   const loginExpired = a.login_expires_at_ms != null && a.login_expires_at_ms <= Date.now();

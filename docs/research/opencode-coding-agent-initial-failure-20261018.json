@@ -1,0 +1,79 @@
+{
+  "requests": [
+    {
+      "bytes": 2723,
+      "fields": [
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 400,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_parameter",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_request"
+      }
+    },
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "tool_choice": null,
+      "status": 400,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_parameter",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_request"
+      }
+    }
+  ],
+  "scope": "isolated-loadout-real-opencode",
+  "client_exit": 1,
+  "seconds": 1.239,
+  "client_output": "{\"type\":\"error\",\"timestamp\":1792317598205,\"sessionID\":\"ses_eb18bd7eaffevWC0Yn4WnkQqLF\",\"error\":{\"type\":\"provider.invalid-request\",\"message\":\"opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_parameter\",\"status\":400,\"response\":{\"body\":\"{\\\"error\\\":{\\\"message\\\":\\\"opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_parameter\\\",\\\"type\\\":\\\"invalid_request_error\\\",\\\"param\\\":null,\\\"code\\\":\\\"invalid_request\\\"}}\"}}}\n",
+  "independent_test_exit": 1,
+  "result_source": "def total(values):\n    raise NotImplementedError()\n"
+}

@@ -1,0 +1,112 @@
+{
+  "binary_sha256": "045c13859180608981b87abb901a31f9fb0d1845e1c40f273f8d421a16182903",
+  "version": "2.0.32",
+  "prompt": "Reply exactly HELLO. Do not use tools.",
+  "cases": [
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:24:30.472341+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "passed": false,
+      "seconds": 1.923
+    },
+    {
+      "path": "official_serve_no_plugin",
+      "at": "2026-10-18T10:24:33.125894+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "selected_model": {
+        "id": "deepseek-v4.1-flash-free",
+        "providerID": "opencode",
+        "variant": "default"
+      },
+      "seconds": 1.146,
+      "passed": false
+    },
+    {
+      "path": "candidate_bridge",
+      "at": "2026-10-18T10:24:41.499867+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "passed": false,
+      "error": {
+        "error": {
+          "message": "official_model_failed",
+          "type": "official_model_failed"
+        }
+      },
+      "remaining_sessions": 0
+    },
+    {
+      "path": "official_cli_no_plugin",
+      "at": "2026-10-18T10:24:42.933011+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "passed": false,
+      "seconds": 1.757
+    },
+    {
+      "path": "official_cli_native_read",
+      "at": "2026-10-18T10:25:52.667340+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "plugins": [],
+      "exit": 1,
+      "errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "text": "",
+      "tool_calls": [],
+      "passed": false,
+      "seconds": 1.946
+    },
+    {
+      "path": "candidate_bridge",
+      "at": "2026-10-18T10:26:01.412133+00:00",
+      "model": "deepseek-v4.1-flash-free",
+      "passed": false,
+      "error": {
+        "error": {
+          "message": "official_model_failed",
+          "type": "official_model_failed"
+        }
+      },
+      "upstream_errors": [
+        {
+          "type": "provider.auth",
+          "status": 403,
+          "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+        }
+      ],
+      "remaining_sessions": 0
+    }
+  ]
+}

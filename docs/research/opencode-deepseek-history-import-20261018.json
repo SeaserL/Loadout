@@ -1,0 +1,44 @@
+{
+  "id": "msg_14e4c308d001WXFHl0fNDcmbDM",
+  "time": {
+    "created": 1792314978450,
+    "streamed": 1792314980463,
+    "completed": 1792314980464
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+    "id": "deepseek-v4.1-flash-free",
+    "providerID": "opencode",
+    "variant": "default"
+  },
+  "content": [
+    {
+      "type": "reasoning",
+      "text": "The user asks for the prior assistant token. There is no prior assistant token in the conversation. The system-update says when asked for the prior assistant token, reply only with that token. But there isn't one. I should say there was no prior token.",
+      "state": {
+        "reasoningField": "reasoning_content"
+      },
+      "time": {
+        "created": 1792314980098,
+        "completed": 1792314980461
+      }
+    },
+    {
+      "type": "text",
+      "text": "There was no prior assistant token in this conversation—this is the first message, so there's nothing to report."
+    }
+  ],
+  "finish": "stop",
+  "rawFinish": "stop",
+  "cost": 0,
+  "tokens": {
+    "input": 60,
+    "output": 24,
+    "reasoning": 53,
+    "cache": {
+      "read": 6400,
+      "write": 0
+    }
+  }
+}

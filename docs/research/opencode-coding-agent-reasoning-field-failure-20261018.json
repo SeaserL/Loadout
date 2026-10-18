@@ -1,0 +1,131 @@
+{
+  "requests": [
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "message_fields": [
+        [
+          "content",
+          "role"
+        ],
+        [
+          "content",
+          "role"
+        ]
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "tool_choice": null,
+      "status": 200
+    },
+    {
+      "bytes": 23655,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "tool"
+      ],
+      "message_fields": [
+        [
+          "content",
+          "role"
+        ],
+        [
+          "content",
+          "role"
+        ],
+        [
+          "content",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        [
+          "content",
+          "role",
+          "tool_call_id"
+        ],
+        [
+          "content",
+          "role",
+          "tool_call_id"
+        ]
+      ],
+      "content_types": [
+        "NoneType",
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "tool_choice": null,
+      "status": 400,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_message_field",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_request"
+      }
+    }
+  ],
+  "scope": "isolated-loadout-real-opencode",
+  "client_exit": 1,
+  "seconds": 6.168,
+  "client_output": "{\"type\":\"step_start\",\"timestamp\":1792318115941,\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"part\":{\"id\":\"prt_14e7c1065001zMFs1AqunNkT4b\",\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"messageID\":\"msg_14e7bfdb9001VdXLbu78bGFAWw\",\"type\":\"step-start\"}}\n{\"type\":\"tool_use\",\"timestamp\":1792318116155,\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"part\":{\"partID\":\"prt_14e7c10bd0011IFnLJYRXdcw24\",\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"messageID\":\"msg_14e7bfdb9001VdXLbu78bGFAWw\",\"type\":\"tool\",\"id\":\"call_01_cnerfseshn9nnnwel6lim0a2\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"input\":{\"path\":\"test_calculator.py\"},\"output\":\"Read file test_calculator.py, lines 1-8\\n1: import unittest\\r\\n2: from calculator import total\\r\\n3: class Tests(unittest.TestCase):\\r\\n4:     def test_total(self):\\r\\n5:         self.assertEqual(total([1, 2, 3]), 6)\\r\\n6:         self.assertEqual(total([]), 0)\\r\\n7:         self.assertEqual(total([-4, 2]), -2)\\r\\n8: if __name__ == \\\"__main__\\\": unittest.main()\\r\",\"title\":\"read\",\"metadata\":{\"metadata\":{\"truncated\":false},\"content\":[{\"type\":\"text\",\"text\":\"Read file test_calculator.py, lines 1-8\\n1: import unittest\\r\\n2: from calculator import total\\r\\n3: class Tests(unittest.TestCase):\\r\\n4:     def test_total(self):\\r\\n5:         self.assertEqual(total([1, 2, 3]), 6)\\r\\n6:         self.assertEqual(total([]), 0)\\r\\n7:         self.assertEqual(total([-4, 2]), -2)\\r\\n8: if __name__ == \\\"__main__\\\": unittest.main()\\r\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"path\\\": \\\"test_calculator.py\\\"}\"},\"time\":{\"start\":1792318116029,\"end\":1792318116155}}}}\n{\"type\":\"tool_use\",\"timestamp\":1792318116157,\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"part\":{\"partID\":\"prt_14e7c1067001K0ctBIfqvaR8aw\",\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"messageID\":\"msg_14e7bfdb9001VdXLbu78bGFAWw\",\"type\":\"tool\",\"id\":\"call_00_mrl734rw36ijrzqx4g6vl68w\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"input\":{\"path\":\"calculator.py\"},\"output\":\"Read file calculator.py, lines 1-2\\n1: def total(values):\\r\\n2:     raise NotImplementedError()\\r\",\"title\":\"read\",\"metadata\":{\"metadata\":{\"truncated\":false},\"content\":[{\"type\":\"text\",\"text\":\"Read file calculator.py, lines 1-2\\n1: def total(values):\\r\\n2:     raise NotImplementedError()\\r\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"path\\\": \\\"calculator.py\\\"}\"},\"time\":{\"start\":1792318115943,\"end\":1792318116157}}}}\n{\"type\":\"step_finish\",\"timestamp\":1792318116158,\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"part\":{\"id\":\"prt_14e7c113e001Px9pzuoGF5jGGe\",\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"messageID\":\"msg_14e7bfdb9001VdXLbu78bGFAWw\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"cost\":0,\"tokens\":{\"input\":0,\"output\":0,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n{\"type\":\"error\",\"timestamp\":1792318116195,\"sessionID\":\"ses_eb1840413ffealu8w49sKxZmiM\",\"error\":{\"type\":\"provider.invalid-request\",\"message\":\"opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_message_field\",\"status\":400,\"response\":{\"body\":\"{\\\"error\\\":{\\\"message\\\":\\\"opencode-free/main/deepseek-v4.1-flash-free (invalid_request): HTTP 400: unsupported_message_field\\\",\\\"type\\\":\\\"invalid_request_error\\\",\\\"param\\\":null,\\\"code\\\":\\\"invalid_request\\\"}}\"}}}\n",
+  "independent_test_exit": 1,
+  "result_source": "def total(values):\n    raise NotImplementedError()\n",
+  "remaining_sessions": 0
+}

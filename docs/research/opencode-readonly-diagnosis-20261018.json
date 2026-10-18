@@ -1,0 +1,121 @@
+{
+  "at": "2026-10-18T12:05:41.553880+00:00",
+  "model_calls": 0,
+  "production_changed": false,
+  "sources": [
+    {
+      "path": "packages_ai_src_llm.ts",
+      "sha256": "4a5561ff487204efdac017514400aeded748ee7b0d5ec15dd93d834468db6552",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_ai_src_provider-error.ts",
+      "sha256": "780ea86f3944a92e8ddd5078888274adf8072a4a6f838d9f485693a0f787c479",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_ai_src_providers_opencode.ts",
+      "sha256": "c15d00db121c68477ecc47af133375cb2645b1a3b2350fedae0d5207cce62276",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_models-dev.ts",
+      "sha256": "01f54e0c91f4e817b19862a19952091ae551e30d7717be2853b3c76eb6a8e53d",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_plugin_models-dev.ts",
+      "sha256": "9eb05a75edd28c764eecb7a438a01acdfdded88883fe2aacf1bc18fccd5fc4ba",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_plugin_provider_opencode.ts",
+      "sha256": "e51d4a2357e08bbb669a3a2707efeb12f7908c0ad123cdf9de69b53bbe3e742a",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_provider.ts",
+      "sha256": "5fb353af1773117e6ade4c9c5177eb7caaf4a2c6a20de59ac641186fd8b074f1",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_session_context.ts",
+      "sha256": "33a609ca776dd4702179a343e7eb17c74166a7b3ede19e9d1b584536a8e76a50",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_session_provider-context.ts",
+      "sha256": "9969a090025a042cce61246c76c06dcf45e7b115e288e2d81dbf0fdc824ef853",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_session_runner_llm.ts",
+      "sha256": "58f7b44a14fccf14178ceedd6b3cc7cc573e5b30cef8f29f6e5a39632f5d0ba9",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_session_runner_model.ts",
+      "sha256": "6cd9dd3ad5a8ad2999034a761a491472739af49c30f8eae5770beb4173ad351e",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_session_runner_retry.ts",
+      "sha256": "9d8e9df044f5c60990997bf507b2e831d6ddf163db6fd38cd1ee5142e5dd6868",
+      "ref": "v2.0.32"
+    },
+    {
+      "path": "packages_core_src_session_title.ts",
+      "sha256": "9663664c543986d08502914c0b6883523150acaa7687892e085cca81cc7e3f81",
+      "ref": "v2.0.32"
+    }
+  ],
+  "findings": {
+    "provider_refresh_utc": [
+      "2026-10-18T11:01:55.874Z",
+      "2026-10-18T11:04:36.836Z",
+      "2026-10-18T11:04:37.112Z",
+      "2026-10-18T11:09:36.764Z",
+      "2026-10-18T11:14:36.785Z",
+      "2026-10-18T11:19:36.819Z",
+      "2026-10-18T11:24:36.849Z",
+      "2026-10-18T11:24:39.433Z",
+      "2026-10-18T11:29:36.869Z",
+      "2026-10-18T11:29:40.803Z",
+      "2026-10-18T11:34:36.887Z",
+      "2026-10-18T11:39:36.903Z",
+      "2026-10-18T11:44:36.922Z",
+      "2026-10-18T11:49:36.941Z",
+      "2026-10-18T11:54:36.961Z",
+      "2026-10-18T11:59:36.978Z"
+    ],
+    "desktop_update_check_local_times": [
+      "2026-10-18 20:55:46.487",
+      "2026-10-18 21:05:46.498",
+      "2026-10-18 21:15:46.499",
+      "2026-10-18 21:25:46.505",
+      "2026-10-18 21:35:46.516",
+      "2026-10-18 21:45:46.524",
+      "2026-10-18 21:55:46.532",
+      "2026-10-18 22:05:46.536",
+      "2026-10-18 22:15:46.544",
+      "2026-10-18 22:25:46.550",
+      "2026-10-18 22:35:46.556",
+      "2026-10-18 22:45:46.559",
+      "2026-10-18 22:55:46.569"
+    ],
+    "desktop_reported_version": "1.19.3",
+    "desktop_netlog_bytes": 386,
+    "403_default_retry": false,
+    "retry_override": "x-should-retry response header; historical headers not retained",
+    "official_cli_auxiliary_title": "Native untitled root session can fork title inference; no title override in official_cli probe. Actual historical HTTP count not recorded.",
+    "bridge_title": "Production controls plugin resolves title locally; no title inference from this hook.",
+    "models_catalog": "GET https://models.opencode.ai/api.json; TTL 5 minutes; transient retries up to 2; not a model inference."
+  },
+  "limitations": [
+    "Historical temporary probe logs deleted by normal cleanup",
+    "No historical IP/family/HTTP attempt/header/trace-id correlation",
+    "No full traffic capture of other clients or hotspot devices",
+    "Current trace metadata cannot prove earlier inference egress stability"
+  ],
+  "conclusion": "Explicit upstream rejection confirmed; IP rotation versus policy trigger unresolved. Native CLI title generation invalidates treating one invocation as exactly one upstream request. No evidence of default 403 retry loop."
+}

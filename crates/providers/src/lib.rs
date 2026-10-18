@@ -16,11 +16,13 @@ mod gemini_cli;
 mod kimi_code;
 mod official;
 mod openai_compatible;
+mod opencode_bridge;
 mod opencode_go;
 mod openrouter;
 mod presets;
 mod registry;
 mod web_chatgpt;
+mod workbuddy_bridge;
 
 pub use anthropic_compatible::AnthropicCompatible;
 pub use claude_code::ClaudeCode;
@@ -32,11 +34,13 @@ pub use gemini_cli::GeminiCli;
 pub use kimi_code::KimiCode;
 pub use official::{Anthropic, Ollama, OpenAi};
 pub use openai_compatible::OpenAiCompatible;
+pub use opencode_bridge::OpenCodeBridge;
 pub use opencode_go::OpenCodeGo;
 pub use openrouter::OpenRouter;
 pub use presets::Preset;
 pub use registry::Registry;
 pub use web_chatgpt::WebChatGpt;
+pub use workbuddy_bridge::WorkBuddyBridge;
 
 #[cfg(test)]
 pub(crate) mod testutil;

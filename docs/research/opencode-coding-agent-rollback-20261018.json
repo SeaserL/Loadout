@@ -1,0 +1,16 @@
+{
+  "scope": "production-rollback-baseline",
+  "upstream_errors": [
+    {
+      "type": "provider.auth",
+      "status": 403,
+      "message": "OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building."
+    }
+  ],
+  "passed": false,
+  "error": "{\"error\": {\"message\": \"official_model_failed\", \"type\": \"official_model_failed\"}}",
+  "remaining_sessions": 0,
+  "mcp_servers": [],
+  "database_files": 0,
+  "rollback_hashes_match": true
+}

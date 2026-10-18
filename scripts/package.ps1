@@ -33,6 +33,9 @@ if (-not $SkipBuild) {
 }
 
 $stage = Join-Path $OutDir $name
+$stage = [IO.Path]::GetFullPath($stage)
+$outRoot = [IO.Path]::GetFullPath($OutDir).TrimEnd('\') + '\'
+if (-not $stage.StartsWith($outRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid package target' }
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $stage | Out-Null
 
@@ -50,6 +53,19 @@ if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path $stage -DestinationPath $zip
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
 Set-Content -Encoding ascii -Path "$zip.sha256" -Value "$hash  $name.zip"
+
+# Optional bridge protection kit: our scripts only; no official binary or credentials.
+$bridgeStage = Join-Path $OutDir "$name-opencode-bridge"
+$null = New-Item -ItemType Directory -Force -Path $bridgeStage
+foreach ($file in 'Update-OpenCodeBridge.ps1','Start-OpenCodeBridge.ps1','opencode_bridge.py','opencode_protocol.py','opencode_events.py','opencode_controls.mjs') {
+    Copy-Item -LiteralPath (Join-Path 'scripts' $file) -Destination $bridgeStage -Force
+}
+Copy-Item -LiteralPath 'LICENSE' -Destination $bridgeStage -Force
+Copy-Item -LiteralPath 'packaging/OPENCODE-BRIDGE.txt' -Destination (Join-Path $bridgeStage 'README.txt') -Force
+$bridgeZip = Join-Path $OutDir "$name-opencode-bridge.zip"
+Compress-Archive -Path $bridgeStage -DestinationPath $bridgeZip -Force
+$bridgeHash = (Get-FileHash -Algorithm SHA256 $bridgeZip).Hash.ToLower()
+Set-Content -Encoding ascii -Path "$bridgeZip.sha256" -Value "$bridgeHash  $name-opencode-bridge.zip"
 
 Write-Host ""
 Get-ChildItem $stage | Select-Object Name, @{ n = 'KB'; e = { [math]::Round($_.Length / 1KB) } } | Format-Table -AutoSize

@@ -1,0 +1,24 @@
+{
+  "id": "msg_14e4c984f001PnOTqD4SifflQQ",
+  "time": {
+    "created": 1792315005013,
+    "completed": 1792315005288
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+    "id": "deepseek-v4.1-flash-free",
+    "providerID": "opencode",
+    "variant": "default"
+  },
+  "content": [],
+  "finish": "error",
+  "error": {
+    "type": "provider.auth",
+    "message": "OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.",
+    "status": 403,
+    "response": {
+      "body": "{\"type\":\"error\",\"error\":{\"type\":\"FreeTierError\",\"message\":\"OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.\"}}"
+    }
+  }
+}

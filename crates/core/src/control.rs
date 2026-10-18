@@ -199,6 +199,10 @@ impl ControlPlane {
                     fixed_slug: d.fixed_slug.map(str::to_owned),
                     default_base_url: d.default_base_url.map(str::to_owned),
                     auth: auth_name(d.auth).to_owned(),
+                    requires_transport_opt_in: d
+                        .transports
+                        .iter()
+                        .any(|t| !t.trust.allowed_for_inference()),
                     protocols: d
                         .transports
                         .iter()

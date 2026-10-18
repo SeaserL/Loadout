@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-18T10:53:34.872194+00:00",
+  "system_proxy_enabled": false,
+  "winhttp": "direct",
+  "proxy_environment_process_user_machine": false,
+  "pac_configured": false,
+  "local_proxy_detected": false,
+  "default_route": "WLAN",
+  "trace": {
+    "loc": "AU",
+    "warp": "off"
+  },
+  "ipv6_default_route": false,
+  "ipv6_probe": "curl could not resolve host over IPv6; no alternate usable exit established",
+  "exit_comparison": "BLOCKED: second exit not available",
+  "production_changed": false,
+  "baseline": {
+    "path": "official_cli_no_plugin",
+    "at": "2026-10-18T10:53:34.872204+00:00",
+    "model": "deepseek-v4.1-flash-free",
+    "plugins": [],
+    "exit": 1,
+    "errors": [
+      {
+        "type": "provider.auth",
+        "status": 403,
+        "message": "Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"
+      }
+    ],
+    "text": "",
+    "tool_calls": [],
+    "passed": false,
+    "seconds": 1.718
+  }
+}

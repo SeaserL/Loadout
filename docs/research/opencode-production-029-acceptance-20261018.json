@@ -1,0 +1,620 @@
+{
+  "scope": "production-loadout-8317",
+  "client_name": "production-029-acceptance-7a171296",
+  "status": {
+    "version": "0.3.0",
+    "pid": 176208,
+    "started_at_ms": 1792321477184,
+    "data_dir": "C:\\Users\\edlin\\AppData\\Local\\Loadout",
+    "schema_version": 14,
+    "gateway": {
+      "addr": "127.0.0.1:8317",
+      "listening": true
+    },
+    "recovered_from": null
+  },
+  "capabilities": {
+    "model": "opencode-free/main/deepseek-v4.1-flash-free",
+    "checks": [
+      {
+        "name": "realtime",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 4.801,
+          "text_chunks": 17,
+          "first_text": 2.805,
+          "last_text": 4.781
+        },
+        "finish": "stop",
+        "passed": true
+      },
+      {
+        "name": "max_tokens_16_False",
+        "timing": {
+          "total": 1.927,
+          "model": "deepseek-v4.1-flash-free"
+        },
+        "finish": "length",
+        "passed": true
+      },
+      {
+        "name": "max_tokens_16_True",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 1.512,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "length",
+        "passed": true
+      },
+      {
+        "name": "tool_choice_\"none\"",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 2.081,
+          "text_chunks": 2,
+          "first_text": 1.982,
+          "last_text": 2.056
+        },
+        "finish": "stop",
+        "passed": true
+      },
+      {
+        "name": "tool_choice_\"required\"",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 3.354,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      },
+      {
+        "name": "tool_choice_{\"type\": \"function\", \"function\": {\"name\": \"lookup_code\"}}",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 2.355,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      },
+      {
+        "name": "continuous_tool_Sydney",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 3.176,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      },
+      {
+        "name": "continuous_tool_Melbourne",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 2.316,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      },
+      {
+        "name": "continuous_tool_Perth",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 4.271,
+          "text_chunks": 0,
+          "first_text": null,
+          "last_text": null
+        },
+        "finish": "tool_calls",
+        "passed": true
+      },
+      {
+        "name": "continuous_tool_final",
+        "timing": {
+          "model": "deepseek-v4.1-flash-free",
+          "total": 1.945,
+          "text_chunks": 1,
+          "first_text": 1.909,
+          "last_text": 1.909
+        },
+        "finish": "stop",
+        "passed": true
+      }
+    ],
+    "passed": true,
+    "coding": {
+      "requests": [
+        {
+          "bytes": 22696,
+          "fields": [
+            "max_completion_tokens",
+            "messages",
+            "model",
+            "store",
+            "stream",
+            "stream_options",
+            "tools"
+          ],
+          "roles": [
+            "system",
+            "user"
+          ],
+          "message_fields": [
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "role"
+            ]
+          ],
+          "content_types": [
+            "str"
+          ],
+          "tools": [
+            "edit",
+            "glob",
+            "grep",
+            "question",
+            "read",
+            "shell",
+            "skill",
+            "subagent",
+            "webfetch",
+            "websearch",
+            "write",
+            "execute"
+          ],
+          "max_tokens": null,
+          "max_completion_tokens": 4096,
+          "tool_choice": null,
+          "status": 200,
+          "route_verified": true,
+          "finish": "tool_calls",
+          "seconds": 2.464
+        },
+        {
+          "bytes": 23655,
+          "fields": [
+            "max_completion_tokens",
+            "messages",
+            "model",
+            "store",
+            "stream",
+            "stream_options",
+            "tools"
+          ],
+          "roles": [
+            "system",
+            "user",
+            "assistant",
+            "tool",
+            "tool"
+          ],
+          "message_fields": [
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ]
+          ],
+          "content_types": [
+            "NoneType",
+            "str"
+          ],
+          "tools": [
+            "edit",
+            "glob",
+            "grep",
+            "question",
+            "read",
+            "shell",
+            "skill",
+            "subagent",
+            "webfetch",
+            "websearch",
+            "write",
+            "execute"
+          ],
+          "max_tokens": null,
+          "max_completion_tokens": 4096,
+          "tool_choice": null,
+          "status": 200,
+          "route_verified": true,
+          "first_text_seconds": 2.08,
+          "text_chunks": 1,
+          "finish": "tool_calls",
+          "seconds": 2.23
+        },
+        {
+          "bytes": 24858,
+          "fields": [
+            "max_completion_tokens",
+            "messages",
+            "model",
+            "store",
+            "stream",
+            "stream_options",
+            "tools"
+          ],
+          "roles": [
+            "system",
+            "user",
+            "assistant",
+            "tool",
+            "tool",
+            "assistant",
+            "tool"
+          ],
+          "message_fields": [
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ]
+          ],
+          "content_types": [
+            "NoneType",
+            "str"
+          ],
+          "tools": [
+            "edit",
+            "glob",
+            "grep",
+            "question",
+            "read",
+            "shell",
+            "skill",
+            "subagent",
+            "webfetch",
+            "websearch",
+            "write",
+            "execute"
+          ],
+          "max_tokens": null,
+          "max_completion_tokens": 4096,
+          "tool_choice": null,
+          "status": 200,
+          "route_verified": true,
+          "first_text_seconds": 3.168,
+          "text_chunks": 1,
+          "finish": "tool_calls",
+          "seconds": 3.547
+        },
+        {
+          "bytes": 25375,
+          "fields": [
+            "max_completion_tokens",
+            "messages",
+            "model",
+            "store",
+            "stream",
+            "stream_options",
+            "tools"
+          ],
+          "roles": [
+            "system",
+            "user",
+            "assistant",
+            "tool",
+            "tool",
+            "assistant",
+            "tool",
+            "assistant",
+            "tool"
+          ],
+          "message_fields": [
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ]
+          ],
+          "content_types": [
+            "NoneType",
+            "str"
+          ],
+          "tools": [
+            "edit",
+            "glob",
+            "grep",
+            "question",
+            "read",
+            "shell",
+            "skill",
+            "subagent",
+            "webfetch",
+            "websearch",
+            "write",
+            "execute"
+          ],
+          "max_tokens": null,
+          "max_completion_tokens": 4096,
+          "tool_choice": null,
+          "status": 200,
+          "route_verified": true,
+          "finish": "tool_calls",
+          "seconds": 4.055
+        },
+        {
+          "bytes": 25838,
+          "fields": [
+            "max_completion_tokens",
+            "messages",
+            "model",
+            "store",
+            "stream",
+            "stream_options",
+            "tools"
+          ],
+          "roles": [
+            "system",
+            "user",
+            "assistant",
+            "tool",
+            "tool",
+            "assistant",
+            "tool",
+            "assistant",
+            "tool",
+            "assistant",
+            "tool"
+          ],
+          "message_fields": [
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "role"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ],
+            [
+              "content",
+              "reasoning_content",
+              "role",
+              "tool_calls"
+            ],
+            [
+              "content",
+              "role",
+              "tool_call_id"
+            ]
+          ],
+          "content_types": [
+            "NoneType",
+            "str"
+          ],
+          "tools": [
+            "edit",
+            "glob",
+            "grep",
+            "question",
+            "read",
+            "shell",
+            "skill",
+            "subagent",
+            "webfetch",
+            "websearch",
+            "write",
+            "execute"
+          ],
+          "max_tokens": null,
+          "max_completion_tokens": 4096,
+          "tool_choice": null,
+          "status": 200,
+          "route_verified": true,
+          "first_text_seconds": 4.603,
+          "text_chunks": 6,
+          "finish": "stop",
+          "seconds": 5.214
+        }
+      ],
+      "client_exit": 0,
+      "seconds": 19.603,
+      "client_output": "{\"type\":\"step_start\",\"timestamp\":1792321520247,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb00277001afWF3J1gLkn5Tx\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eaff92a00144a5edvZUp6B8n\",\"type\":\"step-start\"}}\n{\"type\":\"tool_use\",\"timestamp\":1792321520356,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"partID\":\"prt_14eb0029c001J4JWe0J1RnuChw\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eaff92a00144a5edvZUp6B8n\",\"type\":\"tool\",\"id\":\"call_01_ff7h959sc0mfh9l744dqgq0s\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"input\":{\"path\":\"test_calculator.py\"},\"output\":\"Read file test_calculator.py, lines 1-8\\n1: import unittest\\r\\n2: from calculator import total\\r\\n3: class Tests(unittest.TestCase):\\r\\n4:     def test_total(self):\\r\\n5:         self.assertEqual(total([1, 2, 3]), 6)\\r\\n6:         self.assertEqual(total([]), 0)\\r\\n7:         self.assertEqual(total([-4, 2]), -2)\\r\\n8: if __name__ == \\\"__main__\\\": unittest.main()\\r\",\"title\":\"read\",\"metadata\":{\"metadata\":{\"truncated\":false},\"content\":[{\"type\":\"text\",\"text\":\"Read file test_calculator.py, lines 1-8\\n1: import unittest\\r\\n2: from calculator import total\\r\\n3: class Tests(unittest.TestCase):\\r\\n4:     def test_total(self):\\r\\n5:         self.assertEqual(total([1, 2, 3]), 6)\\r\\n6:         self.assertEqual(total([]), 0)\\r\\n7:         self.assertEqual(total([-4, 2]), -2)\\r\\n8: if __name__ == \\\"__main__\\\": unittest.main()\\r\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"path\\\": \\\"test_calculator.py\\\"}\"},\"time\":{\"start\":1792321520284,\"end\":1792321520356}}}}\n{\"type\":\"tool_use\",\"timestamp\":1792321520361,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"partID\":\"prt_14eb0027a001nY8EFaUZxpnUQo\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eaff92a00144a5edvZUp6B8n\",\"type\":\"tool\",\"id\":\"call_00_qnx8xa6ubqlvwjn0goc02hrx\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"input\":{\"path\":\"calculator.py\"},\"output\":\"Read file calculator.py, lines 1-2\\n1: def total(values):\\r\\n2:     raise NotImplementedError()\\r\",\"title\":\"read\",\"metadata\":{\"metadata\":{\"truncated\":false},\"content\":[{\"type\":\"text\",\"text\":\"Read file calculator.py, lines 1-2\\n1: def total(values):\\r\\n2:     raise NotImplementedError()\\r\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"path\\\": \\\"calculator.py\\\"}\"},\"time\":{\"start\":1792321520250,\"end\":1792321520361}}}}\n{\"type\":\"step_finish\",\"timestamp\":1792321520363,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb002eb001w93awNtUZS8xiB\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eaff92a00144a5edvZUp6B8n\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"cost\":0,\"tokens\":{\"input\":0,\"output\":0,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n{\"type\":\"step_start\",\"timestamp\":1792321522466,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb00b22001gJR4jGQF0lm7SY\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb002f30014C4CBW8JuI37M4\",\"type\":\"step-start\"}}\n{\"type\":\"text\",\"timestamp\":1792321522617,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb00b25001GjVJXxS64y95Po\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb002f30014C4CBW8JuI37M4\",\"type\":\"text\",\"text\":\"Now I'll run the tests to observe the failure.\",\"time\":{\"start\":1792321522469,\"end\":1792321522617}}}\n{\"type\":\"tool_use\",\"timestamp\":1792321522924,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"partID\":\"prt_14eb00b72002uru6GlkjCw50Dk\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb002f30014C4CBW8JuI37M4\",\"type\":\"tool\",\"id\":\"call_00_7xwh6ulije4o3sr1uqiphcv2\",\"tool\":\"shell\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"python -m unittest -v\"},\"output\":\"test_total (test_calculator.Tests.test_total) ... ERROR\\r\\n\\r\\n======================================================================\\r\\nERROR: test_total (test_calculator.Tests.test_total)\\r\\n----------------------------------------------------------------------\\r\\nTraceback (most recent call last):\\r\\n  File \\\"C:\\\\Users\\\\edlin\\\\AppData\\\\Local\\\\Temp\\\\loadout-coding-client-l4yfj1xw\\\\workspace\\\\test_calculator.py\\\", line 5, in test_total\\r\\n    self.assertEqual(total([1, 2, 3]), 6)\\r\\n                     ~~~~~^^^^^^^^^^^\\r\\n  File \\\"C:\\\\Users\\\\edlin\\\\AppData\\\\Local\\\\Temp\\\\loadout-coding-client-l4yfj1xw\\\\workspace\\\\calculator.py\\\", line 2, in total\\r\\n    raise NotImplementedError()\\r\\nNotImplementedError\\r\\n\\r\\n----------------------------------------------------------------------\\r\\nRan 1 test in 0.001s\\r\\n\\r\\nFAILED (errors=1)\\r\\n\",\"title\":\"shell\",\"metadata\":{\"metadata\":{\"status\":\"completed\",\"truncated\":false,\"exit\":1},\"content\":[{\"type\":\"text\",\"text\":\"test_total (test_calculator.Tests.test_total) ... ERROR\\r\\n\\r\\n======================================================================\\r\\nERROR: test_total (test_calculator.Tests.test_total)\\r\\n----------------------------------------------------------------------\\r\\nTraceback (most recent call last):\\r\\n  File \\\"C:\\\\Users\\\\edlin\\\\AppData\\\\Local\\\\Temp\\\\loadout-coding-client-l4yfj1xw\\\\workspace\\\\test_calculator.py\\\", line 5, in test_total\\r\\n    self.assertEqual(total([1, 2, 3]), 6)\\r\\n                     ~~~~~^^^^^^^^^^^\\r\\n  File \\\"C:\\\\Users\\\\edlin\\\\AppData\\\\Local\\\\Temp\\\\loadout-coding-client-l4yfj1xw\\\\workspace\\\\calculator.py\\\", line 2, in total\\r\\n    raise NotImplementedError()\\r\\nNotImplementedError\\r\\n\\r\\n----------------------------------------------------------------------\\r\\nRan 1 test in 0.001s\\r\\n\\r\\nFAILED (errors=1)\\r\\n\"},{\"type\":\"text\",\"text\":\"Exited with code 1\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"command\\\": \\\"python -m unittest -v\\\"}\"},\"time\":{\"start\":1792321522546,\"end\":1792321522924}}}}\n{\"type\":\"step_finish\",\"timestamp\":1792321522925,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb00ced001uSOCY0CvfuQ6gW\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb002f30014C4CBW8JuI37M4\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"cost\":0,\"tokens\":{\"input\":0,\"output\":0,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n{\"type\":\"step_start\",\"timestamp\":1792321526111,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb0195f001VtbLaeWtf99n5z\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb00cf5001sHp6L0aq64PXqG\",\"type\":\"step-start\"}}\n{\"type\":\"text\",\"timestamp\":1792321526493,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb01961001Q1oI4qylOjOM0n\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb00cf5001sHp6L0aq64PXqG\",\"type\":\"text\",\"text\":\"Failure confirmed: `NotImplementedError`. Now implementing `total`.\",\"time\":{\"start\":1792321526113,\"end\":1792321526493}}}\n{\"type\":\"tool_use\",\"timestamp\":1792321526500,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"partID\":\"prt_14eb01a9d001RtZxmhHZKtsTgd\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb00cf5001sHp6L0aq64PXqG\",\"type\":\"tool\",\"id\":\"call_00_x2pvefd7pfbdnydeupoqn00k\",\"tool\":\"edit\",\"state\":{\"status\":\"completed\",\"input\":{\"path\":\"calculator.py\",\"oldString\":\"def total(values):\\n    raise NotImplementedError()\",\"newString\":\"def total(values):\\n    return sum(values)\"},\"output\":\"Edited calculator.py (1 replacement)\",\"title\":\"edit\",\"metadata\":{\"metadata\":{\"files\":[{\"file\":\"calculator.py\",\"patch\":\"Index: calculator.py\\n===================================================================\\n--- calculator.py\\n+++ calculator.py\\n@@ -1,2 +1,2 @@\\n def total(values):\\r\\n-    raise NotImplementedError()\\r\\n+    return sum(values)\\r\\n\",\"status\":\"modified\",\"additions\":1,\"deletions\":1}],\"truncated\":false},\"content\":[{\"type\":\"text\",\"text\":\"Edited calculator.py (1 replacement)\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"path\\\": \\\"calculator.py\\\", \\\"oldString\\\": \\\"def total(values):\\\\n    raise NotImplementedError()\\\", \\\"newString\\\": \\\"def total(values):\\\\n    return sum(values)\\\"}\"},\"time\":{\"start\":1792321526429,\"end\":1792321526500}}}}\n{\"type\":\"step_finish\",\"timestamp\":1792321526503,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb01ae7001prgnQgUxP0E7LE\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb00cf5001sHp6L0aq64PXqG\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"cost\":0,\"tokens\":{\"input\":0,\"output\":0,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n{\"type\":\"step_start\",\"timestamp\":1792321530542,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb02aae001isEkRKP21ieTNV\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb01af4001wscgDFi0eaRI2G\",\"type\":\"step-start\"}}\n{\"type\":\"tool_use\",\"timestamp\":1792321530812,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"partID\":\"prt_14eb02ab000124zyAkByANEXkh\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb01af4001wscgDFi0eaRI2G\",\"type\":\"tool\",\"id\":\"call_00_9lhp72wmui8vivn300vmjluz\",\"tool\":\"shell\",\"state\":{\"status\":\"completed\",\"input\":{\"command\":\"python -m unittest -v\"},\"output\":\"test_total (test_calculator.Tests.test_total) ... ok\\r\\n\\r\\n----------------------------------------------------------------------\\r\\nRan 1 test in 0.000s\\r\\n\\r\\nOK\\r\\n\",\"title\":\"shell\",\"metadata\":{\"metadata\":{\"status\":\"completed\",\"truncated\":false,\"exit\":0},\"content\":[{\"type\":\"text\",\"text\":\"test_total (test_calculator.Tests.test_total) ... ok\\r\\n\\r\\n----------------------------------------------------------------------\\r\\nRan 1 test in 0.000s\\r\\n\\r\\nOK\\r\\n\"}],\"providerCall\":{\"executed\":false},\"providerResult\":{\"executed\":false},\"rawInput\":\"{\\\"command\\\": \\\"python -m unittest -v\\\"}\"},\"time\":{\"start\":1792321530544,\"end\":1792321530812}}}}\n{\"type\":\"step_finish\",\"timestamp\":1792321530813,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb02bbd001uI58gg4lIARJnD\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb01af4001wscgDFi0eaRI2G\",\"type\":\"step-finish\",\"reason\":\"tool-calls\",\"cost\":0,\"tokens\":{\"input\":0,\"output\":0,\"reasoning\":0,\"cache\":{\"read\":0,\"write\":0}}}}\n{\"type\":\"step_start\",\"timestamp\":1792321535434,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb03dca001DT1qtecmB7exUr\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb02bc4001cbQm35fwOpYwUc\",\"type\":\"step-start\"}}\n{\"type\":\"text\",\"timestamp\":1792321536046,\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"part\":{\"id\":\"prt_14eb02bc4001cbQm35fwOpYwUc_text-0\",\"sessionID\":\"ses_eb1500910ffeWjatchdDOvwxXh\",\"messageID\":\"msg_14eb02bc4001cbQm35fwOpYwUc\",\"type\":\"text\",\"text\":\"Done.\\n\\n- **Read** `calculator.py` (a stub raising `NotImplementedError`) and `test_calculator.py` (one test asserting `total([1,2,3]) == 6`, `total([]) == 0`, `total([-4,2]) == -2`).\\n- **Ran** `python -m unittest -v` → failed with `NotImplementedError`.\\n- **Implemented** `total` in `calculator.py` as `return sum(values)`, which naturally handles the empty-list case (returns `0`) and negative values.\\n- **Re-ran** `python -m unittest -v` → `OK` (1 test passed).\\n\\nTests were not modified.\",\"time\":{\"start\":1792321530827,\"end\":1792321536046}}}\n",
+      "independent_test_exit": 0,
+      "result_source": "def total(values):\n    return sum(values)\n",
+      "tests_unchanged": true,
+      "tool_calls": [
+        {
+          "tool": "read",
+          "status": "completed",
+          "exit": null
+        },
+        {
+          "tool": "read",
+          "status": "completed",
+          "exit": null
+        },
+        {
+          "tool": "shell",
+          "status": "completed",
+          "exit": 1
+        },
+        {
+          "tool": "edit",
+          "status": "completed",
+          "exit": null
+        },
+        {
+          "tool": "shell",
+          "status": "completed",
+          "exit": 0
+        }
+      ],
+      "tool_rounds": 4,
+      "hidden_checks_passed": true,
+      "passed": true,
+      "route_checks_passed": true
+    },
+    "coding_route_header_required": true
+  },
+  "temporary_client_revoked": true,
+  "remaining_sessions": 0,
+  "mcp_servers": [],
+  "database_files": 0,
+  "final_route": {
+    "name": "opencode-free/main/deepseek-v4.1-flash-free",
+    "protocol": "chat",
+    "trust": "CLI_BRIDGE",
+    "state": "HEALTHY",
+    "unavailable_until_ms": null,
+    "consecutive_failures": 0,
+    "in_flight": 0,
+    "successes": 15,
+    "failures": 0,
+    "last_error": null,
+    "last_failure_ms": null,
+    "recovered_at_ms": null,
+    "tier": "NORMAL",
+    "tier_pinned": false,
+    "ttft_p50_ms": 2768,
+    "ttft_p90_ms": 4163,
+    "tps": 146.76724,
+    "samples": 20,
+    "last_sample_ms": 1792321530844
+  }
+}

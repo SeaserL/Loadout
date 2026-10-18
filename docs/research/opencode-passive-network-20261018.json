@@ -1,0 +1,47 @@
+{
+  "at": "2026-10-18T12:03:53.898042+00:00",
+  "model_calls": 0,
+  "samples": [
+    {
+      "family": "4",
+      "exit": 0,
+      "ip_fingerprint": "769ee1a0f56c396ffa16e13ae3dcf3dc2f9f6ce4486a581e410b4c9974ea0163",
+      "colo": "PDX",
+      "loc": "AU",
+      "warp": "off",
+      "http": "http/1.1",
+      "tls": "TLSv1.2"
+    },
+    {
+      "family": "6",
+      "exit": 0,
+      "ip_fingerprint": "833c9b63787702d1c1294a5f0c36a66f7a5a2a9bc72500de9fd3f18d2364b359",
+      "colo": "PDX",
+      "loc": "AU",
+      "warp": "off",
+      "http": "http/1.1",
+      "tls": "TLSv1.2"
+    }
+  ],
+  "second_snapshot": {
+    "at": "2026-10-18T12:05:05.780958+00:00",
+    "samples": [
+      {
+        "family": "4",
+        "exit": 0,
+        "same_ip_as_first": true,
+        "colo": "PDX",
+        "loc": "AU",
+        "warp": "off"
+      },
+      {
+        "family": "6",
+        "exit": 0,
+        "same_ip_as_first": true,
+        "colo": "PDX",
+        "loc": "AU",
+        "warp": "off"
+      }
+    ]
+  }
+}

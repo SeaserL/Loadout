@@ -47,6 +47,27 @@ pub const SUBPOOL_REMEMBER: &str = "subpool.remember_active";
 
 pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
+        key: "updates.enabled",
+        default: "true",
+        description: "Check Loadout stable releases every six hours",
+        restart_required: false,
+        validate: validate_bool,
+    },
+    SettingDef {
+        key: "updates.auto_download",
+        default: "true",
+        description: "Download and verify new Loadout releases automatically",
+        restart_required: false,
+        validate: validate_bool,
+    },
+    SettingDef {
+        key: "updates.auto_install",
+        default: "false",
+        description: "Install downloaded releases automatically; drains and restarts the gateway",
+        restart_required: false,
+        validate: validate_bool,
+    },
+    SettingDef {
         key: GATEWAY_PORT,
         default: "8317",
         description: "TCP port of the local gateway on 127.0.0.1",

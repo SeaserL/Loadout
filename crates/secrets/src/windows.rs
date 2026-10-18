@@ -31,6 +31,57 @@ const MAX_BLOB: usize = CRED_MAX_CREDENTIAL_BLOB_SIZE as usize;
 
 static CREDENTIAL_LOCK: Mutex<()> = Mutex::new(());
 
+/// Read the existing default GitHub Git credential without prompting or modifying it.
+/// Only used by the fixed-repository release updater; never enumerate other credentials.
+pub fn github_git_credential() -> Option<Secret> {
+    let target = to_wide("git:https://github.com");
+    let mut raw = ptr::null_mut();
+    let _guard = credential_lock();
+    // SAFETY: target is terminated and raw is a valid out-pointer. OwnedCredential frees it.
+    if unsafe { CredReadW(target.as_ptr(), CRED_TYPE_GENERIC, 0, &mut raw) } == 0 {
+        return None;
+    }
+    let credential = OwnedCredential(raw);
+    decode_git_credential(credential.blob())
+}
+
+fn decode_git_credential(blob: &[u8]) -> Option<Secret> {
+    // GCM versions use UTF-16LE or UTF-8. GitHub tokens contain ASCII printable bytes.
+    let bytes: Vec<u8> = if blob.len().is_multiple_of(2)
+        && blob.as_chunks::<2>().0.iter().all(|pair| pair[1] == 0)
+    {
+        blob.as_chunks::<2>().0.iter().map(|pair| pair[0]).collect()
+    } else {
+        blob.to_vec()
+    };
+    if bytes.is_empty() || !bytes.iter().all(|b| b.is_ascii_graphic()) {
+        return None;
+    }
+    Some(Secret::new(String::from_utf8(bytes).ok()?))
+}
+
+#[cfg(test)]
+mod git_credential_tests {
+    use super::decode_git_credential;
+    #[test]
+    fn accepts_synthetic_encodings_and_rejects_controls() {
+        assert_eq!(
+            decode_git_credential(b"synthetic")
+                .expect("synthetic credential")
+                .expose(),
+            "synthetic"
+        );
+        assert_eq!(
+            decode_git_credential(b"s\0y\0n\0")
+                .expect("synthetic credential")
+                .expose(),
+            "syn"
+        );
+        assert!(decode_git_credential(b"bad\nheader").is_none());
+        assert!(decode_git_credential(b"").is_none());
+    }
+}
+
 fn credential_lock() -> MutexGuard<'static, ()> {
     // The lock guards no data, so a poisoned lock is safe to reuse.
     CREDENTIAL_LOCK.lock().unwrap_or_else(|e| e.into_inner())

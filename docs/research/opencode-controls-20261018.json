@@ -1,0 +1,89 @@
+[
+  {
+    "parameter": "max_tokens",
+    "stream": false,
+    "finish": "length",
+    "characters": 0,
+    "timing": {
+      "total": 1.67,
+      "model": "deepseek-v4.1-flash-free"
+    }
+  },
+  {
+    "parameter": "max_tokens",
+    "stream": true,
+    "finish": "length",
+    "characters": 0,
+    "timing": {
+      "model": "deepseek-v4.1-flash-free",
+      "total": 1.875,
+      "text_chunks": 0,
+      "first_text": null,
+      "last_text": null
+    }
+  },
+  {
+    "parameter": "max_completion_tokens",
+    "stream": false,
+    "finish": "length",
+    "characters": 0,
+    "timing": {
+      "total": 1.536,
+      "model": "deepseek-v4.1-flash-free"
+    }
+  },
+  {
+    "parameter": "max_completion_tokens",
+    "stream": true,
+    "finish": "length",
+    "characters": 0,
+    "timing": {
+      "model": "deepseek-v4.1-flash-free",
+      "total": 2.351,
+      "text_chunks": 0,
+      "first_text": null,
+      "last_text": null
+    }
+  },
+  {
+    "tool_choice": "none",
+    "finish": "stop",
+    "calls": 0,
+    "timing": {
+      "model": "deepseek-v4.1-flash-free",
+      "total": 2.142,
+      "text_chunks": 1,
+      "first_text": 2.11,
+      "last_text": 2.11
+    }
+  },
+  {
+    "tool_choice": "required",
+    "finish": "tool_calls",
+    "calls": 1,
+    "timing": {
+      "model": "deepseek-v4.1-flash-free",
+      "total": 2.356,
+      "text_chunks": 0,
+      "first_text": null,
+      "last_text": null
+    }
+  },
+  {
+    "tool_choice": {
+      "type": "function",
+      "function": {
+        "name": "lookup_code"
+      }
+    },
+    "finish": "tool_calls",
+    "calls": 1,
+    "timing": {
+      "model": "deepseek-v4.1-flash-free",
+      "total": 2.778,
+      "text_chunks": 0,
+      "first_text": null,
+      "last_text": null
+    }
+  }
+]

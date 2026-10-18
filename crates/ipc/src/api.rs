@@ -12,6 +12,16 @@ pub trait Method {
     type Result: Serialize + DeserializeOwned + Send;
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct UpdateStatus {
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub phase: String,
+    pub checked_at_ms: Option<i64>,
+    pub error: Option<String>,
+    pub install_supported: bool,
+}
+
 macro_rules! method {
     ($(#[$meta:meta])* $ty:ident, $name:literal, $params:ty, $result:ty) => {
         $(#[$meta])*
@@ -26,6 +36,9 @@ macro_rules! method {
 }
 
 // ---- handshake -------------------------------------------------------------------------
+method!(UpdatesStatus, "updates.status", (), UpdateStatus);
+method!(UpdatesCheck, "updates.check", (), UpdateStatus);
+method!(UpdatesInstall, "updates.install", (), UpdateStatus);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HelloParams {
@@ -214,6 +227,9 @@ pub struct ProviderKind {
     /// `api_key`, `optional_api_key`, `external_managed`, `oauth` or `browser_login`.
     pub auth: String,
     pub protocols: Vec<String>,
+    /// A declared transport needs explicit per-account consent, regardless of auth method.
+    #[serde(default)]
+    pub requires_transport_opt_in: bool,
     pub drivers: Vec<String>,
     /// Values the `usage_source` setting accepts besides `auto` and `off` (ExecPlan 008).
     #[serde(default)]

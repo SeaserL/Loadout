@@ -1,0 +1,69 @@
+{
+  "requests": [
+    {
+      "bytes": 22696,
+      "fields": [
+        "max_completion_tokens",
+        "messages",
+        "model",
+        "store",
+        "stream",
+        "stream_options",
+        "tools"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "message_fields": [
+        [
+          "content",
+          "role"
+        ],
+        [
+          "content",
+          "role"
+        ]
+      ],
+      "content_types": [
+        "str"
+      ],
+      "tools": [
+        "edit",
+        "glob",
+        "grep",
+        "question",
+        "read",
+        "shell",
+        "skill",
+        "subagent",
+        "webfetch",
+        "websearch",
+        "write",
+        "execute"
+      ],
+      "max_tokens": null,
+      "max_completion_tokens": 4096,
+      "tool_choice": null,
+      "status": 502,
+      "route_verified": false,
+      "error": {
+        "message": "opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed",
+        "type": "api_error",
+        "param": null,
+        "code": "upstream_error"
+      }
+    }
+  ],
+  "scope": "production-loadout-real-opencode",
+  "client_exit": 1,
+  "seconds": 2.348,
+  "client_output": "{\"type\":\"error\",\"timestamp\":1792318441568,\"sessionID\":\"ses_eb17efe2cffe6jBMgSeuxYpxez\",\"error\":{\"type\":\"provider.internal\",\"message\":\"opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed\",\"status\":502,\"response\":{\"body\":\"{\\\"error\\\":{\\\"message\\\":\\\"opencode-free/main/deepseek-v4.1-flash-free (upstream_error): HTTP 502: official_model_failed\\\",\\\"type\\\":\\\"api_error\\\",\\\"param\\\":null,\\\"code\\\":\\\"upstream_error\\\"}}\"}}}\n",
+  "independent_test_exit": 1,
+  "result_source": "def total(values):\n    raise NotImplementedError()\n",
+  "tests_unchanged": true,
+  "tool_calls": [],
+  "tool_rounds": 0,
+  "hidden_checks_passed": false,
+  "passed": false
+}
