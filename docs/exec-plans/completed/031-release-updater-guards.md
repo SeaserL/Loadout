@@ -1,6 +1,6 @@
 # ExecPlan 031: OpenCode protection and Loadout release updates
 
-Status: IN_PROGRESS
+Status: COMPLETE
 
 ## Goal
 整理OpenCode限制，加入连接保护；Loadout自身监测GitHub正式release、下载校验并支持自动安装；完成检查后提交、推送、发布正式版。用户已授权push和release。
@@ -44,3 +44,12 @@ GitHub授权/网络失败，Windows二进制锁，重启中断与版本回滚。
 - fmt, all-target clippy, frontend build and third-party license policy passed (348 packages, 0 policy violations; 7 lack a bundled license file under the existing policy). Sensitive-field and token-pattern review found no new real credentials in release inputs.
 - Bridge protection kit update and startup-failure rollback tested using temporary synthetic scripts only. Existing installed bridge is not changed; users apply the separate kit explicitly. No native GUI visual acceptance is claimed.
 - Final publishing is pending. Repository remains private. Current developer runtime remains v0.3.0; GitHub release publication is separate from installing/restarting this runtime.
+
+## Release receipt
+- Code commit/tag: ab6edef71890850641cfb160be8f35350a4f80d1 / v0.4.0; DCO signed, pushed to origin/main.
+- Published stable, non-draft Release at 2026-10-18 12:42:13 UTC: https://github.com/SeaserL/Loadout/releases/tag/v0.4.0 . Repository visibility remains private.
+- Main zip: 11,702,779 bytes, SHA256 9fa887c88280f6ac04b1342e00939d613e7435eff40c046c2a87696cebf1bd45.
+- Bridge kit: 20,617 bytes, SHA256 4d20a197312ddc714ab5db3de77a3bef22a83f5f7a96b95db4a42aec7a01880d.
+- Both packages and both checksum files matched GitHub asset digests before publication. Actual main package transaction passed in a temporary install directory; extracted CLI reported 0.4.0 and binaries matched the build.
+- After publication, the real updater downloaded and validated latest v0.4.0 into a temporary cache. Isolated daemon IPC returned current_version=0.4.0, latest_version=v0.4.0, phase=current, install_supported=false; model_calls=0.
+- Local gates complete; GitHub CI is still running and is not represented as passed. Existing Loadout/app/official/bridge PIDs remain unchanged. Installation into the user's active runtime is not performed by publishing this release.
