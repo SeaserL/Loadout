@@ -19,6 +19,8 @@ export interface EndpointInfo {
   members: string[] | null;
   default_model: string | null;
   wait_secs: number;
+  /** Each request starts at the next account (round-robin, ADR-015 §5). */
+  rotate: boolean;
   /** Routable now, in failover order. */
   active_accounts: string[];
   models: string[];
@@ -35,6 +37,7 @@ export const endpointApi = {
     members: string[] | null;
     default_model: string | null;
     wait_secs: number;
+    rotate: boolean;
   }) => call<EndpointInfo>("endpoint.save", p),
   remove: (name: string) => call<{ revoked: boolean }>("endpoint.remove", { name }),
 };
@@ -152,6 +155,7 @@ export function EndpointDialog(props: {
   );
   const [defaultModel, setDefaultModel] = useState(e?.default_model ?? "");
   const [wait, setWait] = useState(String(e?.wait_secs ?? 30));
+  const [rotate, setRotate] = useState(e?.rotate ?? false);
   const [saved, setSaved] = useState<EndpointInfo | undefined>(e);
 
   const toggle = (alias: string) => {
@@ -172,6 +176,7 @@ export function EndpointDialog(props: {
         members: auto ? null : [...picked],
         default_model: defaultModel || null,
         wait_secs: w,
+        rotate,
       });
       setSaved(r);
       props.onDone();
@@ -255,12 +260,18 @@ export function EndpointDialog(props: {
                 onChange={() => toggle(a.alias)}
               />
               <span className="mono">{a.alias}</span>
-              {order >= 0 && <Badge>{t("ep.order", { n: order + 1 })}</Badge>}
+              {order >= 0 && !shown?.rotate && <Badge>{t("ep.order", { n: order + 1 })}</Badge>}
               {shown?.enabled && order < 0 && <Badge>{t("ep.notRoutable")}</Badge>}
               <HealthBadge health={health} />
             </label>
           );
         })}
+      </div>
+
+      <div style={{ margin: "12px 0" }}>
+        <Switch checked={rotate} label={t("ep.rotate")} onChange={setRotate} />
+        <span className="small"> {t("ep.rotate")}</span>
+        <div className="small muted">{t("ep.rotateHint")}</div>
       </div>
 
       <Field label={t("ep.defaultModel")} hint={t("ep.defaultModelHint")}>

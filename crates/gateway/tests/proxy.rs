@@ -23,7 +23,7 @@ use loadout_provider_sdk::usage::{Confidence, UsageReport, UsageSource};
 use loadout_provider_sdk::{
     BoxFuture, Capabilities, HttpClient, HttpConfig, ProviderConfig, ProviderModule, TrustLevel,
 };
-use loadout_providers::{AnthropicCompatible, OpenAiCompatible};
+use loadout_providers::{AnthropicCompatible, OpenAiCompatible, Registry};
 use loadout_router::{
     HealthRegistry, HealthState, Prices, RouteTable, RouteTableHandle, RouteTarget, TargetId,
 };
@@ -40,6 +40,8 @@ enum Reply {
     Sse(Vec<String>),
     /// Sends these events, then drops the connection.
     SseThenDrop(Vec<String>),
+    /// Answers nothing for longer than any test's first-token timeout.
+    Stall,
 }
 
 #[derive(Clone, Debug)]
@@ -96,6 +98,10 @@ async fn mock_handler(State(mock): State<Mock>, req: Request) -> Response {
         Reply::Json(v) => axum::Json(v).into_response(),
         Reply::Sse(events) => sse_response(events, false),
         Reply::SseThenDrop(events) => sse_response(events, true),
+        Reply::Stall => {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -352,6 +358,18 @@ impl Harness {
     }
 
     async fn with_table(health: Arc<HealthRegistry>, table: RouteTable) -> Self {
+        let limits = UpstreamLimits {
+            first_token_timeout: Duration::from_secs(10),
+            ..UpstreamLimits::default()
+        };
+        Self::with_limits(health, table, limits).await
+    }
+
+    async fn with_limits(
+        health: Arc<HealthRegistry>,
+        table: RouteTable,
+        limits: UpstreamLimits,
+    ) -> Self {
         let routes = Arc::new(RouteTableHandle::new(table));
         let records = Arc::new(Records::default());
         let routes_store = Arc::new(Routes::default());
@@ -361,13 +379,11 @@ impl Harness {
             http: HttpClient::new(&HttpConfig::default()).expect("http"),
             telemetry: records.clone(),
             response_routes: routes_store.clone(),
-            limits: UpstreamLimits {
-                first_token_timeout: Duration::from_secs(10),
-                ..UpstreamLimits::default()
-            },
+            limits,
             sessions: Arc::default(),
             policies: policies.clone(),
             account_slots: Arc::default(),
+            endpoint_turns: Arc::default(),
         };
         let key = generate_client_key();
         let keys = Arc::new(ClientKeyIndex::new([(
@@ -711,6 +727,212 @@ async fn rate_limited_account_fails_over_to_next_account() {
 }
 
 #[tokio::test]
+async fn rate_limit_blocks_every_protocol_of_the_key() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Status(429, r#"{"error":{"message":"Rate limit reached"}}"#.into()),
+    );
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from b")),
+    );
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("again")),
+    );
+    let h = Harness::new(vec![
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "a", 0, "m", Protocol::Messages, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+    ])
+    .await;
+
+    for expected in ["from b", "again"] {
+        let resp = h
+            .post(
+                "/v1/chat/completions",
+                json!({"model": "acme/m", "stream": true, "messages": []}),
+            )
+            .await;
+        assert_eq!(resp.headers()["x-loadout-route"], "acme/b/m");
+        assert!(resp.text().await.expect("text").contains(expected));
+    }
+    assert_eq!(
+        mock_a.seen().len(),
+        1,
+        "the same key's Messages endpoint is never called"
+    );
+    assert_eq!(
+        h.health.get("acme-a-m:messages").expect("health").state(),
+        HealthState::RateLimited
+    );
+    let records = h.records(2).await;
+    assert_eq!(records[0].attempts, 2);
+    assert_eq!(
+        records[0].decision.as_deref(),
+        Some("acme/a/m: 429 rate_limit → acme/b/m: ok")
+    );
+    assert_eq!(
+        records[1].decision.as_deref(),
+        Some("acme/a/m: skipped (rate limited) → acme/b/m: ok")
+    );
+}
+
+#[tokio::test]
+async fn attempt_limit_counts_accounts_not_protocols() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    let (mock_c, base_c) = start_mock().await;
+    for m in [&mock_a, &mock_b] {
+        m.push("/v1/chat/completions", Reply::Status(503, "busy".into()));
+        m.push("/v1/messages", Reply::Status(503, "busy".into()));
+    }
+    mock_c.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from c")),
+    );
+    let mut specs = Vec::new();
+    for (alias, pos, base) in [("a", 0, &base_a), ("b", 1, &base_b), ("c", 2, &base_c)] {
+        specs.push(spec("acme", alias, pos, "m", Protocol::Chat, base));
+        specs.push(spec("acme", alias, pos, "m", Protocol::Messages, base));
+    }
+    let h = Harness::new(specs).await;
+
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/c/m");
+    assert!(resp.text().await.expect("text").contains("from c"));
+    assert_eq!(
+        mock_a.seen().len(),
+        2,
+        "a server error is per endpoint: the other protocol is still tried"
+    );
+    let r = &h.records(1).await[0];
+    assert_eq!(
+        r.attempts, 5,
+        "three routes within routing.max_attempts = 3"
+    );
+    assert_eq!(
+        r.decision.as_deref(),
+        Some("acme/a/m: 503 upstream_error → acme/b/m: 503 upstream_error → acme/c/m: ok")
+    );
+}
+
+#[tokio::test]
+async fn first_token_timeout_moves_to_the_next_route() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push("/v1/chat/completions", Reply::Stall);
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from b")),
+    );
+    let health = Arc::new(HealthRegistry::default());
+    let targets = [
+        spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "a", 0, "m", Protocol::Messages, &base_a),
+        spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
+    ]
+    .iter()
+    .map(|s| build_target(&health, s))
+    .collect();
+    let h = Harness::with_limits(
+        health,
+        RouteTable::new(1, targets),
+        UpstreamLimits {
+            first_token_timeout: Duration::from_millis(300),
+            ..UpstreamLimits::default()
+        },
+    )
+    .await;
+
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "acme/m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.headers()["x-loadout-route"], "acme/b/m");
+    resp.text().await.expect("text");
+    assert_eq!(
+        mock_a.seen().len(),
+        1,
+        "a's Messages endpoint would wait for the same slow key"
+    );
+    assert_eq!(
+        h.records(1).await[0].decision.as_deref(),
+        Some("acme/a/m: upstream_timeout → acme/b/m: ok")
+    );
+    assert_eq!(
+        h.health.get("acme-a-m:messages").expect("health").state(),
+        HealthState::Unknown,
+        "a timeout cools down only its own protocol"
+    );
+}
+
+#[tokio::test]
+async fn sensenova_stream_rate_limit_fails_over_and_cools_the_key() {
+    let (mock_a, base_a) = start_mock().await;
+    let (mock_b, base_b) = start_mock().await;
+    mock_a.push(
+        "/v1/chat/completions",
+        Reply::Sse(vec![
+            "data: {\"error\":{\"code\":\"8\",\"message\":\"inference exceeds tpm/rpm limit\"}}\n\n"
+                .into(),
+        ]),
+    );
+    mock_b.push(
+        "/v1/chat/completions",
+        Reply::Sse(chat_stream_text("from b")),
+    );
+    let module = Registry::builtin()
+        .get("sensenova")
+        .expect("sensenova")
+        .clone();
+    let health = Arc::new(HealthRegistry::default());
+    let targets = [
+        spec("sn", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("sn", "a", 0, "m", Protocol::Messages, &base_a),
+        spec("sn", "b", 1, "m", Protocol::Chat, &base_b),
+    ]
+    .iter()
+    .map(|s| build_target_with(&health, s, Some(module.clone())))
+    .collect();
+    let h = Harness::with_targets(health, targets).await;
+
+    let before = loadout_router::now_ms();
+    let resp = h
+        .post(
+            "/v1/chat/completions",
+            json!({"model": "sn/m", "stream": true, "messages": []}),
+        )
+        .await;
+    assert_eq!(resp.headers()["x-loadout-route"], "sn/b/m");
+    assert!(resp.text().await.expect("text").contains("from b"));
+    assert_eq!(mock_a.seen().len(), 1);
+    assert_eq!(
+        h.records(1).await[0].decision.as_deref(),
+        Some("sn/a/m: rate_limit → sn/b/m: ok"),
+        "a rate limit, not a 502"
+    );
+    for id in ["sn-a-m:chat", "sn-a-m:messages"] {
+        let s = h.health.get(id).expect("health").snapshot();
+        assert_eq!(s.state, HealthState::RateLimited, "{id}");
+        let wait = s.until_ms.expect("until") - before;
+        assert!(
+            (19_000..=21_000).contains(&wait),
+            "{id}: about 20 s, got {wait} ms"
+        );
+    }
+}
+
+#[tokio::test]
 async fn quota_exhausted_exact_account_fails_over_within_provider() {
     let (mock_a, base_a) = start_mock().await;
     let (mock_b, base_b) = start_mock().await;
@@ -916,6 +1138,7 @@ async fn no_failover_header_limits_to_one_attempt() {
     mock_a.push("/v1/chat/completions", Reply::Status(503, "busy".into()));
     let h = Harness::new(vec![
         spec("acme", "a", 0, "m", Protocol::Chat, &base_a),
+        spec("acme", "a", 0, "m", Protocol::Messages, &base_a),
         spec("acme", "b", 1, "m", Protocol::Chat, &base_b),
     ])
     .await;
@@ -930,6 +1153,11 @@ async fn no_failover_header_limits_to_one_attempt() {
     assert_eq!(
         resp.json::<Value>().await.expect("json")["error"]["code"],
         "upstream_error"
+    );
+    assert_eq!(
+        mock_a.seen().len(),
+        1,
+        "not even the same account's other protocol"
     );
     assert!(mock_b.seen().is_empty());
 }
@@ -1454,6 +1682,10 @@ async fn models_listing_puts_virtuals_and_pools_first_with_details() {
 // ---- dedicated endpoints (ADR-015) ------------------------------------------------------------
 
 async fn endpoint_harness() -> (Harness, Vec<Mock>) {
+    endpoint_harness_with(false).await
+}
+
+async fn endpoint_harness_with(rotate: bool) -> (Harness, Vec<Mock>) {
     let (mock_a, base_a) = start_mock().await;
     let (mock_b, base_b) = start_mock().await;
     let (mock_c, base_c) = start_mock().await;
@@ -1469,9 +1701,61 @@ async fn endpoint_harness() -> (Harness, Vec<Mock>) {
     .iter()
     .map(|s| build_target(&health, s))
     .collect();
-    let table = RouteTable::new(1, targets).with_endpoint("acme", "acme", None, None, 3);
+    let table = RouteTable::new(1, targets).with_endpoint("acme", "acme", None, None, 3, rotate);
     let h = Harness::with_table(health, table).await;
     (h, vec![mock_a, mock_b, mock_c, mock_o])
+}
+
+#[tokio::test]
+async fn rotating_endpoint_starts_each_request_at_the_next_account() {
+    let (h, mocks) = endpoint_harness_with(true).await;
+    let chat = "/v1/chat/completions";
+    let mock = |alias: &str| &mocks[usize::from(alias.as_bytes()[0] - b'a')];
+    let send = || {
+        h.post_with(
+            "/e/acme/v1/chat/completions",
+            json!({"model": "m", "stream": true, "messages": []}),
+            // Session affinity would keep one account; rotation moves on anyway.
+            &[("x-loadout-session-id", "s1")],
+        )
+    };
+    for (i, alias) in ["a", "b", "c", "a"].into_iter().enumerate() {
+        mock(alias).push(chat, Reply::Sse(chat_stream_text("hi")));
+        let resp = send().await;
+        assert_eq!(
+            resp.headers()["x-loadout-route"],
+            format!("acme/{alias}/m").as_str(),
+            "request {i}"
+        );
+        resp.text().await.expect("text");
+    }
+
+    // Turn 4 belongs to b, which is rate limited: c answers, and the next turn is still c's.
+    mock("b").push(
+        chat,
+        Reply::Status(429, r#"{"error":{"message":"tpm/rpm limit"}}"#.into()),
+    );
+    mock("c").push(chat, Reply::Sse(chat_stream_text("hi")));
+    mock("c").push(chat, Reply::Sse(chat_stream_text("hi")));
+    mock("a").push(chat, Reply::Sse(chat_stream_text("hi")));
+    for alias in ["c", "c", "a"] {
+        let resp = send().await;
+        assert_eq!(
+            resp.headers()["x-loadout-route"],
+            format!("acme/{alias}/m").as_str()
+        );
+        resp.text().await.expect("text");
+    }
+    let records = h.records(7).await;
+    assert_eq!(
+        records[4].decision.as_deref(),
+        Some("acme/b/m: 429 rate_limit → acme/c/m: ok")
+    );
+    assert_eq!(
+        records[5].decision.as_deref(),
+        Some("acme/b/m: skipped (rate limited) → acme/c/m: ok")
+    );
+    assert_eq!(mock("b").seen().len(), 2, "one answer and one 429");
 }
 
 #[tokio::test]

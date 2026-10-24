@@ -45,6 +45,9 @@ const MIGRATIONS: &[M<'static>] = &[
     M::up(include_str!("../migrations/0014_provider_position/up.sql")).down(include_str!(
         "../migrations/0014_provider_position/down.sql"
     )),
+    M::up(include_str!("../migrations/0015_endpoint_rotation/up.sql")).down(include_str!(
+        "../migrations/0015_endpoint_rotation/down.sql"
+    )),
 ];
 
 /// Schema version after applying every migration.

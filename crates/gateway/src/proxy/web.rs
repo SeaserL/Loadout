@@ -19,9 +19,7 @@ use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::timeout_at;
 
 use super::render::Renderer;
-use super::{
-    Attempt, CompletionInfo, Outcome, PUMP_BUFFER, RecordSnapshot, route_header, stream_failure,
-};
+use super::{Attempt, CompletionInfo, Outcome, PUMP_BUFFER, RecordSnapshot, route_header};
 use crate::plane::DataPlane;
 use crate::proxy::decision::Trail;
 use crate::proxy::meter::Meter;
@@ -98,7 +96,11 @@ impl Attempt<'_> {
             if let CanonicalEvent::Error { message, kind } = &event
                 && (aggregator.is_some() || !meter.committed())
             {
-                return Outcome::Failed(stream_failure(kind.as_deref(), message));
+                return Outcome::Failed(
+                    self.target
+                        .module
+                        .classify_stream_error(kind.as_deref(), message),
+                );
             }
             let events = std::slice::from_ref(&event);
             meter.observe(events);

@@ -351,6 +351,7 @@ pub(crate) fn build(
             members.as_ref(),
             e.default_model.as_deref(),
             e.wait_secs,
+            e.rotate,
         );
     }
     Ok((table, report))

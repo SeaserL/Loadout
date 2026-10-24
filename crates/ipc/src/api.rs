@@ -1237,7 +1237,7 @@ impl std::fmt::Debug for Passphrase {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct KeysExportParams {
-    /// Target file; default: `<data dir>\backups\loadout-keys-<time>.loadout-keys`.
+    /// Target file; default: beside the running daemon executable.
     #[serde(default)]
     pub path: Option<String>,
     pub passphrase: Passphrase,
@@ -1302,6 +1302,9 @@ pub struct EndpointInfo {
     pub default_model: Option<String>,
     /// How long a request may wait for a rate-limited member to recover (0 = never).
     pub wait_secs: u32,
+    /// Each request starts at the next member account (round-robin, ADR-015 §5).
+    #[serde(default)]
+    pub rotate: bool,
     /// Members routable right now (enabled, in the current pool), in failover order.
     pub active_accounts: Vec<String>,
     /// Bare model names served.
@@ -1328,6 +1331,10 @@ pub struct EndpointSaveParams {
     /// Default 30.
     #[serde(default)]
     pub wait_secs: Option<u32>,
+    /// Round-robin across the members (ADR-015 §5); `None` keeps the current setting (off
+    /// for a new endpoint).
+    #[serde(default)]
+    pub rotate: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -164,11 +164,13 @@ impl ControlPlane {
         targets: Vec<Arc<RouteTarget>>,
     ) -> Vec<(Arc<RouteTarget>, ProbeOutcome)> {
         let http = self.http.clone();
+        let table = self.routes.load();
         let results: Vec<(Arc<RouteTarget>, ProbeOutcome)> =
             futures_util::stream::iter(targets.into_iter().map(|t| {
                 let http = http.clone();
+                let table = table.clone();
                 async move {
-                    let outcome = bench::probe(&http, &t).await;
+                    let outcome = bench::probe(&http, &table, &t).await;
                     (t, outcome)
                 }
             }))

@@ -459,6 +459,18 @@ pub struct MessagesStreamDecoder {
     tool_blocks: HashMap<u64, u32>,
 }
 
+/// A stream error event; `kind` is the error `type`, else its `code`.
+fn error_event(err: &Value) -> CanonicalEvent {
+    CanonicalEvent::Error {
+        message: str_field(err, "message")
+            .unwrap_or("upstream error")
+            .to_owned(),
+        kind: str_field(err, "type")
+            .or_else(|| str_field(err, "code"))
+            .map(str::to_owned),
+    }
+}
+
 impl StreamDecoder for MessagesStreamDecoder {
     fn feed(&mut self, event: &SseEvent) -> Result<Vec<CanonicalEvent>, ProtocolError> {
         if event.data.trim().is_empty() {
@@ -554,14 +566,11 @@ impl StreamDecoder for MessagesStreamDecoder {
                 }
             }
             "message_stop" => self.done = true,
-            "error" => {
-                let err = v.get("error").unwrap_or(&Value::Null);
-                out.push(CanonicalEvent::Error {
-                    message: str_field(err, "message")
-                        .unwrap_or("upstream error")
-                        .to_owned(),
-                    kind: str_field(err, "type").map(str::to_owned),
-                });
+            "error" => out.push(error_event(v.get("error").unwrap_or(&Value::Null))),
+            // An error object without an Anthropic event type, as some compatible endpoints
+            // send it; ignoring it would turn the error into an empty stream.
+            _ if v.get("error").is_some_and(Value::is_object) => {
+                out.push(error_event(&v["error"]));
             }
             _ => {} // ping, content_block_stop, unknown future events
         }
@@ -1055,6 +1064,33 @@ mod tests {
         assert_eq!(r.usage.input_tokens, Some(15), "input includes cache reads");
         assert_eq!(r.usage.cache_read_tokens, Some(5));
         assert_eq!(r.usage.output_tokens, Some(7));
+    }
+
+    #[test]
+    fn decodes_error_events_with_and_without_an_event_type() {
+        let error = |raw: &str| {
+            let mut d = MessagesStreamDecoder::default();
+            events(raw.as_bytes())
+                .iter()
+                .flat_map(|e| d.feed(e).expect("feed"))
+                .find_map(|c| match c {
+                    CanonicalEvent::Error { message, kind } => Some((message, kind)),
+                    _ => None,
+                })
+        };
+        assert_eq!(
+            error(
+                "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n"
+            ),
+            Some(("Overloaded".into(), Some("overloaded_error".into())))
+        );
+        assert_eq!(
+            error(
+                "data: {\"error\":{\"code\":\"8\",\"message\":\"inference exceeds tpm/rpm limit\"}}\n\n"
+            ),
+            Some(("inference exceeds tpm/rpm limit".into(), Some("8".into()))),
+            "untyped error object"
+        );
     }
 
     #[test]

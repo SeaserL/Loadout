@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::usage::UsageReport;
 use crate::{
     CatalogModel, HttpClient, ProviderDescriptor, ProviderError, TrustLevel, UpstreamFailure,
-    classify,
+    classify, classify_stream_error,
 };
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -182,6 +182,12 @@ pub trait ProviderModule: Send + Sync + 'static {
     /// Maps an upstream HTTP error; override to recognize provider-specific quota errors.
     fn classify(&self, status: u16, headers: &HeaderMap, body: &str) -> UpstreamFailure {
         classify(status, headers, body)
+    }
+
+    /// Maps an error event inside an upstream stream (`kind`: its error `type` or `code`);
+    /// override alongside [`Self::classify`].
+    fn classify_stream_error(&self, kind: Option<&str>, message: &str) -> UpstreamFailure {
+        classify_stream_error(kind, message)
     }
 
     // ---- discovery driver ----

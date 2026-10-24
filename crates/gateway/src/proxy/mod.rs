@@ -83,26 +83,13 @@ fn category_for(kind: FailureKind) -> ErrorCategory {
     }
 }
 
-/// Maps an error event received inside an upstream stream.
-fn stream_failure(kind: Option<&str>, message: &str) -> UpstreamFailure {
-    let k = kind.unwrap_or("").to_ascii_lowercase();
-    let m = message.to_ascii_lowercase();
-    let failure_kind = if k.contains("rate_limit") {
-        FailureKind::RateLimited { retry_after: None }
-    } else if k.contains("quota") || k.contains("insufficient") || m.contains("quota") {
-        FailureKind::QuotaExhausted { reset_after: None }
-    } else if (k.contains("authentication") || k.contains("permission"))
-        && loadout_provider_sdk::looks_like_account_disabled(&m)
-    {
-        FailureKind::AccountDisabled
-    } else if k.contains("authentication") || k.contains("permission") {
-        FailureKind::Auth
-    } else if k.contains("invalid_request") {
-        FailureKind::InvalidRequest
-    } else {
-        FailureKind::Server
-    };
-    UpstreamFailure::new(failure_kind, None, message)
+/// Whether a failure makes the route's other protocol variants pointless for this request:
+/// they would wait for the same slow key, or be refused by the same limit.
+fn spends_route(kind: FailureKind) -> bool {
+    matches!(
+        kind,
+        FailureKind::Timeout | FailureKind::RateLimited { .. } | FailureKind::QuotaExhausted { .. }
+    )
 }
 
 enum Outcome {
@@ -132,6 +119,8 @@ pub(crate) struct Scope<'a> {
     pub name: &'a str,
     /// Until when a failed round may still be retried; `None` on the last round.
     pub retry_until_ms: Option<i64>,
+    /// Round-robin turn when the endpoint rotates (ADR-015 §5).
+    pub turn: Option<usize>,
 }
 
 /// Marks a response that must not reach the client: every member was cooling down, retry
@@ -254,7 +243,7 @@ pub(crate) async fn handle_bytes(
     }
 
     let resolved = match scope {
-        Some(s) => table.resolve_endpoint(s.name, &hints.model),
+        Some(s) => table.resolve_endpoint(s.name, &hints.model, s.turn),
         None => table.resolve(&hints.model),
     };
     let resolution = match resolved {
@@ -279,8 +268,12 @@ pub(crate) async fn handle_bytes(
         .and_then(|v| v.to_str().ok())
         .map(str::trim)
         .filter(|v| !v.is_empty());
-    let preferred = session.and_then(|s| plane.sessions.get(s, ts_ms));
-    let candidates = select(
+    // A rotating endpoint moves every request on, sessions included (ADR-015 §5).
+    let rotating = scope.is_some_and(|s| s.turn.is_some());
+    let preferred = session
+        .filter(|_| !rotating)
+        .and_then(|s| plane.sessions.get(s, ts_ms));
+    let mut candidates = select(
         &resolution,
         &SelectRequest {
             ingress,
@@ -299,6 +292,10 @@ pub(crate) async fn handle_bytes(
             preferred: preferred.as_deref(),
         },
     );
+    if no_failover {
+        // One target, not one route: another protocol of the same account is a failover too.
+        candidates.attempts.truncate(1);
+    }
 
     // Decision trail (metadata only): targets selection excluded, then each attempt.
     let mut trail = Trail::default();
@@ -365,8 +362,23 @@ pub(crate) async fn handle_bytes(
     let mut skipped: Vec<String> = Vec::new();
     let mut attempts = 0u32;
     let mut seed: Option<ConversationSeed> = None;
+    // Routes whose other protocol variants would wait or be refused the same way: the first
+    // token timed out, or the key is rate limited / out of quota (ADR-003 §7).
+    let mut spent: Vec<&str> = Vec::new();
 
     for target in &candidates.attempts {
+        let route = account_model_key(&target.id);
+        if spent.contains(&route) {
+            continue;
+        }
+        if last.is_some() && !target.health.is_available(now_ms()) {
+            // Blocked while earlier attempts ran, e.g. by a concurrent request.
+            trail.skipped(
+                target,
+                select_reason(target, "unavailable (circuit breaker)"),
+            );
+            continue;
+        }
         let permit = match target.module.account_concurrency() {
             Some(limit) => match plane.account_slots.try_acquire(&target.account_id, limit) {
                 Some(p) => Some(p),
@@ -421,9 +433,10 @@ pub(crate) async fn handle_bytes(
                         kind = failure.kind.code(),
                         "web session attempt failed"
                     );
-                    target
-                        .health
-                        .record_failure(failure.kind, &failure.message, now_ms());
+                    table.record_failure(target, failure.kind, &failure.message, now_ms());
+                    if spends_route(failure.kind) {
+                        spent.push(route);
+                    }
                     let stop = !failure.kind.fails_over();
                     last = Some((failure, target.clone()));
                     if stop {
@@ -501,9 +514,10 @@ pub(crate) async fn handle_bytes(
                     status = ?failure.status,
                     "upstream attempt failed"
                 );
-                target
-                    .health
-                    .record_failure(failure.kind, &failure.message, now_ms());
+                table.record_failure(target, failure.kind, &failure.message, now_ms());
+                if spends_route(failure.kind) {
+                    spent.push(route);
+                }
                 if failure.kind == FailureKind::ModelUnavailable {
                     // Not in this account's plan: the control plane turns it off (ExecPlan 022).
                     plane.telemetry.model_unavailable(&target.id);
@@ -815,7 +829,11 @@ impl Attempt<'_> {
                     .iter()
                     .find(|c| matches!(c, CanonicalEvent::Error { .. }))
                 {
-                    return Outcome::Failed(stream_failure(kind.as_deref(), message));
+                    return Outcome::Failed(
+                        self.target
+                            .module
+                            .classify_stream_error(kind.as_deref(), message),
+                    );
                 }
                 meter.observe(&canonical);
                 match &mut aggregator {

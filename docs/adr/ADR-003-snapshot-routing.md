@@ -57,7 +57,7 @@ Eligibility filter 同时读取快照与这些原子状态。两者都是内存�
 ### 5. v1 选路规则：有序粘性 failover 链
 
 - 每个名称对应一个**有序候选链**。
-- 选择规则：**取链上第一个 eligible 的 target**。不做加权随机，不做负载均衡。
+- 选择规则：**取链上第一个 eligible 的 target**。不做加权随机，不做负载均衡（例外：开启 `rotate` 的专用端点按请求轮换起始账号，ADR-015 §5）。
   - 这使同一个 Virtual Model 的流量稳定落在同一 target 上（天然粘性），符合"平时不切换"的需求。
 - `X-Loadout-Session-ID`：同一 session 固定到首次选中的 target，直到该 target 不再 eligible。
 - 有状态 Responses 请求的固定规则见 ADR-006。
@@ -86,6 +86,10 @@ capabilities ⊇ 请求所需（tools / vision / reasoning / streaming）
   - 额度耗尽 → `QUOTA_EXHAUSTED`，至 reset；
   - 5xx / timeout → `COOLDOWN`，指数退避（起始 5 s，上限 5 min）；
   - 401/403 → `AUTH_FAILED`，需用户处理。
+- 2026-10-24（ExecPlan 034）修订：
+  - **最大尝试次数按路由（account model）计数**：同一 account model 的协议变体（chat / messages / responses）共用一次额度，组内仍 ingress 协议优先。`X-Loadout-No-Failover` 仍只尝试一个 target。
+  - **限流与额度是 key 级状态**：`RATE_LIMITED` / `QUOTA_EXHAUSTED` 同步到同一 account model 的其他协议变体（相同截止时间，不计入它们的失败统计；不缩短更长的封锁，不覆盖 `AUTH_FAILED`）。`COOLDOWN` 与 `AUTH_FAILED` 仍按 target 独立（Harness §18 的例外仅此一项）。
+  - 同一请求内，某条路由首字超时或被限流后，跳过它的其余协议变体，最坏首字等待仍为 `max_attempts × first_token_timeout`。有尝试失败后，后续候选在尝试前重新检查健康状态（前面的尝试期间，并发请求可能已封锁了它）。
 
 ### 8. Exact Model 与 No Hidden Downgrade
 

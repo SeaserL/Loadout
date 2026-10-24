@@ -24,7 +24,7 @@ pub enum BackupCommand {
     /// Export every API-key account WITH its key, encrypted with a passphrase, to share the
     /// accounts with another Loadout. Asks for two confirmations.
     ExportKeys {
-        /// Output file (default: <data dir>\backups\loadout-keys-<time>.loadout-keys).
+        /// Output file (default: alongside the running Loadout daemon executable).
         #[arg(long)]
         out: Option<PathBuf>,
     },

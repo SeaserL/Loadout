@@ -15,6 +15,8 @@ pub struct EndpointRow {
     pub members: Option<Vec<String>>,
     pub default_model: Option<String>,
     pub wait_secs: u32,
+    /// Each request starts at the next member account (ADR-015 §5).
+    pub rotate: bool,
 }
 
 #[derive(Debug)]
@@ -31,10 +33,12 @@ fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<EndpointRow> {
         members: members.and_then(|m| serde_json::from_str(&m).ok()),
         default_model: r.get(4)?,
         wait_secs: u32::try_from(r.get::<_, i64>(5)?).unwrap_or(0),
+        rotate: r.get::<_, i64>(6)? == 1,
     })
 }
 
-const COLUMNS: &str = "name, provider_slug, enabled, members_json, default_model, wait_secs";
+const COLUMNS: &str =
+    "name, provider_slug, enabled, members_json, default_model, wait_secs, rotate";
 
 impl<'a> EndpointRepo<'a> {
     pub(crate) fn new(db: &'a Database) -> Self {
@@ -70,12 +74,12 @@ impl<'a> EndpointRepo<'a> {
         self.db.with_conn(|c| {
             c.execute(
                 "INSERT INTO endpoints (name, provider_slug, enabled, members_json, default_model,
-                                        wait_secs, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
+                                        wait_secs, rotate, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
                  ON CONFLICT(name) DO UPDATE SET provider_slug = excluded.provider_slug,
                      enabled = excluded.enabled, members_json = excluded.members_json,
                      default_model = excluded.default_model, wait_secs = excluded.wait_secs,
-                     updated_at = excluded.updated_at",
+                     rotate = excluded.rotate, updated_at = excluded.updated_at",
                 params![
                     e.name,
                     e.provider_slug,
@@ -83,6 +87,7 @@ impl<'a> EndpointRepo<'a> {
                     members,
                     e.default_model,
                     i64::from(e.wait_secs),
+                    i64::from(e.rotate),
                     now
                 ],
             )?;
@@ -112,6 +117,7 @@ mod tests {
             members: None,
             default_model: None,
             wait_secs: 30,
+            rotate: false,
         };
         repo.save(&e).expect("save");
         assert_eq!(repo.get("sensenova").expect("get"), Some(e.clone()));
@@ -120,6 +126,7 @@ mod tests {
         e.default_model = Some("deepseek-v4-flash".into());
         e.enabled = false;
         e.wait_secs = 0;
+        e.rotate = true;
         repo.save(&e).expect("replace");
         assert_eq!(repo.list().expect("list"), vec![e.clone()]);
 

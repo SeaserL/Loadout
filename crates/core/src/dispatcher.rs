@@ -31,6 +31,8 @@ pub(crate) struct DaemonState {
     pub started_at_ms: i64,
     pub gateway_addr: SocketAddr,
     pub data_dir: PathBuf,
+    /// Directory containing the running daemon executable; key exports default here.
+    pub install_dir: PathBuf,
     /// Where a damaged database was moved at startup (ExecPlan 007).
     pub recovered_from: Option<String>,
 }
@@ -229,7 +231,8 @@ impl Handler for Dispatcher {
 
             api::KeysExport::NAME => {
                 let p = decode_params::<api::KeysExport>(params)?;
-                let (db, dir) = (s.db.clone(), s.data_dir.clone());
+                let (db, dir, install_dir) =
+                    (s.db.clone(), s.data_dir.clone(), s.install_dir.clone());
                 let (secrets, registry) = (s.control.secrets.clone(), s.control.registry.clone());
                 let result = tokio::task::spawn_blocking(move || {
                     crate::keys_export::export(
@@ -237,6 +240,7 @@ impl Handler for Dispatcher {
                         secrets.as_ref(),
                         &registry,
                         &dir,
+                        &install_dir,
                         p.path,
                         &p.passphrase,
                         &p.confirm,
@@ -567,6 +571,7 @@ impl Dispatcher {
                         p.members,
                         p.default_model,
                         p.wait_secs,
+                        p.rotate,
                     )
                     .await?;
                 changed(s);
@@ -709,6 +714,7 @@ mod tests {
             started_at_ms: 1,
             gateway_addr: SocketAddr::from(([127, 0, 0, 1], 8317)),
             data_dir: PathBuf::from("x"),
+            install_dir: PathBuf::from("x"),
             recovered_from: None,
         })
     }
@@ -1113,6 +1119,7 @@ mod tests {
                 members: None,
                 default_model: None,
                 wait_secs: None,
+                rotate: None,
             },
         )
         .await
@@ -1121,6 +1128,7 @@ mod tests {
         assert_eq!(e.active_accounts, ["a", "b"]);
         assert_eq!(e.models, ["m1"]);
         assert_eq!(e.wait_secs, 30);
+        assert!(!e.rotate, "rotation is off for a new endpoint");
         assert_eq!(e.openai_base_url, "http://127.0.0.1:8317/e/acme/v1");
         assert_eq!(e.anthropic_base_url, "http://127.0.0.1:8317/e/acme");
         let table = d.state.control.routes.load();
@@ -1152,6 +1160,31 @@ mod tests {
             "still every account in the current pool"
         );
 
+        // Rotation (ADR-015 §5): turned on, then kept by a save that leaves it out.
+        let mut on = api::EndpointSaveParams {
+            name: None,
+            provider: "acme".into(),
+            enabled: true,
+            members: None,
+            default_model: None,
+            wait_secs: None,
+            rotate: Some(true),
+        };
+        assert!(
+            call::<api::EndpointSave>(&d, &on)
+                .await
+                .expect("rotate")
+                .rotate
+        );
+        assert!(d.state.control.routes.load().endpoint_rotates("acme"));
+        on.rotate = None;
+        assert!(
+            call::<api::EndpointSave>(&d, &on)
+                .await
+                .expect("keep")
+                .rotate
+        );
+
         // Explicit members, off, and removal.
         let e = call::<api::EndpointSave>(
             &d,
@@ -1162,11 +1195,13 @@ mod tests {
                 members: Some(vec!["b".into()]),
                 default_model: Some("m1".into()),
                 wait_secs: Some(0),
+                rotate: Some(false),
             },
         )
         .await
         .expect("save");
         assert_eq!(e.members.as_deref(), Some(&["b".to_owned()][..]));
+        assert!(!e.rotate);
         assert!(e.active_accounts.is_empty());
         assert!(
             d.state
@@ -1185,6 +1220,7 @@ mod tests {
                 members: None,
                 default_model: None,
                 wait_secs: None,
+                rotate: None,
             },
         )
         .await
