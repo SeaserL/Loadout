@@ -22,7 +22,7 @@ export function validateConfig(config) {
   if (
     !config ||
     Object.keys(config).some(
-      (k) => !["network", "port", "hosts", "workbuddy", "radar", "pricingSync"].includes(k),
+      (k) => !["network", "port", "hosts", "workbuddy", "radar", "pricingSync", "updateFeed"].includes(k),
     )
   )
     throw Error("INVALID_CONFIG");
@@ -33,6 +33,9 @@ export function validateConfig(config) {
     config.port > 65535 ||
     config.port === 8317
   )
+    throw Error("INVALID_ISOLATED_CONFIG");
+  // Tests point the updater at a local stand-in for GitHub; it can never be another machine.
+  if (config.updateFeed !== undefined && !/^http:\/\/127\.0\.0\.1:\d+\//.test(config.updateFeed))
     throw Error("INVALID_ISOLATED_CONFIG");
   if (
     config.hosts !== undefined &&

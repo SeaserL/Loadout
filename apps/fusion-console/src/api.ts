@@ -72,6 +72,19 @@ export async function native<T>(path: string, method = "GET", body?: unknown): P
 
 // ---- types --------------------------------------------------------------------------------
 
+export interface UpdateStatus {
+  current_version: string;
+  latest_version: string | null;
+  phase: string;
+  progress: { done: number; total: number } | null;
+  size: number | null;
+  release_url: string | null;
+  checked_at_ms: number | null;
+  error: string | null;
+  last_result: { status: "installed" | "failed"; from: string; to: string; at_ms: number } | null;
+  auto_check: boolean;
+}
+
 export interface DaemonStatus {
   version: string;
   pid: number;
@@ -440,6 +453,12 @@ export const api = {
   setClientPolicy: (name: string, policy: ClientPolicy) =>
     call<ClientInfo>("client.set_policy", { name, policy }),
   /** Days and hours are the viewer's own, not UTC. */
+  updateStatus: () => call<UpdateStatus>("update.status"),
+  updateCheck: () => call<UpdateStatus>("update.check"),
+  updateDownload: () => call<UpdateStatus>("update.download"),
+  updateInstall: () => call<UpdateStatus>("update.install"),
+  updateSetAutoCheck: (enabled: boolean) => call<UpdateStatus>("update.set_auto_check", { enabled }),
+  updateOpenNotes: () => call<unknown>("update.open_notes"),
   stats: (since_ms: number, group_by: string, until_ms?: number) =>
     call<StatsEntry[]>("stats.summary", { since_ms, group_by, until_ms, tz_offset_min: -new Date().getTimezoneOffset() }),
 

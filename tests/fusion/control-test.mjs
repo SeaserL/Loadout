@@ -110,6 +110,12 @@ try {
   await check("status-and-provider-presets", async () => {
     const status = await rpc("daemon.status");
     assert.equal(status.gateway.listening, true);
+    // Limited to this computer, the updater stays out of it: reading the status starts nothing.
+    const update = await rpc("update.status");
+    assert.equal(update.phase, "disabled");
+    assert.match(update.current_version, /^\d+\.\d+\.\d+$/);
+    await assert.rejects(rpc("update.check"), /本机模式/);
+    await assert.rejects(rpc("update.open_notes"), /没有可以查看/);
     const kinds = await rpc("provider.kinds");
     assert(kinds.some((k) => k.kind === "sensenova" && k.default_base_url));
     assert(kinds.some((k) => k.kind === "openai-compatible" && k.fixed_slug === null));

@@ -13,7 +13,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { api } from "./api";
-import { AppearanceMenu, HubMark, LockedPage, Notice, useCopy } from "./components";
+import { HubMark, LockedPage, Notice, useCopy } from "./components";
 import { usePoll } from "./hooks";
 import { type MessageKey, t, tr, useLang } from "./i18n";
 import { Dashboard } from "./pages/Dashboard";
@@ -52,13 +52,14 @@ function currentRoute(): { page: string; section?: string } {
   return ALL.some((p) => p.id === id) ? { page: id as string, section } : { page: "dashboard" };
 }
 
-function NavLink(props: { item: NavItem; page: string }) {
+function NavLink(props: { item: NavItem; page: string; dot?: boolean }) {
   const on = props.item.id === props.page;
   const label = t(props.item.label);
   return (
     <a href={`#/${props.item.id}`} className={on ? "active" : ""} aria-current={on ? "page" : undefined} title={label}>
       <span className="nav-icon">{props.item.icon}</span>
       <span className="nav-label">{label}</span>
+      {props.dot && <span className="nav-dot" aria-label={t("update.available", { version: "" })} />}
     </a>
   );
 }
@@ -68,6 +69,8 @@ export function App() {
   useLang();
   const [route, setRoute] = useState(currentRoute);
   const status = usePoll(api.status, 3000);
+  const update = usePoll(api.updateStatus, 60000);
+  const newVersion = update.data?.phase === "available" || update.data?.phase === "ready";
   const copy = useCopy();
   const page = route.page;
   const sidebar = useRef<HTMLElement>(null);
@@ -130,22 +133,19 @@ export function App() {
         <div className="spacer" />
         <nav className="nav" aria-label={t("shell.nav")}>
           {FOOT.map((p) => (
-            <NavLink key={p.id} item={p} page={page} />
+            <NavLink key={p.id} item={p} page={page} dot={p.id === "settings" && newVersion} />
           ))}
         </nav>
-        <div className="gateway-row">
-          <button
-            type="button"
-            className="gateway-line"
-            disabled={!addr}
-            title={running ? t("shell.running") : t("shell.stopped")}
-            onClick={() => addr && copy(`http://${addr}/v1`)}
-          >
-            <span className={`dot ${running ? "ok" : status.loading ? "" : "bad"}`} />
-            <span className="nav-label ellipsis">{addr ?? t("shell.connecting")}</span>
-          </button>
-          <AppearanceMenu />
-        </div>
+        <button
+          type="button"
+          className="gateway-line"
+          disabled={!addr}
+          title={running ? t("shell.running") : t("shell.stopped")}
+          onClick={() => addr && copy(`http://${addr}/v1`)}
+        >
+          <span className={`dot ${running ? "ok" : status.loading ? "" : "bad"}`} />
+          <span className="nav-label ellipsis">{addr ?? t("shell.connecting")}</span>
+        </button>
       </aside>
       <main tabIndex={-1}>
         {locked && (

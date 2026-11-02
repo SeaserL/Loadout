@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from "react";
-import { CircleStop, Database, RotateCw } from "lucide-react";
-import { api, type DaemonStatus, type Setting } from "../api";
+import { CircleStop, Database, Download, RefreshCw, RotateCw } from "lucide-react";
+import { api, type DaemonStatus, type Setting, type UpdateStatus } from "../api";
 import {
   Badge,
   Button,
   Card,
   ErrorText,
   LanguageSelect,
-  MotionSwitch,
+  MotionRate,
   Notice,
   Page,
   PaletteGrid,
@@ -109,7 +109,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
             </dd>
             <dt>{t("settings.motion")}</dt>
             <dd>
-              <MotionSwitch />
+              <MotionRate />
             </dd>
           </dl>
           <div className="settings-palette">
@@ -117,6 +117,7 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
           </div>
         </Card>
       </div>
+      <UpdateCard />
       <BackupCard />
       <Card title={t("settings.options")}>
         <div className="table-wrap">
@@ -224,6 +225,123 @@ function SettingRow(props: {
         </div>
       </td>
     </tr>
+  );
+}
+
+const BUSY = new Set(["checking", "downloading", "extracting", "verifying", "installing"]);
+const megabytes = (bytes: number) => `${Math.round(bytes / 1048576)} MB`;
+
+function UpdateCard() {
+  const status = usePoll(api.updateStatus, 2000);
+  const [fresh, setFresh] = useState<UpdateStatus>();
+  const action = useAction();
+  const confirm = useConfirm();
+  const u = fresh ?? status.data;
+  if (!u) return null;
+  const start = (call: () => Promise<UpdateStatus>) =>
+    void action.run(async () => {
+      setFresh(await call());
+      window.setTimeout(() => setFresh(undefined), 1500);
+    });
+  const busy = BUSY.has(u.phase) || action.busy;
+  const latest = u.latest_version ?? "";
+  const line =
+    u.phase === "checking"
+      ? t("update.checking")
+      : u.phase === "current"
+        ? t("update.upToDate")
+        : u.phase === "available"
+          ? t("update.available", { version: latest })
+          : u.phase === "downloading"
+            ? t("update.downloading")
+            : u.phase === "extracting"
+              ? t("update.extracting")
+              : u.phase === "verifying"
+                ? t("update.verifying")
+                : u.phase === "ready"
+                  ? t("update.ready", { version: latest })
+                  : u.phase === "installing"
+                    ? t("update.installing")
+                    : u.phase === "disabled"
+                      ? t("update.disabled")
+                      : null;
+  const share = u.progress && u.progress.total > 0 ? Math.min(100, (u.progress.done / u.progress.total) * 100) : null;
+  return (
+    <Card title={t("update.title")}>
+      <dl className="kv">
+        <dt>{t("update.current")}</dt>
+        <dd>{u.current_version}</dd>
+        {line && (
+          <>
+            <dt>{t("update.state")}</dt>
+            <dd>
+              {line}
+              {u.release_url && (u.phase === "available" || u.phase === "ready") && (
+                <>
+                  {" "}
+                  <a href={u.release_url} onClick={(e) => { e.preventDefault(); void api.updateOpenNotes().catch(() => undefined); }}>
+                    {t("update.notes")}
+                  </a>
+                </>
+              )}
+            </dd>
+          </>
+        )}
+        {u.checked_at_ms != null && (
+          <>
+            <dt>{t("update.checkedAt")}</dt>
+            <dd>{time(u.checked_at_ms)}</dd>
+          </>
+        )}
+        {u.phase !== "disabled" && (
+          <>
+            <dt>{t("update.auto")}</dt>
+            <dd>
+              <Switch checked={u.auto_check} label={t("update.auto")} onChange={(on) => start(() => api.updateSetAutoCheck(on))} />
+            </dd>
+          </>
+        )}
+      </dl>
+      {share != null && (
+        <div className="update-bar" role="progressbar" aria-valuenow={Math.round(share)} aria-valuemin={0} aria-valuemax={100}>
+          <i style={{ width: `${share}%` }} />
+        </div>
+      )}
+      {u.last_result?.status === "installed" && <Notice>{t("update.installed", { from: u.last_result.from, to: u.last_result.to })}</Notice>}
+      {u.last_result?.status === "failed" && (
+        <Notice tone="warn">{t("update.failed", { from: u.last_result.from, to: u.last_result.to })}</Notice>
+      )}
+      <ErrorText error={action.error ?? u.error} />
+      {u.phase !== "disabled" && (
+        <div className="card-foot">
+          <div className="spacer" />
+          <Button icon={<RefreshCw size={16} />} disabled={busy} onClick={() => start(api.updateCheck)}>
+            {t("update.check")}
+          </Button>
+          {u.phase === "available" && (
+            <Button kind="primary" icon={<Download size={16} />} disabled={busy} onClick={() => start(api.updateDownload)}>
+              {t("update.download", { version: latest, size: u.size ? megabytes(u.size) : "" })}
+            </Button>
+          )}
+          {u.phase === "ready" && (
+            <Button
+              kind="primary"
+              icon={<RotateCw size={16} />}
+              disabled={busy}
+              onClick={() =>
+                void confirm({
+                  title: t("update.confirmTitle", { version: latest }),
+                  message: t("update.confirmBody"),
+                  confirmLabel: t("update.install"),
+                }).then((ok) => ok && start(api.updateInstall))
+              }
+            >
+              {t("update.install")}
+            </Button>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 

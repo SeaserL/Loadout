@@ -91,7 +91,7 @@ export function StackedBars(props: { points: StackedPoint[]; picked?: string; on
                 <rect className="hit" x={PAD_LEFT + slot * i} y={PAD_TOP} width={slot} height={plotH} rx={4} />
                 <g
                   className={props.points.length <= MAX_GROWING_BARS ? "bar-grow" : undefined}
-                  style={{ transformOrigin: `0 ${y(0)}px`, animationDelay: `${Math.min(i, 40) * 18}ms` }}
+                  style={{ transformOrigin: `0 ${y(0)}px`, animationDelay: `calc(${Math.min(i, 40) * 18}ms / var(--motion-rate, 1))` }}
                 >
                   {p.input > 0 && (
                     <rect className="bar-input" x={x} y={inTop} width={barW} height={y(0) - inTop} rx={2} />

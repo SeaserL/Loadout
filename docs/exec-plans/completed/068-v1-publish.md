@@ -43,7 +43,7 @@ Rust 线 0.4.0，Fusion 桌面壳 0.5.0，设置页显示 `3.8.52 · 067.1-<hash
 
 ## Known risks
 - 从零构建的步骤没有在干净机器上完整跑过，只验证了后端还原、Rust 工作区和前端的干净检出。
-- GitHub 上还没有 1.0 的发布包，README 写明了。
+- 这份计划开始时 GitHub 上还没有 1.0 的发布包。后来按用户要求发布了，见下面的 Release 一节。
 
 ## Definition of done
 main 上的 README 显示新内容；本机包显示 1.0.0；回归通过；扫描干净。
@@ -71,7 +71,7 @@ main 上的 README 显示新内容；本机包显示 1.0.0；回归通过；扫�
 
 `loadout-browser` 的 `web_session` 有一次失败，当时和其他编译任务同时运行；单独重跑和完整重跑都通过，判断是负载下的偶发失败，没有深究。
 
-未覆盖：从零构建的步骤没有在干净机器上完整跑过（README 写明了）；本机还在运行上一个候选 `c04d850e3c7d`，换包要用户同意；没有发 Release。
+未覆盖：从零构建的步骤没有在干净机器上完整跑过（README 写明了）；本机还在运行上一个候选 `c04d850e3c7d`，换包要用户同意。
 
 ## Release（2026-11-03）
 
@@ -83,11 +83,13 @@ main 上的 README 显示新内容；本机包显示 1.0.0；回归通过；扫�
 | 发布后 0.4 会怎样 | 更新页显示 `Missing or duplicate Windows release asset`，不下载，网关不受影响 | `crates/core/src/updates.rs`：先按固定名字找资产，找不到就报错 |
 | 1.0 有没有更新器 | 没有 | 控制台过滤了 `updates.*` 设置，后端和桌面壳没有更新逻辑，`isolation-guard` 还拦截了 `api.github.com` |
 
-发布前查到并修掉一个问题：不带参数启动的新实例 `port: 0`，端口不固定，和“一个地址”的说法不符。现在新安装优先用 8318，被占用就换一个，都写进 `instance.json`。
+发布前查到并修掉一个问题：不带参数启动的新实例第一次拿到的是随机端口，不是 README 写的 8318。之后 `supervisor` 会把端口存进 `instance.json`，所以它不会每次重启都变；提交 `e22719be` 的说明和当时的说法都夸大了这一点。现在新安装优先用 8318，被占用才换一个。
+
+发布结果：`v1.0.0` 是 Latest，资产 `Loadout-1.0.0-portable-windows-x64.zip`（包 `4d5bfb8d0288`）和 `.sha256`。PR #1 的 CI 第一次因 `port_conflict_is_explained` 失败，重跑通过；合并后 `main` 上因 `web_session_answers_through_the_gateway` 失败。两个都是 Rust 线的旧测试，同样的代码在别的运行里通过，判断是 CI 机器慢造成的。
 
 包内容扫描：没有本机用户名、邮箱、真实账号名、令牌或可疑文件名。`PRIVATE KEY` 只出现在库代码和文档里，没有真实密钥。编译产物里有 `D:\\Loadout` 这个构建路径，不是秘密，没有处理。
 
 ## Decisions
 - 不把 `development/` 的证据传上去：约 58 MB，1700 多处本机用户名，对读者没有用，结论都在 `docs/research/`。
-- 不发 Release：用户没有要求；0.4 的更新器会看到它，要先想好升级路径。
+- 一开始没有发 Release：当时用户没有要求，0.4 的更新器又会看到它。用户确认升级路径后要求照常发布。
 - 后端放顶层 `backend/` 而不是 `fusion/`：`fusion/` 会被整个复制进发布包。
