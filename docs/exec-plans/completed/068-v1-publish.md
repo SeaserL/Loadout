@@ -73,6 +73,20 @@ main 上的 README 显示新内容；本机包显示 1.0.0；回归通过；扫�
 
 未覆盖：从零构建的步骤没有在干净机器上完整跑过（README 写明了）；本机还在运行上一个候选 `c04d850e3c7d`，换包要用户同意；没有发 Release。
 
+## Release（2026-11-03）
+
+用户要求先确认 0.4 能否覆盖更新到 1.0，确实不能就照常发 Release，并检查当前版本有没有更新器。
+
+| 问题 | 结论 | 依据 |
+|---|---|---|
+| 0.4 能否覆盖更新到 1.0 | 不能 | 用 `packaging/update.ps1` 的测试模式安装真实的包：退出码 1，`Unexpected or duplicate archive path`，程序文件未动。脚本只接受三个固定程序和白名单文件，还要校验 `loadout --version` |
+| 发布后 0.4 会怎样 | 更新页显示 `Missing or duplicate Windows release asset`，不下载，网关不受影响 | `crates/core/src/updates.rs`：先按固定名字找资产，找不到就报错 |
+| 1.0 有没有更新器 | 没有 | 控制台过滤了 `updates.*` 设置，后端和桌面壳没有更新逻辑，`isolation-guard` 还拦截了 `api.github.com` |
+
+发布前查到并修掉一个问题：不带参数启动的新实例 `port: 0`，端口不固定，和“一个地址”的说法不符。现在新安装优先用 8318，被占用就换一个，都写进 `instance.json`。
+
+包内容扫描：没有本机用户名、邮箱、真实账号名、令牌或可疑文件名。`PRIVATE KEY` 只出现在库代码和文档里，没有真实密钥。编译产物里有 `D:\\Loadout` 这个构建路径，不是秘密，没有处理。
+
 ## Decisions
 - 不把 `development/` 的证据传上去：约 58 MB，1700 多处本机用户名，对读者没有用，结论都在 `docs/research/`。
 - 不发 Release：用户没有要求；0.4 的更新器会看到它，要先想好升级路径。

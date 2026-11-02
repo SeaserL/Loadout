@@ -46,6 +46,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -
 
 仅控制台/工具变化时，可在 `FUSION_ASSEMBLE_IN_PLACE=1` 下设置 `FUSION_REFRESH_FROM=<原构建工作区>` 运行 `assemble.mjs`：先完整验证旧清单，再比较编译时的上游 patch 和新增源码；一致才复用编译后台、替换静态文件与工具并重封清单。后端源码变化必须重编译。这个入口不绕过最终包回归和 UI 审查。
 
+## 发布到 GitHub
+
+资产名用 `Loadout-<版本>-portable-windows-x64.zip`，配同名 `.sha256`。**不要用 `Loadout-<版本>-windows-x64.zip`**：0.4 的更新器默认会自动下载这个名字，包又低于它的 384 MiB 上限，下载完安装必然失败。
+
+不要在要打包的目录上跑实例：运行时文件会留在里面，`archive.py` 报 `ARCHIVE_MEMBERS`。要预览就先用它，再重新运行 `assemble.mjs`。发布前从 ZIP 解压到一个新文件夹，确认不带参数也能启动。
+
 ## 固定输入和维护边界
 
 - OmniRoute唯一开发副本和revision集中在`scripts/fusion/config.mjs`；没有新增checkout。运行时补丁沿用057。

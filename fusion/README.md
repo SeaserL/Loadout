@@ -1,12 +1,12 @@
-# Loadout Fusion — Windows 便携版
+# Loadout 1.0 — Windows 便携版
 
-新控制台、Tauri 窗口和托盘、OmniRoute v3.8.52 后台和管理工具在同一个便携包里。无需 Node、npm 或开发服务器；需要 Windows 10/11 x64 和 WebView2。没有安装器和自启，不替换已安装的正式 Loadout。
+控制台、桌面窗口和托盘、OmniRoute v3.8.52 后台和管理工具在同一个便携包里。无需 Node、npm 或开发服务器；需要 Windows 10/11 x64 和 WebView2。没有安装器、自启和内置更新器，不替换已安装的 Loadout 0.4。
 
 ## 启动与退出
 
 双击 `Loadout.exe`（或仓库根目录的快捷方式）。窗口先显示启动状态，后台就绪后直接进入控制台，**不需要密码**：窗口用系统凭据库里的机器密钥换取会话，你看不到也不用管。用浏览器直接打开这个地址没有会话，只会提示从应用打开；其他本机用户同样进不来。客户端调用 `/v1` 仍然需要客户端密钥。
 
-默认数据在包的上一级目录 `loadout-fusion-isolated/desktop-current`，也可以用 `Loadout.exe --instance "D:\某处\loadout-fusion-isolated\one"` 指定。
+默认数据在包的上一级目录 `loadout-fusion-isolated/desktop-current`，也可以用 `Loadout.exe --instance "D:\某处\loadout-fusion-isolated\one"` 指定。默认实例第一次启动时用端口 8318，被占用就换一个空闲端口，之后一直用它。
 
 - 右上角 ×：隐藏窗口，托盘和网关保留。
 - 托盘左键或“打开 Loadout”：恢复窗口；重复启动复用窗口。

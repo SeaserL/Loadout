@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { Instance, baseline, pkg } from "./harness.mjs";
 const root = path.resolve(process.env.FUSION_RELEASE_ROOT);
-const { prepareDesktop, desktopDirectory } = await import(pathToFileURL(path.join(pkg, "tools/desktop.mjs")));
+const { prepareDesktop, desktopDirectory, choosePort } = await import(pathToFileURL(path.join(pkg, "tools/desktop.mjs")));
 const dir = path.join(root, "runs/loadout-fusion-isolated/desktop-entry-" + Date.now());
 const result = { baseline: baseline(), cases: [] };
 let i, target, before;
@@ -65,6 +66,14 @@ try {
     const restarted = await i.status();
     assert.equal(restarted.port, before.port); assert.notEqual(restarted.backendPid, before.backendPid);
     assert.equal(new Instance(dir).meta.id, id);
+    // The address is written down, not picked again at each start.
+    assert.equal(new Instance(dir).meta.config.port, before.port);
+    const held = http.createServer();
+    await new Promise((resolve) => held.listen(0, "127.0.0.1", resolve));
+    const taken = held.address().port;
+    assert.notEqual(await choosePort(taken), taken);
+    await new Promise((resolve) => held.close(resolve));
+    assert.equal(await choosePort(taken), taken);
   });
   await check("launch-receipt-does-not-contain-bootstrap-secrets", async () => {
     const secret = await i.secrets();

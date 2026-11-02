@@ -9,10 +9,12 @@
 你手上的 API 密钥、编码套餐和本地模型，汇成电脑上的一个地址。<br/>
 所有软件都填它。账号出错自动换下一个，每个 token 往哪走都看得见。
 
-[![Version](https://img.shields.io/badge/version-1.0.0-0f766e)](#安装)
+[![Version](https://img.shields.io/badge/version-1.0.0-0f766e)](https://github.com/SeaserL/Loadout/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#安装)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-OmniRoute%20v3.8.52-555)](backend/README.md)
+
+[下载](https://github.com/SeaserL/Loadout/releases/latest) · [安装](#安装) · [从 0.4 升级](#和-04-的关系)
 
 </div>
 
@@ -28,7 +30,7 @@
 http://127.0.0.1:8318/v1
 ```
 
-OpenAI SDK 在后面接 `/chat/completions`，Anthropic SDK 接 `/v1/messages`，都能到达同一个网关。不用分两个地址，也不用管软件说的是哪种协议：Chat Completions、Responses、Messages 之间互相转换，流式和工具调用都支持。
+8318 被别的程序占用时，新安装会换一个端口并一直用它，总览页显示实际地址。OpenAI SDK 在后面接 `/chat/completions`，Anthropic SDK 接 `/v1/messages`，都能到达同一个网关。不用分两个地址，也不用管软件说的是哪种协议：Chat Completions、Responses、Messages 之间互相转换，流式和工具调用都支持。
 
 每个软件用自己的客户端密钥，模型名用下面任何一种写法：
 
@@ -149,9 +151,18 @@ OpenAI SDK 在后面接 `/chat/completions`，Anthropic SDK 接 `/v1/messages`�
 
 ## 安装
 
-**1.0 的发布包还没有上传。** [Releases](https://github.com/SeaserL/Loadout/releases) 里最新的 v0.4.0 是上一代 Rust 版（见下文）。现在要用 1.0，需要从源码构建。
+1. 从 [Releases](https://github.com/SeaserL/Loadout/releases/latest) 下载 `Loadout-1.0.0-portable-windows-x64.zip`（约 380 MB），解压到一个路径不太深的文件夹，比如 `D:\Apps\Loadout`。
+2. 双击里面的 `Loadout.exe`。
 
-需要：Windows 10/11 x64、Git、Python 3、[Node.js 24.22.1](https://nodejs.org/dist/v24.22.1/)、Rust（版本由 `rust-toolchain.toml` 固定）、Visual Studio Build Tools（C++）、WebView2。
+需要 Windows 10/11 x64 和 WebView2 Runtime（通常已预装）。这是绿色版，没有安装器和开机自启，运行时自带。数据放在程序文件夹旁边的 `loadout-fusion-isolated`，密钥在 Windows 凭据管理器。
+
+关掉窗口后网关留在后台，软件照常能用；要完全退出，在托盘图标上右键选“退出并停止网关”。
+
+**1.0 还没有内置更新器。** 之后的版本要手动下载，升级方式写在对应 Release 的说明里。
+
+### 从源码构建
+
+需要：Git、Python 3、[Node.js 24.22.1](https://nodejs.org/dist/v24.22.1/)、Rust（版本由 `rust-toolchain.toml` 固定）、Visual Studio Build Tools（C++）、WebView2。
 
 ```powershell
 git clone https://github.com/SeaserL/Loadout.git
@@ -167,8 +178,6 @@ npm ci --prefix development\fusion\tools
 powershell -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -Action package -Node C:\path\to\node.exe
 ```
 
-运行包里的 `Start-Loadout.cmd`。关掉窗口后网关留在后台，软件照常能用；要完全退出，在托盘图标上右键选“退出并停止网关”。
-
 这套步骤还没有在一台干净的电脑上完整跑过。遇到问题请[开一个 issue](https://github.com/SeaserL/Loadout/issues)。发布和回归流程见[发布入口](docs/architecture/fusion-release-operations.md)。
 
 ## 和 0.4 的关系
@@ -182,11 +191,13 @@ powershell -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -Action pack
 | 地址 | `127.0.0.1:8317` | `127.0.0.1:8318` |
 | 管理方式 | 命名管道、`loadout` 命令行 | 桌面窗口 |
 
-两者可以同时运行，数据互不影响。要把账号带过来，在 0.4 里导出 `.loadout-keys`，在 1.0 里导入。
+**0.4 不能覆盖更新到 1.0，要手动下载。** 0.4 的安装脚本只接受三个固定的程序文件，而 1.0 是另一套结构。两者可以同时运行，数据互不影响。要把账号带过来，在 0.4 里导出 `.loadout-keys`，在 1.0 里导入。
 
-0.4 的内置更新只看 Releases，所以目前不会升级到 1.0。Rust 线的代码还在仓库里，版本号也同步到了 1.0.0，但不再是开发重点。
+0.4 的“软件更新”页之后会提示找到了 v1.0.0 但没有可用的安装包（`Missing or duplicate Windows release asset`）。这是预期的，不影响网关。如果不想看到，在同一页关掉自动检查。
 
-ChatGPT 网页会话转发、`loadout` 命令行和 `loadout setup` 只在 0.4 有。1.0 也还没有安装器和开机自启。
+Rust 线的代码还在仓库里，版本号也同步到了 1.0.0，但不再是开发重点。
+
+ChatGPT 网页会话转发、`loadout` 命令行和 `loadout setup` 只在 0.4 有。
 
 ## 致谢
 
