@@ -50,6 +50,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -
 
 资产名用 `Loadout-<版本>-portable-windows-x64.zip`，配同名 `.sha256`。**不要用 `Loadout-<版本>-windows-x64.zip`**：0.4 的更新器默认会自动下载这个名字，包又低于它的 384 MiB 上限，下载完安装必然失败。
 
+发布前运行 `node scripts/fusion/update-e2e.mjs <包.zip>`：它用真实的包走一遍检查、下载、安装和回滚，几分钟跑完，不会打开窗口。更新器只认比当前高的版本号，同一个版本号的新包不算更新。
+
 不要在要打包的目录上跑实例：运行时文件会留在里面，`archive.py` 报 `ARCHIVE_MEMBERS`。要预览就先用它，再重新运行 `assemble.mjs`。发布前从 ZIP 解压到一个新文件夹，确认不带参数也能启动。
 
 ## 固定输入和维护边界
