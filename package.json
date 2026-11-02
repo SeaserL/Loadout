@@ -3,10 +3,12 @@
   "private": true,
   "license": "Apache-2.0",
   "workspaces": [
-    "apps/desktop"
+    "apps/desktop",
+    "apps/fusion-console"
   ],
   "scripts": {
     "build": "npm run build --workspace apps/desktop",
-    "typecheck": "npm run typecheck --workspace apps/desktop"
+    "typecheck": "npm run typecheck --workspace apps/desktop",
+    "fusion:ui": "npm run build --workspace apps/fusion-console"
   }
 }

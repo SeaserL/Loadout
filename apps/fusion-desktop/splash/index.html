@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Loadout</title>
+    <style>
+      :root { color-scheme: light dark; --bg: #f4f4f6; --fg: #1c1c21; --muted: #85858d; --accent: #0f766e; --line: #e3e3e8; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #1a1a1e; --fg: #ededf1; --muted: #8b8b94; --accent: #5eead4; --line: #333339; } }
+      html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg);
+        font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; }
+      main { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; box-sizing: border-box; text-align: center; }
+      svg { color: var(--accent); }
+      h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: .01em; }
+      p { margin: 0; color: var(--muted); max-width: 46ch; }
+      .bar { width: 180px; height: 2px; background: var(--line); overflow: hidden; border-radius: 2px; }
+      .bar i { display: block; width: 40%; height: 100%; background: var(--accent); animation: run 1.3s ease-in-out infinite; }
+      @keyframes run { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+      @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2 2 7l10 5 10-5-10-5Z" /><path d="m2 12 10 5 10-5" /><path d="m2 17 10 5 10-5" />
+      </svg>
+      <h1>Loadout</h1>
+      <p id="status">正在启动本机网关…</p>
+      <div class="bar" id="bar"><i></i></div>
+    </main>
+  </body>
+</html>
