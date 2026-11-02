@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "status": "proposed_not_executed",
+  "date": "2026-10-29",
+  "secrets": "synthetic_only",
+  "provider": "mock-provider",
+  "model": "mock-model-v1",
+  "accounts": [
+    "a",
+    "b",
+    "c"
+  ],
+  "cases": [
+    {
+      "id": "V01",
+      "requirements": [
+        "R03"
+      ],
+      "setup": {
+        "order": [
+          "a",
+          "b",
+          "c"
+        ],
+        "strategy": "ordered",
+        "account_attempt_budget": 3,
+        "protocol_variants_per_account": 2
+      },
+      "upstream": {
+        "a": 429,
+        "b": 429,
+        "c": 200
+      },
+      "expect": {
+        "successful_account": "c",
+        "resolved_model": "mock-model-v1",
+        "failed_accounts_not_retried_via_protocol_alias": true
+      }
+    },
+    {
+      "id": "V02",
+      "requirements": [
+        "R04"
+      ],
+      "setup": {
+        "order": [
+          "a",
+          "b",
+          "c"
+        ],
+        "strategy": "per_request_rotation",
+        "same_session_header": true
+      },
+      "requests": 4,
+      "expect": {
+        "accounts": [
+          "a",
+          "b",
+          "c",
+          "a"
+        ]
+      }
+    },
+    {
+      "id": "V03",
+      "requirements": [
+        "R02",
+        "R05"
+      ],
+      "setup": {
+        "allowed_accounts": [
+          "b",
+          "c"
+        ],
+        "new_account": "d"
+      },
+      "requests": [
+        "exact_account_a",
+        "fallback_to_a",
+        "exact_account_d"
+      ],
+      "expect": {
+        "requests_rejected": true,
+        "upstream_calls_to_disallowed_accounts": 0
+      }
+    },
+    {
+      "id": "V04",
+      "requirements": [
+        "R06"
+      ],
+      "setup": {
+        "exact_model": "mock-model-v1",
+        "allow_model_switch": false
+      },
+      "upstream": {
+        "all_requested_model_accounts": 429,
+        "alternative_model": 200
+      },
+      "expect": {
+        "alternative_model_calls": 0,
+        "explicit_failure": true
+      }
+    },
+    {
+      "id": "V05",
+      "requirements": [
+        "R07",
+        "R08"
+      ],
+      "setup": {
+        "fake_provider_secret": "FAKE_SECRET_SENTINEL_ONLY",
+        "fake_prompt": "FAKE_PROMPT_SENTINEL_ONLY"
+      },
+      "faults": [
+        "os_store_unavailable",
+        "encryption_failure",
+        "export_failure"
+      ],
+      "expect": {
+        "plaintext_secret_disk_occurrences": 0,
+        "prompt_disk_occurrences": 0,
+        "insecure_fallback_writes": 0
+      }
+    },
+    {
+      "id": "V06",
+      "requirements": [
+        "R07"
+      ],
+      "requests": [
+        "missing_client_key",
+        "invalid_client_key"
+      ],
+      "expect": {
+        "authentication_rejection": true,
+        "upstream_calls": 0
+      }
+    },
+    {
+      "id": "V07",
+      "requirements": [
+        "R09"
+      ],
+      "faults": [
+        "before_first_client_response_byte",
+        "after_first_client_sse_event_before_content",
+        "after_first_content_output",
+        "client_cancel"
+      ],
+      "expect": {
+        "retry_allowed_only_before_first_client_response_byte": true,
+        "no_replay_after_first_client_sse_event": true,
+        "cancel_closes_upstream": true
+      }
+    },
+    {
+      "id": "V08",
+      "requirements": [
+        "R09"
+      ],
+      "setup": {
+        "stateful_responses": true,
+        "initial_account": "a",
+        "followup_initial_account_unavailable": true
+      },
+      "expect": {
+        "reroute_to_another_account": false,
+        "clear_failure_if_pin_unavailable": true
+      }
+    },
+    {
+      "id": "V09",
+      "requirements": [
+        "R01",
+        "R13"
+      ],
+      "actions": [
+        "close_management_window",
+        "restart_isolated_service",
+        "upgrade_then_rollback"
+      ],
+      "expect": {
+        "service_independent_of_management_window": true,
+        "policy_preserved": true,
+        "production_untouched": true
+      }
+    },
+    {
+      "id": "V10",
+      "requirements": [
+        "R10"
+      ],
+      "actions": [
+        "encrypted_export",
+        "wrong_passphrase_import",
+        "tampered_import",
+        "valid_import"
+      ],
+      "expect": {
+        "plaintext_export": false,
+        "failed_import_partial_writes": false,
+        "valid_import_preserves_account_rules": true
+      }
+    }
+  ]
+}

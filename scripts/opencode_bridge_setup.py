@@ -19,8 +19,30 @@ elif sys.argv[1] == 'read':
     sys.stdout.write(protect(path.read_bytes(), True).decode())
 elif sys.argv[1] == 'account':
     key = json.loads(protect(path.read_bytes(), True))['bridge']
-    result = subprocess.run([sys.argv[2], '--json', 'account', 'add', 'opencode-free', 'main', '--api-key-stdin'],
-        input=key + '\n', capture_output=True, text=True, encoding='utf-8', timeout=60)
+
+    def loadout(*args, key_input=False):
+        return subprocess.run([sys.argv[2], '--json', *args], input=key + '\n' if key_input else '',
+            capture_output=True, text=True, encoding='utf-8', timeout=60)
+
+    def listed(*args, field):
+        result = loadout(*args)
+        if result.returncode:
+            print('Loadout query failed; is the daemon running?')
+            sys.exit(result.returncode)
+        return {item[field] for item in json.loads(result.stdout)}
+
+    # A fresh machine may already have the provider or the account with an unrelated key.
+    if 'opencode-free' not in listed('provider', 'list', field='slug'):
+        result = loadout('provider', 'add', 'opencode-free', '--kind', 'opencode-bridge')
+        print('Provider setup exit:', result.returncode)
+        if result.returncode:
+            sys.exit(result.returncode)
+    if 'main' in listed('account', 'list', 'opencode-free', field='alias'):
+        result = loadout('account', 'set-key', 'opencode-free', 'main', '--api-key-stdin', key_input=True)
+        if not result.returncode:
+            result = loadout('model', 'sync', 'opencode-free', 'main')
+    else:
+        result = loadout('account', 'add', 'opencode-free', 'main', '--api-key-stdin', key_input=True)
     print('Account setup exit:', result.returncode)
     if result.returncode:
         print('Account setup failed; secret and raw response suppressed')

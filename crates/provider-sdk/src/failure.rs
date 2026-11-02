@@ -203,6 +203,40 @@ pub fn classify(status: u16, headers: &HeaderMap, body: &str) -> UpstreamFailure
     UpstreamFailure::new(kind, Some(status), message)
 }
 
+fn looks_like_rate_limit(text_lower: &str) -> bool {
+    ["rate limit", "rate_limit", "ratelimit", "too many requests"]
+        .iter()
+        .any(|needle| text_lower.contains(needle))
+}
+
+/// Default classification of an error event inside an upstream stream (the HTTP status was
+/// already 2xx). `kind` is the event's error `type`, or its `code`. Provider modules may
+/// refine it.
+pub fn classify_stream_error(kind: Option<&str>, message: &str) -> UpstreamFailure {
+    let k = kind.unwrap_or("").to_ascii_lowercase();
+    let m = message.to_ascii_lowercase();
+    let failure_kind = if k.contains("rate_limit") || k == "429" {
+        FailureKind::RateLimited { retry_after: None }
+    } else if k.contains("quota") || k.contains("insufficient") {
+        FailureKind::QuotaExhausted { reset_after: None }
+    } else if looks_like_rate_limit(&m) {
+        FailureKind::RateLimited { retry_after: None }
+    } else if m.contains("quota") {
+        FailureKind::QuotaExhausted { reset_after: None }
+    } else if (k.contains("authentication") || k.contains("permission"))
+        && looks_like_account_disabled(&m)
+    {
+        FailureKind::AccountDisabled
+    } else if k.contains("authentication") || k.contains("permission") {
+        FailureKind::Auth
+    } else if k.contains("invalid_request") {
+        FailureKind::InvalidRequest
+    } else {
+        FailureKind::Server
+    };
+    UpstreamFailure::new(failure_kind, None, message)
+}
+
 #[cfg(test)]
 mod tests {
     use reqwest::header::HeaderValue;
@@ -304,5 +338,34 @@ mod tests {
             "Overloaded"
         );
         assert_eq!(error_message("plain text"), "plain text");
+    }
+
+    #[test]
+    fn classifies_stream_error_events() {
+        let kind = |k: Option<&str>, m: &str| classify_stream_error(k, m).kind;
+        let rate = FailureKind::RateLimited { retry_after: None };
+        let quota = FailureKind::QuotaExhausted { reset_after: None };
+        assert_eq!(kind(Some("rate_limit_error"), "slow down"), rate);
+        assert_eq!(kind(Some("429"), "busy"), rate);
+        assert_eq!(kind(None, "Too Many Requests"), rate);
+        assert_eq!(
+            kind(Some("api_error"), "Rate limit reached for model"),
+            rate
+        );
+        assert_eq!(kind(Some("insufficient_quota"), "rate limit"), quota);
+        assert_eq!(kind(None, "You exceeded your current quota"), quota);
+        assert_eq!(
+            kind(Some("authentication_error"), "invalid x-api-key"),
+            FailureKind::Auth
+        );
+        assert_eq!(
+            kind(Some("invalid_request_error"), "bad"),
+            FailureKind::InvalidRequest
+        );
+        assert_eq!(
+            kind(Some("overloaded_error"), "Overloaded"),
+            FailureKind::Server
+        );
+        assert_eq!(classify_stream_error(None, "x").status, None);
     }
 }

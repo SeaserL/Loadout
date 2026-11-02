@@ -90,8 +90,14 @@ pub(crate) struct ApiPreset {
     /// Chat Completions models that take `max_completion_tokens` although the platform
     /// default is `max_tokens` (id prefixes).
     max_completion_tokens_models: &'static [&'static str],
-    /// Wait after a 429 without `Retry-After`, when the platform's limit window is known.
+    /// Wait after a rate limit without `Retry-After` (an HTTP 429 or a stream error event),
+    /// when the platform's limit window is known.
     rate_limit_retry_secs: Option<u64>,
+    /// The platform answers rate limits and exhausted quota with the same 429 error, so they
+    /// cannot be told apart: every 429 is a rate limit, never a one-hour quota block.
+    ambiguous_429: bool,
+    /// Error texts (lowercase) of rate limits reported inside a stream.
+    rate_limit_messages: &'static [&'static str],
     /// Error texts (lowercase) meaning "this account's plan does not include the model":
     /// the model is unavailable on this account, the key itself is fine.
     model_not_in_plan: &'static [&'static str],
@@ -107,6 +113,8 @@ const fn preset(descriptor: ProviderDescriptor, messages_path: Option<&'static s
         max_tokens_field: chat::MaxTokensField::MaxTokens,
         max_completion_tokens_models: &[],
         rate_limit_retry_secs: None,
+        ambiguous_429: false,
+        rate_limit_messages: &[],
         model_not_in_plan: &[],
         balance: None,
     }
@@ -125,6 +133,9 @@ pub(crate) static PRESETS: [ApiPreset; 14] = [
         max_completion_tokens_models: &["kimi-k3"],
         // Per-key, per-model TPM/RPM limit; measured recovery ~20 s (sensenova.md).
         rate_limit_retry_secs: Some(20),
+        // One `quota_exceeded_error` for "rate or quota exceeded" (official error codes).
+        ambiguous_429: true,
+        rate_limit_messages: &["tpm/rpm limit"],
         // 403 when a Token Plan key asks for a model outside its plan.
         model_not_in_plan: &["not available in the current token plan"],
         ..preset(
@@ -381,6 +392,20 @@ impl std::fmt::Debug for Preset {
     }
 }
 
+impl ApiPreset {
+    /// Applies the platform's known rate-limit window to a rate limit without `Retry-After`.
+    fn with_retry_window(&self, mut failure: UpstreamFailure) -> UpstreamFailure {
+        if let (FailureKind::RateLimited { retry_after: None }, Some(secs)) =
+            (failure.kind, self.rate_limit_retry_secs)
+        {
+            failure.kind = FailureKind::RateLimited {
+                retry_after: Some(std::time::Duration::from_secs(secs)),
+            };
+        }
+        failure
+    }
+}
+
 impl Preset {
     /// Every built-in preset.
     pub fn all() -> impl Iterator<Item = Self> {
@@ -451,14 +476,26 @@ impl ProviderModule for Preset {
             failure.kind = FailureKind::ModelUnavailable;
             return failure;
         }
-        if let (FailureKind::RateLimited { retry_after: None }, Some(secs)) =
-            (failure.kind, self.0.rate_limit_retry_secs)
+        if status == 429
+            && self.0.ambiguous_429
+            && let FailureKind::QuotaExhausted { reset_after } = failure.kind
         {
             failure.kind = FailureKind::RateLimited {
-                retry_after: Some(std::time::Duration::from_secs(secs)),
+                retry_after: reset_after,
             };
         }
-        failure
+        self.0.with_retry_window(failure)
+    }
+
+    fn classify_stream_error(&self, kind: Option<&str>, message: &str) -> UpstreamFailure {
+        let mut failure = loadout_provider_sdk::classify_stream_error(kind, message);
+        let lower = message.to_ascii_lowercase();
+        if self.0.rate_limit_messages.iter().any(|p| lower.contains(p))
+            || (self.0.ambiguous_429 && matches!(failure.kind, FailureKind::QuotaExhausted { .. }))
+        {
+            failure.kind = FailureKind::RateLimited { retry_after: None };
+        }
+        self.0.with_retry_window(failure)
     }
 
     fn chat_options(&self, _config: &ProviderConfig) -> chat::EncodeOptions {
@@ -670,6 +707,45 @@ mod tests {
         assert_eq!(
             get("groq").classify(429, &h, body).kind,
             FailureKind::RateLimited { retry_after: None }
+        );
+    }
+
+    #[test]
+    fn sensenova_quota_exceeded_429_is_a_rate_limit_not_a_quota_block() {
+        let h = HeaderMap::new();
+        let twenty = FailureKind::RateLimited {
+            retry_after: Some(std::time::Duration::from_secs(20)),
+        };
+        let body = r#"{"error":{"type":"quota_exceeded_error","code":"8","message":"inference exceeds tpm/rpm limit"}}"#;
+        let sn = get("sensenova");
+        assert_eq!(sn.classify(429, &h, body).kind, twenty);
+        assert_eq!(
+            get("groq").classify(429, &h, body).kind,
+            FailureKind::QuotaExhausted { reset_after: None },
+            "other platforms keep the generic rule"
+        );
+
+        // The same errors inside a stream (HTTP 200 already sent).
+        assert_eq!(
+            sn.classify_stream_error(Some("8"), "inference exceeds tpm/rpm limit")
+                .kind,
+            twenty
+        );
+        assert_eq!(
+            sn.classify_stream_error(Some("quota_exceeded_error"), "exceeded")
+                .kind,
+            twenty
+        );
+        assert_eq!(
+            sn.classify_stream_error(Some("internal_server_error"), "boom")
+                .kind,
+            FailureKind::Server
+        );
+        assert_eq!(
+            get("groq")
+                .classify_stream_error(Some("8"), "inference exceeds tpm/rpm limit")
+                .kind,
+            FailureKind::Server
         );
     }
 

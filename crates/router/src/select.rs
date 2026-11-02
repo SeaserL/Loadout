@@ -3,7 +3,8 @@
 //! Candidate selection (ADR-003 §5–6): eligibility filters over the resolved chain, keeping
 //! the chain's order (sticky: the first eligible target always wins), preferring the
 //! ingress protocol within each account model (ADR-006 §2). A session's previous account
-//! model moves to the front while it stays eligible (ADR-003 §5).
+//! model moves to the front while it stays eligible (ADR-003 §5). The attempt limit counts
+//! routes (account models), not protocol variants (ADR-003 §7).
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -20,6 +21,7 @@ pub struct SelectRequest<'a> {
     pub ingress: Protocol,
     pub hints: &'a RouteHints,
     pub now_ms: i64,
+    /// Routes (account models) to try; the protocol variants of one share an attempt.
     pub max_attempts: usize,
     /// For stateful Responses requests: the target that created the referenced response.
     pub pinned_target: Option<&'a str>,
@@ -132,9 +134,31 @@ pub fn select(resolution: &Resolution<'_>, req: &SelectRequest<'_>) -> Candidate
         // State lives on one upstream; never fail over (ADR-006 §3).
         out.attempts.truncate(1);
     } else {
-        out.attempts.truncate(req.max_attempts.max(1));
+        truncate_routes(&mut out.attempts, req.max_attempts.max(1));
     }
     out
+}
+
+/// Keeps the targets of the first `max` routes. The protocol variants of a route are adjacent
+/// in `attempts` (grouped above).
+fn truncate_routes(attempts: &mut Vec<Arc<RouteTarget>>, max: usize) {
+    if attempts.len() <= max {
+        return;
+    }
+    let mut routes = 0;
+    let mut prev: Option<&str> = None;
+    let keep = attempts
+        .iter()
+        .position(|t| {
+            let key = account_model_key(&t.id);
+            if prev != Some(key) {
+                routes += 1;
+                prev = Some(key);
+            }
+            routes > max
+        })
+        .unwrap_or(attempts.len());
+    attempts.truncate(keep);
 }
 
 #[cfg(test)]
@@ -358,6 +382,64 @@ mod tests {
     }
 
     #[test]
+    fn attempt_limit_counts_routes_not_protocol_variants() {
+        let reg = HealthRegistry::default();
+        let t = table(&reg);
+        let h = hints("cc/kimi");
+        let res = t.resolve("cc/kimi").expect("resolve");
+        let mut req = request(Protocol::Chat, &h);
+        req.max_attempts = 1;
+        assert_eq!(
+            ids(&select(&res, &req)),
+            vec!["cc-main-kimi:chat", "cc-main-kimi:messages"],
+            "one route, both of its protocols"
+        );
+        req.max_attempts = 2;
+        assert_eq!(
+            ids(&select(&res, &req)),
+            vec![
+                "cc-main-kimi:chat",
+                "cc-main-kimi:messages",
+                "cc-backup-kimi:chat"
+            ]
+        );
+    }
+
+    #[test]
+    fn key_level_failures_block_every_protocol_of_the_route() {
+        let reg = HealthRegistry::default();
+        let t = table(&reg);
+        let h = hints("cc/kimi");
+        let res = t.resolve("cc/kimi").expect("resolve");
+        let chat = t.target("cc-main-kimi:chat").expect("target").clone();
+        t.record_failure(
+            &chat,
+            FailureKind::RateLimited { retry_after: None },
+            "429",
+            0,
+        );
+        let c = select(&res, &request(Protocol::Chat, &h));
+        assert_eq!(ids(&c), vec!["cc-backup-kimi:chat"]);
+        assert_eq!(c.skipped.len(), 2);
+        let other_model = t.target("cc-main-vendor/deep:chat").expect("target");
+        assert!(
+            other_model.health.is_available(0),
+            "other models keep their own limits"
+        );
+
+        // An endpoint failure stays on its protocol.
+        let reg = HealthRegistry::default();
+        let t = table(&reg);
+        let res = t.resolve("cc/kimi").expect("resolve");
+        let chat = t.target("cc-main-kimi:chat").expect("target").clone();
+        t.record_failure(&chat, FailureKind::Server, "502", 0);
+        assert_eq!(
+            ids(&select(&res, &request(Protocol::Chat, &h)))[0],
+            "cc-main-kimi:messages"
+        );
+    }
+
+    #[test]
     fn stateful_requests_need_native_responses_and_never_fail_over() {
         let reg = HealthRegistry::default();
         let t = RouteTable::new(
@@ -479,15 +561,16 @@ mod tests {
         let members: std::collections::HashSet<String> =
             ["main".to_owned(), "backup".to_owned()].into();
         let t = table(&reg)
-            .with_endpoint("cc", "cc", None, None, 30)
+            .with_endpoint("cc", "cc", None, None, 30, false)
             .with_endpoint(
                 "only-backup",
                 "cc",
                 Some(&["backup".to_owned()].into()),
                 Some("kimi"),
                 0,
+                false,
             )
-            .with_endpoint("both", "cc", Some(&members), None, 30);
+            .with_endpoint("both", "cc", Some(&members), None, 30, false);
         assert_eq!(
             t.endpoint_models("cc").expect("ep"),
             ["kimi", "vendor/deep"]
@@ -495,7 +578,7 @@ mod tests {
         assert_eq!(t.endpoint_accounts("cc"), 2);
         assert_eq!(t.endpoint_accounts("only-backup"), 1);
 
-        let r = t.resolve_endpoint("cc", "kimi").expect("bare");
+        let r = t.resolve_endpoint("cc", "kimi", None).expect("bare");
         assert_eq!(r.kind, ResolutionKind::Endpoint);
         assert!(r.candidates.iter().all(|c| &*c.provider_slug == "cc"));
         let h = hints("kimi");
@@ -504,41 +587,85 @@ mod tests {
 
         // Prefixed names, and an account named first.
         assert_eq!(
-            t.resolve_endpoint("cc", "cc/kimi")
+            t.resolve_endpoint("cc", "cc/kimi", None)
                 .expect("p/m")
                 .candidates
                 .len(),
             3
         );
-        let r = t.resolve_endpoint("cc", "cc/backup/kimi").expect("p/a/m");
+        let r = t
+            .resolve_endpoint("cc", "cc/backup/kimi", None)
+            .expect("p/a/m");
         assert_eq!(&*r.candidates[0].account_alias, "backup");
-        assert!(t.resolve_endpoint("cc", "cc/main/vendor/deep").is_ok());
+        assert!(
+            t.resolve_endpoint("cc", "cc/main/vendor/deep", None)
+                .is_ok()
+        );
 
         // Members and the default model.
         let r = t
-            .resolve_endpoint("only-backup", "claude-sonnet")
+            .resolve_endpoint("only-backup", "claude-sonnet", None)
             .expect("default");
         assert!(r.candidates.iter().all(|c| &*c.account_alias == "backup"));
         assert!(matches!(
-            t.resolve_endpoint("cc", "nope"),
+            t.resolve_endpoint("cc", "nope", None),
             Err(crate::ResolveError::NotInEndpoint { .. })
         ));
         assert!(matches!(
-            t.resolve_endpoint("missing", "kimi"),
+            t.resolve_endpoint("missing", "kimi", None),
             Err(crate::ResolveError::UnknownEndpoint(_))
         ));
 
-        // A rate-limited account is skipped; the next one is tried.
-        reg.get("cc-main-kimi:chat").expect("h").record_failure(
+        // A rate-limited account is skipped on every protocol; the next one is tried.
+        let chat = t.target("cc-main-kimi:chat").expect("target").clone();
+        t.record_failure(
+            &chat,
             FailureKind::RateLimited { retry_after: None },
             "429",
             0,
         );
-        let r = t.resolve_endpoint("both", "kimi").expect("ep");
+        let r = t.resolve_endpoint("both", "kimi", None).expect("ep");
         let c = select(&r, &request(Protocol::Chat, &h));
+        assert_eq!(ids(&c), vec!["cc-backup-kimi:chat"]);
+    }
+
+    #[test]
+    fn rotating_endpoints_start_each_turn_at_the_next_account() {
+        let reg = HealthRegistry::default();
+        let t = table(&reg)
+            .with_endpoint("spread", "cc", None, None, 30, true)
+            .with_endpoint("sticky", "cc", None, None, 30, false);
+        assert!(t.endpoint_rotates("spread") && !t.endpoint_rotates("sticky"));
+        let h = hints("kimi");
+        let order = |endpoint: &str, model: &str, turn: usize| -> Vec<String> {
+            let r = t
+                .resolve_endpoint(endpoint, model, Some(turn))
+                .expect("resolve");
+            select(&r, &request(Protocol::Chat, &h))
+                .attempts
+                .iter()
+                .map(|x| x.account_alias.to_string())
+                .collect()
+        };
+        assert_eq!(order("spread", "kimi", 0), ["main", "backup"]);
+        assert_eq!(order("spread", "kimi", 1), ["backup", "main"]);
+        assert_eq!(order("spread", "kimi", 2), ["main", "backup"]);
         assert_eq!(
-            ids(&c),
-            vec!["cc-main-kimi:messages", "cc-backup-kimi:chat"]
+            order("sticky", "kimi", 1),
+            ["main", "backup"],
+            "rotation off"
+        );
+        assert_eq!(
+            order("spread", "cc/main/kimi", 1),
+            ["main", "backup"],
+            "a named account still comes first"
+        );
+        let r = t
+            .resolve_endpoint("spread", "kimi", Some(1))
+            .expect("resolve");
+        assert_eq!(
+            ids(&select(&r, &request(Protocol::Chat, &h)))[0],
+            "cc-backup-kimi:chat"
         );
     }
 }

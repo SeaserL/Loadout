@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-10-29",
+  "purpose": "Read-only upstream scaffolding for fusion architecture; not a production dependency.",
+  "clone_mode": {
+    "shallow": false,
+    "filter": "blob:none",
+    "historical_blobs": "Fetched on demand; selected revisions are checked out locally.",
+    "submodules_initialized": false
+  },
+  "repositories": [
+    {
+      "name": "omniroute",
+      "origin": "https://github.com/cheaper-inference/OmniRoute.git",
+      "path": "development/upstreams/omniroute",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "tag": "v3.8.52",
+      "role": "Primary runtime and management application reference",
+      "license": "MIT",
+      "copyright": "Copyright (c) 2026 diegosouzapw",
+      "license_file": "LICENSE",
+      "license_sha256": "5f3caa52b2c2ce5dfb40c85404a370d23b6dc3e26a1447d17dc7e56f773b91de",
+      "notices_file": "THIRD_PARTY_NOTICES.md",
+      "clean_at_capture": true
+    },
+    {
+      "name": "magpie",
+      "origin": "https://github.com/yetone/magpie.git",
+      "path": "development/upstreams/magpie",
+      "revision": "fd80ed99c9a97a2f6f96ee62e36eba9eefb16036",
+      "tag": "v0.1.2026",
+      "role": "Flow visualization and routing trace design reference",
+      "license": "MIT",
+      "copyright": "Copyright (c) 2026 yetone",
+      "license_file": "LICENSE",
+      "license_sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+      "notices_file": "THIRD_PARTY_NOTICES",
+      "clean_at_capture": true
+    },
+    {
+      "name": "dsh-workbuddy-connect",
+      "origin": "https://github.com/AidenOrz/dsh-workbuddy-connect.git",
+      "path": "development/upstreams/dsh-workbuddy-connect",
+      "revision": "25680ca7f7ff5d7b84bb35f45de766519fccbc9d",
+      "package_version": "0.7.15",
+      "role": "User-selected WorkBuddy connection reference; memory-only isolated trial",
+      "license": "MIT",
+      "copyright": "Copyright (c) 2026 Corrine Hu",
+      "license_file": "LICENSE",
+      "license_sha256": "ecfde9b2f32fc6a6f06739ea5807edc2974ab3cb460dac5aead582d7a2058a93",
+      "notices_file": "THIRD_PARTY_NOTICES.txt",
+      "clean_at_capture": true
+    }
+  ],
+  "loadout": {
+    "path": ".",
+    "baseline_head": "740c7d8da96d86a25aae77db99d35d4605a4466c",
+    "working_tree": "Existing user changes preserved; not copied into upstream checkouts.",
+    "license": "Apache-2.0"
+  },
+  "validation_scope": "Git metadata and selected source/ancestor-license review only; not a complete dependency license audit or runtime test."
+}

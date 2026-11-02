@@ -1,0 +1,1870 @@
+{
+  "version": 1,
+  "identityFingerprint": "4c8a7f70b3c5608cc0ad4ffe1f7670f21174baa347a9feef920949f37c70d4cb",
+  "accounts": [
+    {
+      "ref": "claude-code/account-1",
+      "provider": "claude-code",
+      "kind": "claude-code",
+      "enabled": true
+    },
+    {
+      "ref": "codex/account-1",
+      "provider": "codex",
+      "kind": "codex",
+      "enabled": true
+    },
+    {
+      "ref": "codex-sub/account-1",
+      "provider": "codex-sub",
+      "kind": "codex-subscription",
+      "enabled": true
+    },
+    {
+      "ref": "commandcode/account-1",
+      "provider": "commandcode",
+      "kind": "commandcode",
+      "enabled": true
+    },
+    {
+      "ref": "deepseek/account-1",
+      "provider": "deepseek",
+      "kind": "deepseek",
+      "enabled": true
+    },
+    {
+      "ref": "opencode-free/account-1",
+      "provider": "opencode-free",
+      "kind": "opencode-bridge",
+      "enabled": true
+    },
+    {
+      "ref": "opencode-go/account-1",
+      "provider": "opencode-go",
+      "kind": "opencode-go",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-1",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-2",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-3",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-4",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-5",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-6",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-7",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-8",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-9",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-10",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-11",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "sensenova/account-12",
+      "provider": "sensenova",
+      "kind": "sensenova",
+      "enabled": true
+    },
+    {
+      "ref": "web-chatgpt/account-1",
+      "provider": "web-chatgpt",
+      "kind": "web-chatgpt",
+      "enabled": true
+    },
+    {
+      "ref": "workbuddy/account-1",
+      "provider": "workbuddy",
+      "kind": "workbuddy-bridge",
+      "enabled": true
+    }
+  ],
+  "pools": [
+    {
+      "name": "gpt",
+      "ordering": "manual",
+      "members": [
+        {
+          "account": "codex-sub/account-1",
+          "model": "gpt-6-astra",
+          "enabled": true
+        },
+        {
+          "account": "commandcode/account-1",
+          "model": "gpt-6-luna",
+          "enabled": true
+        },
+        {
+          "account": "opencode-go/account-1",
+          "model": "gpt-6-luna",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "name": "workbuddy-flash",
+      "ordering": "manual",
+      "members": [
+        {
+          "account": "workbuddy/account-1",
+          "model": "deepseek-v4.1-flash",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "sensenova",
+      "provider": "sensenova",
+      "members": null,
+      "waitSecs": 30,
+      "rotate": false,
+      "rotateColumnPresent": false,
+      "defaultModel": null
+    }
+  ],
+  "accountSetCount": 0,
+  "clientPolicies": [
+    {},
+    {
+      "allowed_models": [
+        "loadout/default",
+        "deepseek/main/deepseek-flash",
+        "workbuddy/main/deepseek-v4.1-flash"
+      ],
+      "requests_per_minute": 8
+    }
+  ],
+  "accountModels": [
+    {
+      "account": "sensenova/account-11",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-11",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-11",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-11",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-11",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "MiniMaxAI/MiniMax-M2.5",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "MiniMaxAI/MiniMax-M2.7",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "MiniMaxAI/MiniMax-M3",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.6-Max-Preview",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.6-Plus",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.7-Flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.7-Max",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.7-Plus",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.8-27B",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.8-Flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.8-Max",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.8-Max-0902",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "Qwen/Qwen3.8-Omni-Flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-fable-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-fable-5-1",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-haiku-4-5-20251001",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-haiku-5-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-opus-4-7",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-opus-4-8",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-opus-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-opus-5-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-sonnet-4-6",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-sonnet-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "claude-sonnet-5-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "deepseek/deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "deepseek/deepseek-v4-flash-fast",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "deepseek/deepseek-v4-flash-vision-exp",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "deepseek/deepseek-v4-pro",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "deepseek/deepseek-v4.1-flash-fast",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-3.1-flash-lite",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-3.5-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-3.5-flash-lite",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-3.6-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-3.7-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-3.8-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "google/gemini-4-argon",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.3-codex",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.4",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.4-mini",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.5",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.6-luna",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.6-sol",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-5.6-terra",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-6-astra",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-6-luna",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-6-sol",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "gpt-6.1-sol",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "inclusionai/ling-3.0-flash-sante:free",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "inclusionai/ling-3.1-flash:free",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meituan/LongCat-2.0",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meta/muse-spark-1.1",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meta/muse-spark-1.2",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meta/muse-spark-1.2-contributor",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meta/muse-spark-1.3",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meta/muse-spark-1.3-contributor",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "meta/muse-wonder-1.0",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "mistral/mistral-large-4",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "moonshotai/Kimi-K2.5",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "moonshotai/Kimi-K2.6",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "moonshotai/Kimi-K2.7-Code",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "moonshotai/Kimi-K2.7-Code-Highspeed",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "moonshotai/Kimi-K3",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "poolside/laguna-s-2.1-free",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "sakana/fugu-ultra",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "stealth/glyph-cluster:free",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "stepfun/Step-3.5-Flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "stepfun/Step-3.7-Flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "stepfun/Step-5-Preview",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "tencent/hy3-paid",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "tencent/hy4-preview",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "thinkingmachines/inkling",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "thinkingmachines/inkling-small",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xai/grok-4.5",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xai/grok-4.6",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xai/grok-4.7",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xiaomi/mimo-v2.5",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xiaomi/mimo-v2.5-pro",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xiaomi/mimo-v2.6-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xiaomi/mimo-v2.6-pro",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "xiaomi/mimo-v2.6-pro-ultraspeed",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "z-ai/glm-5.3-flash",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "z-ai/glm-5.3-flashx",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "zai-org/GLM-5",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "zai-org/GLM-5.1",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "zai-org/GLM-5.2",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "zai-org/GLM-5.2-Fast",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "commandcode/account-1",
+      "model": "zai-org/GLM-5.3",
+      "protocols": [
+        "chat",
+        "responses"
+      ]
+    },
+    {
+      "account": "sensenova/account-3",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-3",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-3",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-3",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-3",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-5",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-5",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-5",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-5",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-5",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-12",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-12",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-12",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-12",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-12",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-2",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-2",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-2",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-2",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-2",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "cat-jam-free",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "claude-haiku-5-5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "deepseek-v4-flash-vision-exp",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "deepseek-v4-pro",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "deepseek-v4.1-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "gemini-4-argon-contributor",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "glm-5.1",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "glm-5.3",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "glm-5.3-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "gpt-5.6-luna",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "gpt-6-luna",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "grok-4.6",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "grok-4.7",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "hy3",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "hy4-preview",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "kimi-k2.6",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "kimi-k2.7-code",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "longcat-2.0",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "longcat-2.5-preview-free",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "mimo-v2.5",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "mimo-v2.5-pro",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "mimo-v2.6-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "mimo-v2.6-pro",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "minimax-m2.5",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "minimax-m2.7",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "minimax-m3",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "muse-spark-1.2-contributor",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "muse-spark-1.3-contributor",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "omen-alpha",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "qwen3.6-plus",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "qwen3.7-max",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "qwen3.7-plus",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "qwen3.8-flash",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "qwen3.8-max",
+      "protocols": [
+        "messages"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "space-bunny",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-go/account-1",
+      "model": "step-5-preview-free",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "auto",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-3-mini",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-6",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-6-instant",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-6-mini",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-6-pro",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-6-t-mini",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5-6-thinking",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5.6-luna-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5.6-sol-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-5.6-terra-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-astra-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-instant",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-luna-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-mini",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-pro",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-sol-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-t-mini",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6-thinking",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "gpt-6.1-sol-wm",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "o3-pro",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "web-chatgpt/account-1",
+      "model": "research",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "sensenova/account-9",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-9",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-9",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-9",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-9",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-6",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-6",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-6",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-6",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-6",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "workbuddy/account-1",
+      "model": "deepseek-v4.1-flash",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-free/account-1",
+      "model": "big-pickle",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "opencode-free/account-1",
+      "model": "deepseek-v4.1-flash-free",
+      "protocols": [
+        "chat"
+      ]
+    },
+    {
+      "account": "sensenova/account-10",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-10",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-10",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-10",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-10",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-7",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-7",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-7",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-7",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-7",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-4",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-4",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-4",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-4",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-4",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "deepseek/account-1",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "deepseek/account-1",
+      "model": "deepseek-v4-pro",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "codex-sub/account-1",
+      "model": "gpt-5.6-luna",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "codex-sub/account-1",
+      "model": "gpt-5.6-sol",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "codex-sub/account-1",
+      "model": "gpt-5.6-terra",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "codex-sub/account-1",
+      "model": "gpt-6-astra",
+      "protocols": [
+        "responses"
+      ]
+    },
+    {
+      "account": "sensenova/account-8",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-8",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-8",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-8",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-8",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-1",
+      "model": "deepseek-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-1",
+      "model": "deepseek-v4-flash",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-1",
+      "model": "glm-5.2",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-1",
+      "model": "kimi-k3",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    },
+    {
+      "account": "sensenova/account-1",
+      "model": "sensenova-6.8-flash-lite",
+      "protocols": [
+        "chat",
+        "messages"
+      ]
+    }
+  ]
+}

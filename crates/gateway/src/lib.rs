@@ -20,8 +20,8 @@ pub use auth::{
 };
 pub use error::{ApiError, ApiFlavor, ErrorCategory};
 pub use plane::{
-    AccountSlots, DataPlane, NullSink, RequestRecord, ResponseRouteStore, TelemetrySink,
-    UpstreamLimits,
+    AccountSlots, DataPlane, EndpointTurns, NullSink, RequestRecord, ResponseRouteStore,
+    TelemetrySink, UpstreamLimits,
 };
 pub use policy::{ClientPolicies, ClientPolicy, ClientUsageToday, PolicyViolation};
 pub use proxy::session::ConversationSeed;

@@ -27,7 +27,8 @@ pub use descriptor::{AuthMethod, Drivers, ProviderDescriptor, TransportSpec};
 pub use discovery::{Discovered, config_dir, find_executable};
 pub use error::ProviderError;
 pub use failure::{
-    FailureKind, UpstreamFailure, classify, error_message, looks_like_account_disabled,
+    FailureKind, UpstreamFailure, classify, classify_stream_error, error_message,
+    looks_like_account_disabled,
 };
 pub use http::{HttpClient, HttpConfig};
 pub use module::{

@@ -12,7 +12,7 @@ use loadout_protocol::{
     responses,
 };
 use loadout_provider_sdk::{FailureKind, HttpClient, UpstreamFailure};
-use loadout_router::{RouteTarget, Sample, SampleSource, now_ms};
+use loadout_router::{RouteTable, RouteTarget, Sample, SampleSource, now_ms};
 use reqwest::header::{self, HeaderValue};
 
 const PROBE_PROMPT: &str = "Reply with exactly: OK";
@@ -101,8 +101,13 @@ fn encode(target: &RouteTarget) -> serde_json::Value {
     }
 }
 
-/// Sends one probe and updates the target's circuit breaker with the result.
-pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutcome {
+/// Sends one probe and updates the target's circuit breaker with the result (a rate limit
+/// also blocks the target's other protocols, ADR-003 §7).
+pub(crate) async fn probe(
+    http: &HttpClient,
+    table: &RouteTable,
+    target: &RouteTarget,
+) -> ProbeOutcome {
     let ts_ms = now_ms();
     let started = Instant::now();
     let mut stream = None;
@@ -138,9 +143,7 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
             outcome(false, None, output_tokens, Some(error), None)
         }
         Ok(Err(failure)) => {
-            target
-                .health
-                .record_failure(failure.kind, &failure.message, now_ms());
+            table.record_failure(target, failure.kind, &failure.message, now_ms());
             outcome(
                 false,
                 None,
@@ -150,9 +153,7 @@ pub(crate) async fn probe(http: &HttpClient, target: &RouteTarget) -> ProbeOutco
             )
         }
         Err(_) => {
-            target
-                .health
-                .record_failure(FailureKind::Timeout, "probe timed out", now_ms());
+            table.record_failure(target, FailureKind::Timeout, "probe timed out", now_ms());
             outcome(
                 false,
                 None,
@@ -259,12 +260,10 @@ async fn run(
                         output_tokens = u.output_tokens;
                     }
                     CanonicalEvent::Finish(_) => finished = true,
-                    CanonicalEvent::Error { message, .. } => {
-                        return Err(UpstreamFailure::new(
-                            FailureKind::Server,
-                            None,
-                            message.clone(),
-                        ));
+                    CanonicalEvent::Error { message, kind } => {
+                        return Err(target
+                            .module
+                            .classify_stream_error(kind.as_deref(), message));
                     }
                     _ => {}
                 }

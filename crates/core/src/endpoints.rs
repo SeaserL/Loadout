@@ -64,6 +64,7 @@ fn info(
         members,
         default_model: row.default_model.clone(),
         wait_secs: row.wait_secs,
+        rotate: row.rotate,
         active_accounts: active,
         models: table
             .endpoint_models(&row.name)
@@ -101,6 +102,7 @@ impl ControlPlane {
         members: Option<Vec<String>>,
         default_model: Option<String>,
         wait_secs: Option<u32>,
+        rotate: Option<bool>,
     ) -> Result<EndpointInfo, ErrorBody> {
         let name = name
             .map(|n| n.trim().to_owned())
@@ -119,6 +121,14 @@ impl ControlPlane {
         let n = name.clone();
         blocking(move || {
             let p = Self::load_provider(&db, &provider)?;
+            let rotate = match rotate {
+                Some(r) => r,
+                None => db
+                    .endpoints()
+                    .get(&n)
+                    .map_err(storage)?
+                    .is_some_and(|e| e.rotate),
+            };
             let members = match members {
                 None => None,
                 Some(aliases) => {
@@ -139,11 +149,12 @@ impl ControlPlane {
                         .map(|m| m.trim().to_owned())
                         .filter(|m| !m.is_empty()),
                     wait_secs,
+                    rotate,
                 })
                 .map_err(storage)
         })
         .await?;
-        tracing::info!(endpoint = %name, enabled, "dedicated endpoint saved");
+        tracing::info!(endpoint = %name, enabled, rotate = ?rotate, "dedicated endpoint saved");
         self.rebuild_routes().await?;
         self.list_endpoints(port)
             .await?
@@ -198,7 +209,8 @@ impl ControlPlane {
                 () = tokio::time::sleep(WATCH_EVERY) => {}
             }
             for t in self.recovery_candidates() {
-                let outcome = crate::bench::probe(&self.http, &t).await;
+                let table = self.routes.load();
+                let outcome = crate::bench::probe(&self.http, &table, &t).await;
                 tracing::info!(
                     target = %t.exact_name(),
                     ok = outcome.ok,

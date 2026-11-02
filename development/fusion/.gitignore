@@ -1,0 +1,6 @@
+/runs/
+/isolated/
+/tools/node_modules/
+
+/tools/node.exe
+/release.lock

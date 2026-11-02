@@ -157,6 +157,7 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         sessions: Arc::default(),
         policies: control.policies.clone(),
         account_slots: Arc::default(),
+        endpoint_turns: Arc::default(),
     });
     drop(telemetry);
 
@@ -269,6 +270,10 @@ pub async fn run(options: DaemonOptions) -> Result<(), DaemonError> {
         started_at_ms: now_ms(),
         gateway_addr,
         data_dir: paths.root.clone(),
+        install_dir: std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(PathBuf::from))
+            .unwrap_or_else(|| paths.root.clone()),
         recovered_from,
     });
     state

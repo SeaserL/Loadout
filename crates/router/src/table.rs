@@ -4,6 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
+use loadout_protocol::Protocol;
+use loadout_provider_sdk::FailureKind;
 
 use crate::{ParsedName, RouteTarget, TargetId, Tier, account_model_key, parse_name};
 
@@ -54,6 +56,19 @@ struct EndpointIndex {
     accounts: usize,
     /// How long a request may wait for a cooling member to recover.
     wait_secs: u32,
+    /// Each request starts at the next member account (ADR-015 §5).
+    rotate: bool,
+}
+
+/// Starts `candidates` at member account `turn % accounts`, keeping each account's targets
+/// together and the account order otherwise (round-robin, ADR-015 §5).
+fn start_at_account(candidates: &mut [&Arc<RouteTarget>], turn: usize) {
+    let starts: Vec<usize> = (0..candidates.len())
+        .filter(|&i| i == 0 || candidates[i - 1].account_id != candidates[i].account_id)
+        .collect();
+    if !starts.is_empty() {
+        candidates.rotate_left(starts[turn % starts.len()]);
+    }
 }
 
 /// Immutable routing table built by the control plane.
@@ -166,11 +181,13 @@ impl RouteTable {
         members: Option<&HashSet<String>>,
         default_model: Option<&str>,
         wait_secs: u32,
+        rotate: bool,
     ) -> Self {
         let mut index = EndpointIndex {
             provider: provider.to_owned(),
             default_model: default_model.map(str::to_owned),
             wait_secs,
+            rotate,
             ..EndpointIndex::default()
         };
         let mut accounts: HashSet<&str> = HashSet::new();
@@ -193,11 +210,13 @@ impl RouteTable {
 
     /// Resolves a model name inside a dedicated endpoint (ADR-015 §2): the bare upstream id,
     /// `provider/model`, or `provider/account/model` (that account first), else the
-    /// endpoint's default model.
+    /// endpoint's default model. In an endpoint that rotates, `turn` picks the member account
+    /// that comes first (ADR-015 §5); a named account still comes first.
     pub fn resolve_endpoint(
         &self,
         endpoint: &str,
         model: &str,
+        turn: Option<usize>,
     ) -> Result<Resolution<'_>, ResolveError> {
         let ep = self
             .endpoints
@@ -239,6 +258,8 @@ impl RouteTable {
         let mut candidates = pick(idx);
         if let Some(a) = first_account {
             candidates.sort_by_key(|t| &*t.account_id != a);
+        } else if let Some(turn) = turn.filter(|_| ep.rotate) {
+            start_at_account(&mut candidates, turn);
         }
         Ok(Resolution {
             kind: ResolutionKind::Endpoint,
@@ -257,6 +278,11 @@ impl RouteTable {
     /// How long a request to the endpoint may wait for a member to recover (ADR-015 §3).
     pub fn endpoint_wait_secs(&self, endpoint: &str) -> u32 {
         self.endpoints.get(endpoint).map_or(0, |e| e.wait_secs)
+    }
+
+    /// Whether each request to the endpoint starts at the next member account (ADR-015 §5).
+    pub fn endpoint_rotates(&self, endpoint: &str) -> bool {
+        self.endpoints.get(endpoint).is_some_and(|e| e.rotate)
     }
 
     /// Every target that belongs to at least one endpoint, in table order.
@@ -333,6 +359,34 @@ impl RouteTable {
 
     pub fn target(&self, id: &str) -> Option<&Arc<RouteTarget>> {
         self.by_id.get(id).map(|&i| &self.targets[i])
+    }
+
+    /// Records a failure on `target`. Rate limits and quota belong to the key, not the
+    /// protocol, so they also block the other protocol variants of its account model
+    /// (ADR-003 §7).
+    pub fn record_failure(
+        &self,
+        target: &RouteTarget,
+        kind: FailureKind,
+        message: &str,
+        now_ms: i64,
+    ) {
+        target.health.record_failure(kind, message, now_ms);
+        if !matches!(
+            kind,
+            FailureKind::RateLimited { .. } | FailureKind::QuotaExhausted { .. }
+        ) {
+            return;
+        }
+        let route = account_model_key(&target.id);
+        for protocol in Protocol::ALL {
+            if protocol == target.protocol {
+                continue;
+            }
+            if let Some(sibling) = self.target(&format!("{route}:{}", protocol.as_str())) {
+                sibling.health.share_block(&target.health, now_ms);
+            }
+        }
     }
 
     pub fn resolve(&self, name: &str) -> Result<Resolution<'_>, ResolveError> {

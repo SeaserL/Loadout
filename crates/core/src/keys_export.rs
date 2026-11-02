@@ -280,11 +280,13 @@ fn collect(
 }
 
 /// Writes the encrypted export of every API-key account.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn export(
     db: &Database,
     secrets: &dyn SecretStore,
     registry: &Registry,
     data_dir: &Path,
+    install_dir: &Path,
     path: Option<String>,
     passphrase: &Passphrase,
     confirm: &str,
@@ -302,14 +304,21 @@ pub(crate) fn export(
     }
     let plain = Zeroizing::new(serde_json::to_vec(&bundle).map_err(|e| e.to_string())?);
     let sealed = seal(&plain, &passphrase.0, ITERATIONS)?;
-    let target = crate::backup::target_path(
-        data_dir,
-        path,
-        &format!(
-            "loadout-keys-{}.loadout-keys",
-            loadout_provider_sdk::time::utc_stamp(loadout_storage::now_ms())
-        ),
-    )?;
+    let name = format!(
+        "loadout-keys-{}.loadout-keys",
+        loadout_provider_sdk::time::utc_stamp(loadout_storage::now_ms())
+    );
+    let target = match path.filter(|p| !p.trim().is_empty()) {
+        Some(path) => std::path::PathBuf::from(path.trim()),
+        None => {
+            let dir = if install_dir.as_os_str().is_empty() {
+                data_dir
+            } else {
+                install_dir
+            };
+            dir.join(name)
+        }
+    };
     std::fs::write(&target, sealed)
         .map_err(|e| format!("cannot write {}: {e}", target.display()))?;
     // Audit trail (ADR-004 §6); never the keys or the passphrase.
@@ -551,28 +560,33 @@ mod tests {
     fn export_requires_confirmation_and_hides_keys() {
         let secrets = InMemorySecretStore::new();
         let db = db_with_accounts(&secrets);
-        let dir = tempfile::tempdir().expect("dir");
+        let data = tempfile::tempdir().expect("data dir");
+        let install = tempfile::tempdir().expect("install dir");
         let pass = Passphrase("long enough pass".into());
         let registry = Registry::builtin();
-        let err = export(&db, &secrets, &registry, dir.path(), None, &pass, "yes")
-            .expect_err("needs confirmation");
-        assert!(err.contains("EXPORT"));
-        assert!(
+        let run = |path: Option<String>, pass: &Passphrase, confirm: &str| {
             export(
                 &db,
                 &secrets,
                 &registry,
-                dir.path(),
-                None,
-                &Passphrase("short".into()),
-                "EXPORT"
+                data.path(),
+                install.path(),
+                path,
+                pass,
+                confirm,
             )
-            .is_err()
-        );
+        };
+        let err = run(None, &pass, "yes").expect_err("needs confirmation");
+        assert!(err.contains("EXPORT"));
+        assert!(run(None, &Passphrase("short".into()), "EXPORT").is_err());
 
-        let r =
-            export(&db, &secrets, &registry, dir.path(), None, &pass, "EXPORT").expect("export");
+        let r = run(None, &pass, "EXPORT").expect("export");
         assert_eq!((r.providers, r.accounts), (1, 1));
+        // An empty path saves beside the daemon executable (ExecPlan 031).
+        assert_eq!(std::path::Path::new(&r.path).parent(), Some(install.path()));
+        let explicit = data.path().join("chosen.loadout-keys");
+        let chosen = run(Some(explicit.display().to_string()), &pass, "EXPORT").expect("export");
+        assert_eq!(std::path::Path::new(&chosen.path), explicit);
         let file = std::fs::read(&r.path).expect("read");
         let text = String::from_utf8_lossy(&file);
         assert!(!text.contains("sk-aaaa-secret"));

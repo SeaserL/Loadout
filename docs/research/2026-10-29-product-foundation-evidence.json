@@ -1,0 +1,886 @@
+{
+  "observed_date": "2026-10-29",
+  "method": "Official GitHub repository metadata, sampled releases and source inspection; no candidate execution or live provider calls.",
+  "local_baseline": "740c7d8da96d86a25aae77db99d35d4605a4466c",
+  "repositories": [
+    {
+      "repository": "yetone/magpie",
+      "url": "https://github.com/yetone/magpie",
+      "created_at": "2026-09-23T16:22:35Z",
+      "pushed_at": "2026-10-29T08:45:46Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "main",
+      "inspected_head": "fd80ed99c9a97a2f6f96ee62e36eba9eefb16036",
+      "inspected_release_sha": "5143bf593aef900cc392b0255e8c722f838014a5",
+      "metadata_url": "https://api.github.com/repos/yetone/magpie",
+      "sampled_releases": [
+        {
+          "tag": "v0.1.2023",
+          "url": "https://github.com/yetone/magpie/releases/tag/v0.1.2023",
+          "published_at": "2026-10-29T08:39:44Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "magpie-cli-android-arm64",
+            "magpie-cli-darwin-amd64",
+            "magpie-cli-darwin-arm64",
+            "magpie-cli-linux-amd64",
+            "magpie-cli-linux-arm64",
+            "magpie-cli-windows-amd64.exe",
+            "magpie-cli-windows-arm64.exe",
+            "magpie-darwin-amd64.dmg",
+            "magpie-darwin-amd64.zip",
+            "magpie-darwin-arm64.dmg",
+            "magpie-darwin-arm64.zip",
+            "magpie-linux-amd64",
+            "magpie-linux-arm64",
+            "magpie-windows-amd64.exe",
+            "magpie-windows-arm64.exe",
+            "SHA256SUMS"
+          ]
+        },
+        {
+          "tag": "v0.1.2022",
+          "url": "https://github.com/yetone/magpie/releases/tag/v0.1.2022",
+          "published_at": "2026-10-29T08:33:19Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "magpie-cli-android-arm64",
+            "magpie-cli-darwin-amd64",
+            "magpie-cli-darwin-arm64",
+            "magpie-cli-linux-amd64",
+            "magpie-cli-linux-arm64",
+            "magpie-cli-windows-amd64.exe",
+            "magpie-cli-windows-arm64.exe",
+            "magpie-darwin-amd64.dmg",
+            "magpie-darwin-amd64.zip",
+            "magpie-darwin-arm64.dmg",
+            "magpie-darwin-arm64.zip",
+            "magpie-linux-amd64",
+            "magpie-linux-arm64",
+            "magpie-windows-amd64.exe",
+            "magpie-windows-arm64.exe",
+            "SHA256SUMS"
+          ]
+        },
+        {
+          "tag": "v0.1.2021",
+          "url": "https://github.com/yetone/magpie/releases/tag/v0.1.2021",
+          "published_at": "2026-10-29T08:34:17Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "magpie-cli-android-arm64",
+            "magpie-cli-darwin-amd64",
+            "magpie-cli-darwin-arm64",
+            "magpie-cli-linux-amd64",
+            "magpie-cli-linux-arm64",
+            "magpie-cli-windows-amd64.exe",
+            "magpie-cli-windows-arm64.exe",
+            "magpie-darwin-amd64.dmg",
+            "magpie-darwin-amd64.zip",
+            "magpie-darwin-arm64.dmg",
+            "magpie-darwin-arm64.zip",
+            "magpie-linux-amd64",
+            "magpie-linux-arm64",
+            "magpie-windows-amd64.exe",
+            "magpie-windows-arm64.exe",
+            "SHA256SUMS"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": [
+        {
+          "number": 523,
+          "url": "https://github.com/yetone/magpie/pull/523",
+          "merged_at": "2026-10-03T17:44:27Z",
+          "author": "werldl517-cyber"
+        },
+        {
+          "number": 1036,
+          "url": "https://github.com/yetone/magpie/pull/1036",
+          "merged_at": null,
+          "author": "SunnyRx"
+        },
+        {
+          "number": 1222,
+          "url": "https://github.com/yetone/magpie/pull/1222",
+          "merged_at": null,
+          "author": "SnowGlow-aww"
+        },
+        {
+          "number": 627,
+          "url": "https://github.com/yetone/magpie/pull/627",
+          "merged_at": "2026-10-03T04:51:58Z",
+          "author": "yg3415"
+        },
+        {
+          "number": 626,
+          "url": "https://github.com/yetone/magpie/pull/626",
+          "merged_at": null,
+          "author": "yg3415"
+        }
+      ]
+    },
+    {
+      "repository": "farion1231/cc-switch",
+      "url": "https://github.com/farion1231/cc-switch",
+      "created_at": "2025-08-04T14:16:16Z",
+      "pushed_at": "2026-10-29T08:40:02Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "main",
+      "inspected_head": "ddcb111765be66ed9e7e43e240497fd2c9576688",
+      "inspected_release_sha": "c4db63c60d2a1ddcb4bd9f81152b9c6126413659",
+      "metadata_url": "https://api.github.com/repos/farion1231/cc-switch",
+      "sampled_releases": [
+        {
+          "tag": "v4.0.21",
+          "url": "https://github.com/farion1231/cc-switch/releases/tag/v4.0.21",
+          "published_at": "2026-10-26T13:47:11Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "CC-Switch-v4.0.21-Linux-arm64.AppImage",
+            "CC-Switch-v4.0.21-Linux-arm64.AppImage.sig",
+            "CC-Switch-v4.0.21-Linux-arm64.deb",
+            "CC-Switch-v4.0.21-Linux-arm64.deb.sig",
+            "CC-Switch-v4.0.21-Linux-arm64.rpm",
+            "CC-Switch-v4.0.21-Linux-arm64.rpm.sig",
+            "CC-Switch-v4.0.21-Linux-x86_64.AppImage",
+            "CC-Switch-v4.0.21-Linux-x86_64.AppImage.sig",
+            "CC-Switch-v4.0.21-Linux-x86_64.deb",
+            "CC-Switch-v4.0.21-Linux-x86_64.deb.sig",
+            "CC-Switch-v4.0.21-Linux-x86_64.rpm",
+            "CC-Switch-v4.0.21-Linux-x86_64.rpm.sig",
+            "CC-Switch-v4.0.21-macOS.dmg",
+            "CC-Switch-v4.0.21-macOS.tar.gz",
+            "CC-Switch-v4.0.21-macOS.tar.gz.sig",
+            "CC-Switch-v4.0.21-macOS.zip",
+            "CC-Switch-v4.0.21-Windows-arm64-Portable.zip",
+            "CC-Switch-v4.0.21-Windows-arm64.msi",
+            "CC-Switch-v4.0.21-Windows-arm64.msi.sig",
+            "CC-Switch-v4.0.21-Windows-Portable.zip",
+            "CC-Switch-v4.0.21-Windows.msi",
+            "CC-Switch-v4.0.21-Windows.msi.sig",
+            "latest.json"
+          ]
+        },
+        {
+          "tag": "v4.0.20",
+          "url": "https://github.com/farion1231/cc-switch/releases/tag/v4.0.20",
+          "published_at": "2026-10-24T15:32:07Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "CC-Switch-v4.0.20-Linux-arm64.AppImage",
+            "CC-Switch-v4.0.20-Linux-arm64.AppImage.sig",
+            "CC-Switch-v4.0.20-Linux-arm64.deb",
+            "CC-Switch-v4.0.20-Linux-arm64.deb.sig",
+            "CC-Switch-v4.0.20-Linux-arm64.rpm",
+            "CC-Switch-v4.0.20-Linux-arm64.rpm.sig",
+            "CC-Switch-v4.0.20-Linux-x86_64.AppImage",
+            "CC-Switch-v4.0.20-Linux-x86_64.AppImage.sig",
+            "CC-Switch-v4.0.20-Linux-x86_64.deb",
+            "CC-Switch-v4.0.20-Linux-x86_64.deb.sig",
+            "CC-Switch-v4.0.20-Linux-x86_64.rpm",
+            "CC-Switch-v4.0.20-Linux-x86_64.rpm.sig",
+            "CC-Switch-v4.0.20-macOS.dmg",
+            "CC-Switch-v4.0.20-macOS.tar.gz",
+            "CC-Switch-v4.0.20-macOS.tar.gz.sig",
+            "CC-Switch-v4.0.20-macOS.zip",
+            "CC-Switch-v4.0.20-Windows-arm64-Portable.zip",
+            "CC-Switch-v4.0.20-Windows-arm64.msi",
+            "CC-Switch-v4.0.20-Windows-arm64.msi.sig",
+            "CC-Switch-v4.0.20-Windows-Portable.zip",
+            "CC-Switch-v4.0.20-Windows.msi",
+            "CC-Switch-v4.0.20-Windows.msi.sig",
+            "latest.json"
+          ]
+        },
+        {
+          "tag": "v4.0.19",
+          "url": "https://github.com/farion1231/cc-switch/releases/tag/v4.0.19",
+          "published_at": "2026-10-23T12:49:37Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "CC-Switch-v4.0.19-Linux-arm64.AppImage",
+            "CC-Switch-v4.0.19-Linux-arm64.AppImage.sig",
+            "CC-Switch-v4.0.19-Linux-arm64.deb",
+            "CC-Switch-v4.0.19-Linux-arm64.deb.sig",
+            "CC-Switch-v4.0.19-Linux-arm64.rpm",
+            "CC-Switch-v4.0.19-Linux-arm64.rpm.sig",
+            "CC-Switch-v4.0.19-Linux-x86_64.AppImage",
+            "CC-Switch-v4.0.19-Linux-x86_64.AppImage.sig",
+            "CC-Switch-v4.0.19-Linux-x86_64.deb",
+            "CC-Switch-v4.0.19-Linux-x86_64.deb.sig",
+            "CC-Switch-v4.0.19-Linux-x86_64.rpm",
+            "CC-Switch-v4.0.19-Linux-x86_64.rpm.sig",
+            "CC-Switch-v4.0.19-macOS.dmg",
+            "CC-Switch-v4.0.19-macOS.tar.gz",
+            "CC-Switch-v4.0.19-macOS.tar.gz.sig",
+            "CC-Switch-v4.0.19-macOS.zip",
+            "CC-Switch-v4.0.19-Windows-arm64-Portable.zip",
+            "CC-Switch-v4.0.19-Windows-arm64.msi",
+            "CC-Switch-v4.0.19-Windows-arm64.msi.sig",
+            "CC-Switch-v4.0.19-Windows-Portable.zip",
+            "CC-Switch-v4.0.19-Windows.msi",
+            "CC-Switch-v4.0.19-Windows.msi.sig",
+            "latest.json"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": [
+        {
+          "number": 9029,
+          "url": "https://github.com/farion1231/cc-switch/pull/9029",
+          "merged_at": "2026-10-29T08:40:02Z",
+          "author": "szupzj18"
+        },
+        {
+          "number": 8908,
+          "url": "https://github.com/farion1231/cc-switch/pull/8908",
+          "merged_at": "2026-10-29T08:04:06Z",
+          "author": "linghaoSu"
+        },
+        {
+          "number": 8991,
+          "url": "https://github.com/farion1231/cc-switch/pull/8991",
+          "merged_at": null,
+          "author": "thisTom"
+        },
+        {
+          "number": 8964,
+          "url": "https://github.com/farion1231/cc-switch/pull/8964",
+          "merged_at": "2026-10-29T03:15:04Z",
+          "author": "funkpopo"
+        },
+        {
+          "number": 7858,
+          "url": "https://github.com/farion1231/cc-switch/pull/7858",
+          "merged_at": null,
+          "author": "funkpopo"
+        }
+      ]
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "url": "https://github.com/cheaper-inference/OmniRoute",
+      "created_at": "2026-02-13T12:38:31Z",
+      "pushed_at": "2026-10-29T08:12:27Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "release/v3.8.53",
+      "inspected_head": "5332fe88e800187f0d0112afa4085b5455d6ef04",
+      "inspected_release_sha": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "metadata_url": "https://api.github.com/repos/cheaper-inference/OmniRoute",
+      "sampled_releases": [
+        {
+          "tag": "v3.8.52",
+          "url": "https://github.com/cheaper-inference/OmniRoute/releases/tag/v3.8.52",
+          "published_at": "2026-10-19T20:02:45Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "CHANGELOG-v3.8.52.md",
+            "latest-linux-arm64.yml",
+            "latest-linux.yml",
+            "latest-mac.yml",
+            "latest.yml",
+            "OmniRoute-3.8.52-arm64.AppImage",
+            "OmniRoute-3.8.52-arm64.dmg",
+            "OmniRoute-3.8.52.AppImage",
+            "OmniRoute-3.8.52.dmg",
+            "omniroute-desktop_3.8.52_amd64.deb",
+            "omniroute-desktop_3.8.52_arm64.deb",
+            "OmniRoute-v3.8.52.source.tar.gz",
+            "OmniRoute-v3.8.52.source.zip",
+            "OmniRoute.3.8.52.exe",
+            "OmniRoute.exe",
+            "OmniRoute.Setup.3.8.52.exe",
+            "sbom-npm.cdx.json"
+          ]
+        },
+        {
+          "tag": "v3.8.51",
+          "url": "https://github.com/cheaper-inference/OmniRoute/releases/tag/v3.8.51",
+          "published_at": "2026-09-30T01:41:50Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "CHANGELOG-v3.8.51.md",
+            "latest-linux-arm64.yml",
+            "latest-linux.yml",
+            "latest-mac.yml",
+            "latest.yml",
+            "OmniRoute-3.8.51-arm64.AppImage",
+            "OmniRoute-3.8.51-arm64.dmg",
+            "OmniRoute-3.8.51.AppImage",
+            "OmniRoute-3.8.51.dmg",
+            "omniroute-desktop_3.8.51_amd64.deb",
+            "omniroute-desktop_3.8.51_arm64.deb",
+            "OmniRoute-v3.8.51.source.tar.gz",
+            "OmniRoute-v3.8.51.source.zip",
+            "OmniRoute.3.8.51.exe",
+            "OmniRoute.exe",
+            "OmniRoute.Setup.3.8.51.exe",
+            "sbom-npm.cdx.json"
+          ]
+        },
+        {
+          "tag": "v3.8.50",
+          "url": "https://github.com/cheaper-inference/OmniRoute/releases/tag/v3.8.50",
+          "published_at": "2026-08-26T19:30:30Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "latest-linux-arm64.yml",
+            "latest-linux.yml",
+            "latest-mac.yml",
+            "latest.yml",
+            "OmniRoute-3.8.50-arm64.AppImage",
+            "OmniRoute-3.8.50-arm64.dmg",
+            "OmniRoute-3.8.50.AppImage",
+            "OmniRoute-3.8.50.dmg",
+            "omniroute-desktop_3.8.50_amd64.deb",
+            "omniroute-desktop_3.8.50_arm64.deb",
+            "OmniRoute-v3.8.50.source.tar.gz",
+            "OmniRoute-v3.8.50.source.zip",
+            "OmniRoute.3.8.50.exe",
+            "OmniRoute.exe",
+            "OmniRoute.Setup.3.8.50.exe",
+            "sbom-npm.cdx.json"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": [
+        {
+          "number": 18224,
+          "url": "https://github.com/cheaper-inference/OmniRoute/pull/18224",
+          "merged_at": "2026-10-29T08:12:28Z",
+          "author": "NabiBukhsh-AI"
+        },
+        {
+          "number": 18190,
+          "url": "https://github.com/cheaper-inference/OmniRoute/pull/18190",
+          "merged_at": "2026-10-29T08:12:13Z",
+          "author": "megamen32"
+        },
+        {
+          "number": 18138,
+          "url": "https://github.com/cheaper-inference/OmniRoute/pull/18138",
+          "merged_at": "2026-10-29T08:11:57Z",
+          "author": "DarknessKiller"
+        },
+        {
+          "number": 18134,
+          "url": "https://github.com/cheaper-inference/OmniRoute/pull/18134",
+          "merged_at": "2026-10-29T08:11:39Z",
+          "author": "megamen32"
+        },
+        {
+          "number": 18124,
+          "url": "https://github.com/cheaper-inference/OmniRoute/pull/18124",
+          "merged_at": "2026-10-29T07:59:11Z",
+          "author": "aldoeliacim"
+        }
+      ]
+    },
+    {
+      "repository": "router-for-me/EasyCLIProxyAPI",
+      "url": "https://github.com/router-for-me/EasyCLIProxyAPI",
+      "created_at": "2025-09-07T19:30:58Z",
+      "pushed_at": "2026-10-29T07:19:24Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "main",
+      "inspected_head": "066ed455ffb711ca34bfcd067bdf633d505f5768",
+      "metadata_url": "https://api.github.com/repos/router-for-me/EasyCLIProxyAPI",
+      "sampled_releases": [
+        {
+          "tag": "v0.3.58",
+          "url": "https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag/v0.3.58",
+          "published_at": "2026-10-29T07:29:27Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "EasyCLIProxyAPI-v0.3.58-Darwin-aarch64.dmg",
+            "EasyCLIProxyAPI-v0.3.58-Darwin-amd64.dmg",
+            "EasyCLIProxyAPI-v0.3.58-Linux-aarch64.tar.gz",
+            "EasyCLIProxyAPI-v0.3.58-Linux-amd64.tar.gz",
+            "EasyCLIProxyAPI-v0.3.58-Windows-aarch64.zip",
+            "EasyCLIProxyAPI-v0.3.58-Windows-amd64.zip",
+            "portable-update-darwin-v2.json",
+            "portable-update-darwin.json",
+            "portable-update-linux.json",
+            "portable-update-windows.json"
+          ]
+        },
+        {
+          "tag": "v0.3.57",
+          "url": "https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag/v0.3.57",
+          "published_at": "2026-10-29T06:10:36Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "EasyCLIProxyAPI-v0.3.57-Darwin-aarch64.dmg",
+            "EasyCLIProxyAPI-v0.3.57-Darwin-amd64.dmg",
+            "EasyCLIProxyAPI-v0.3.57-Linux-aarch64.tar.gz",
+            "EasyCLIProxyAPI-v0.3.57-Linux-amd64.tar.gz",
+            "EasyCLIProxyAPI-v0.3.57-Windows-aarch64.zip",
+            "EasyCLIProxyAPI-v0.3.57-Windows-amd64.zip",
+            "portable-update-darwin-v2.json",
+            "portable-update-darwin.json",
+            "portable-update-linux.json",
+            "portable-update-windows.json"
+          ]
+        },
+        {
+          "tag": "v0.3.56",
+          "url": "https://github.com/router-for-me/EasyCLIProxyAPI/releases/tag/v0.3.56",
+          "published_at": "2026-10-28T08:56:30Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "EasyCLIProxyAPI-v0.3.56-Darwin-aarch64.dmg",
+            "EasyCLIProxyAPI-v0.3.56-Darwin-amd64.dmg",
+            "EasyCLIProxyAPI-v0.3.56-Linux-aarch64.tar.gz",
+            "EasyCLIProxyAPI-v0.3.56-Linux-amd64.tar.gz",
+            "EasyCLIProxyAPI-v0.3.56-Windows-aarch64.zip",
+            "EasyCLIProxyAPI-v0.3.56-Windows-amd64.zip",
+            "portable-update-darwin-v2.json",
+            "portable-update-darwin.json",
+            "portable-update-linux.json",
+            "portable-update-windows.json"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": []
+    },
+    {
+      "repository": "heyhuynhgiabuu/proxypal",
+      "url": "https://github.com/heyhuynhgiabuu/proxypal",
+      "created_at": "2025-12-01T19:50:13Z",
+      "pushed_at": "2026-09-13T09:43:57Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "main",
+      "inspected_head": "7b9331e1b6c145397014407c33cfb220b2a2b7a5",
+      "metadata_url": "https://api.github.com/repos/heyhuynhgiabuu/proxypal",
+      "sampled_releases": [
+        {
+          "tag": "v0.4.53",
+          "url": "https://github.com/heyhuynhgiabuu/proxypal/releases/tag/v0.4.53",
+          "published_at": "2026-09-09T06:26:22Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "latest.json",
+            "ProxyPal-0.4.53-1.x86_64.rpm",
+            "ProxyPal-0.4.53-1.x86_64.rpm.sig",
+            "ProxyPal_0.4.53_aarch64.dmg",
+            "ProxyPal_0.4.53_amd64.AppImage",
+            "ProxyPal_0.4.53_amd64.AppImage.sig",
+            "ProxyPal_0.4.53_amd64.deb",
+            "ProxyPal_0.4.53_amd64.deb.sig",
+            "ProxyPal_0.4.53_x64-setup.exe",
+            "ProxyPal_0.4.53_x64-setup.exe.sig",
+            "ProxyPal_0.4.53_x64.dmg",
+            "ProxyPal_aarch64.app.tar.gz",
+            "ProxyPal_aarch64.app.tar.gz.sig",
+            "ProxyPal_v0.4.53_x64_portable.zip",
+            "ProxyPal_x64.app.tar.gz",
+            "ProxyPal_x64.app.tar.gz.sig"
+          ]
+        },
+        {
+          "tag": "v0.4.52",
+          "url": "https://github.com/heyhuynhgiabuu/proxypal/releases/tag/v0.4.52",
+          "published_at": "2026-08-21T16:00:21Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "latest.json",
+            "ProxyPal-0.4.52-1.x86_64.rpm",
+            "ProxyPal-0.4.52-1.x86_64.rpm.sig",
+            "ProxyPal_0.4.52_aarch64.dmg",
+            "ProxyPal_0.4.52_amd64.AppImage",
+            "ProxyPal_0.4.52_amd64.AppImage.sig",
+            "ProxyPal_0.4.52_amd64.deb",
+            "ProxyPal_0.4.52_amd64.deb.sig",
+            "ProxyPal_0.4.52_x64-setup.exe",
+            "ProxyPal_0.4.52_x64-setup.exe.sig",
+            "ProxyPal_0.4.52_x64.dmg",
+            "ProxyPal_aarch64.app.tar.gz",
+            "ProxyPal_aarch64.app.tar.gz.sig",
+            "ProxyPal_v0.4.52_x64_portable.zip",
+            "ProxyPal_x64.app.tar.gz",
+            "ProxyPal_x64.app.tar.gz.sig"
+          ]
+        },
+        {
+          "tag": "v0.4.51",
+          "url": "https://github.com/heyhuynhgiabuu/proxypal/releases/tag/v0.4.51",
+          "published_at": "2026-08-18T08:00:57Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "latest.json",
+            "ProxyPal-0.4.51-1.x86_64.rpm",
+            "ProxyPal-0.4.51-1.x86_64.rpm.sig",
+            "ProxyPal_0.4.51_aarch64.dmg",
+            "ProxyPal_0.4.51_amd64.AppImage",
+            "ProxyPal_0.4.51_amd64.AppImage.sig",
+            "ProxyPal_0.4.51_amd64.deb",
+            "ProxyPal_0.4.51_amd64.deb.sig",
+            "ProxyPal_0.4.51_x64-setup.exe",
+            "ProxyPal_0.4.51_x64-setup.exe.sig",
+            "ProxyPal_0.4.51_x64.dmg",
+            "ProxyPal_aarch64.app.tar.gz",
+            "ProxyPal_aarch64.app.tar.gz.sig",
+            "ProxyPal_v0.4.51_x64_portable.zip",
+            "ProxyPal_x64.app.tar.gz",
+            "ProxyPal_x64.app.tar.gz.sig"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": []
+    },
+    {
+      "repository": "looplj/axonhub",
+      "url": "https://github.com/looplj/axonhub",
+      "created_at": "2025-09-09T17:04:33Z",
+      "pushed_at": "2026-10-29T06:00:47Z",
+      "archived": false,
+      "license_identifier": "Apache-2.0",
+      "default_branch": "unstable",
+      "inspected_head": "9142eb6a225ab4199d2412951b77429b70c5ca5b",
+      "metadata_url": "https://api.github.com/repos/looplj/axonhub",
+      "sampled_releases": [
+        {
+          "tag": "v1.0.0-beta11",
+          "url": "https://github.com/looplj/axonhub/releases/tag/v1.0.0-beta11",
+          "published_at": "2026-10-08T05:43:47Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "axonhub_1.0.0-beta11_darwin_amd64.zip",
+            "axonhub_1.0.0-beta11_darwin_arm64.zip",
+            "axonhub_1.0.0-beta11_freebsd_amd64.zip",
+            "axonhub_1.0.0-beta11_freebsd_arm64.zip",
+            "axonhub_1.0.0-beta11_linux_amd64.zip",
+            "axonhub_1.0.0-beta11_linux_arm64.zip",
+            "axonhub_1.0.0-beta11_linux_loong64.zip",
+            "axonhub_1.0.0-beta11_windows_amd64.zip",
+            "axonhub_1.0.0-beta11_windows_arm64.zip",
+            "checksums.txt",
+            "config.schema.json"
+          ]
+        },
+        {
+          "tag": "v1.0.0-beta10",
+          "url": "https://github.com/looplj/axonhub/releases/tag/v1.0.0-beta10",
+          "published_at": "2026-09-06T05:50:53Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "axonhub_1.0.0-beta10_darwin_amd64.zip",
+            "axonhub_1.0.0-beta10_darwin_arm64.zip",
+            "axonhub_1.0.0-beta10_freebsd_amd64.zip",
+            "axonhub_1.0.0-beta10_freebsd_arm64.zip",
+            "axonhub_1.0.0-beta10_linux_amd64.zip",
+            "axonhub_1.0.0-beta10_linux_arm64.zip",
+            "axonhub_1.0.0-beta10_linux_loong64.zip",
+            "axonhub_1.0.0-beta10_windows_amd64.zip",
+            "axonhub_1.0.0-beta10_windows_arm64.zip",
+            "checksums.txt",
+            "config.schema.json"
+          ]
+        },
+        {
+          "tag": "v1.0.0-beta9",
+          "url": "https://github.com/looplj/axonhub/releases/tag/v1.0.0-beta9",
+          "published_at": "2026-09-03T11:26:24Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "axonhub_1.0.0-beta9_darwin_amd64.zip",
+            "axonhub_1.0.0-beta9_darwin_arm64.zip",
+            "axonhub_1.0.0-beta9_freebsd_amd64.zip",
+            "axonhub_1.0.0-beta9_freebsd_arm64.zip",
+            "axonhub_1.0.0-beta9_linux_amd64.zip",
+            "axonhub_1.0.0-beta9_linux_arm64.zip",
+            "axonhub_1.0.0-beta9_linux_loong64.zip",
+            "axonhub_1.0.0-beta9_windows_amd64.zip",
+            "axonhub_1.0.0-beta9_windows_arm64.zip",
+            "checksums.txt",
+            "config.schema.json"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": []
+    },
+    {
+      "repository": "QuantumNous/new-api",
+      "url": "https://github.com/QuantumNous/new-api",
+      "created_at": "2023-11-10T19:33:36Z",
+      "pushed_at": "2026-10-28T09:50:30Z",
+      "archived": false,
+      "license_identifier": "AGPL-3.0",
+      "default_branch": "main",
+      "inspected_head": "e449cc700eb569cdfc2199cb73e97de46944f43c",
+      "metadata_url": "https://api.github.com/repos/QuantumNous/new-api",
+      "sampled_releases": [
+        {
+          "tag": "v1.0.0-rc.47",
+          "url": "https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.47",
+          "published_at": "2026-10-25T09:04:29Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "checksums-linux.txt",
+            "checksums-macos.txt",
+            "checksums-windows.txt",
+            "new-api-arm64-v1.0.0-rc.47",
+            "new-api-macos-v1.0.0-rc.47",
+            "new-api-v1.0.0-rc.47",
+            "new-api-v1.0.0-rc.47.exe"
+          ]
+        },
+        {
+          "tag": "v1.0.0-rc.46",
+          "url": "https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.46",
+          "published_at": "2026-10-21T16:25:54Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "checksums-linux.txt",
+            "checksums-macos.txt",
+            "checksums-windows.txt",
+            "new-api-arm64-v1.0.0-rc.46",
+            "new-api-macos-v1.0.0-rc.46",
+            "new-api-v1.0.0-rc.46",
+            "new-api-v1.0.0-rc.46.exe"
+          ]
+        },
+        {
+          "tag": "v1.0.0-rc.45",
+          "url": "https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.45",
+          "published_at": "2026-10-17T15:42:41Z",
+          "prerelease_flag": false,
+          "asset_names": [
+            "checksums-linux.txt",
+            "checksums-macos.txt",
+            "checksums-windows.txt",
+            "new-api-arm64-v1.0.0-rc.45",
+            "new-api-macos-v1.0.0-rc.45",
+            "new-api-v1.0.0-rc.45",
+            "new-api-v1.0.0-rc.45.exe"
+          ]
+        }
+      ],
+      "recent_closed_pull_sample": []
+    },
+    {
+      "repository": "maximhq/bifrost",
+      "url": "https://github.com/maximhq/bifrost",
+      "created_at": "2025-03-19T07:21:26Z",
+      "pushed_at": "2026-10-29T08:41:49Z",
+      "archived": false,
+      "license_identifier": "Apache-2.0",
+      "default_branch": "dev",
+      "inspected_head": "804105fcac60cf125e94abbe3664ce1ca0870347",
+      "metadata_url": "https://api.github.com/repos/maximhq/bifrost",
+      "sampled_releases": [
+        {
+          "tag": "transports/v2.3.2",
+          "url": "https://github.com/maximhq/bifrost/releases/tag/transports/v2.3.2",
+          "published_at": "2026-10-20T23:43:03Z",
+          "prerelease_flag": false,
+          "asset_names": []
+        },
+        {
+          "tag": "plugins/telemetry/v1.9.2",
+          "url": "https://github.com/maximhq/bifrost/releases/tag/plugins/telemetry/v1.9.2",
+          "published_at": "2026-10-20T23:25:47Z",
+          "prerelease_flag": false,
+          "asset_names": []
+        },
+        {
+          "tag": "plugins/semanticcache/v1.7.2",
+          "url": "https://github.com/maximhq/bifrost/releases/tag/plugins/semanticcache/v1.7.2",
+          "published_at": "2026-10-20T23:25:33Z",
+          "prerelease_flag": false,
+          "asset_names": []
+        }
+      ],
+      "recent_closed_pull_sample": []
+    },
+    {
+      "repository": "jacob-bd/relay-ai",
+      "url": "https://github.com/jacob-bd/relay-ai",
+      "created_at": "2026-06-09T21:13:59Z",
+      "pushed_at": "2026-10-29T00:28:04Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "main",
+      "inspected_head": "8a71b9e0dd6e79c468c2fc01fcf4a5bd1b2b62a2",
+      "metadata_url": "https://api.github.com/repos/jacob-bd/relay-ai",
+      "sampled_releases": [
+        {
+          "tag": "v0.16.1",
+          "url": "https://github.com/jacob-bd/relay-ai/releases/tag/v0.16.1",
+          "published_at": "2026-10-29T00:29:58Z",
+          "prerelease_flag": false,
+          "asset_names": []
+        },
+        {
+          "tag": "v0.16.0",
+          "url": "https://github.com/jacob-bd/relay-ai/releases/tag/v0.16.0",
+          "published_at": "2026-10-28T23:57:58Z",
+          "prerelease_flag": false,
+          "asset_names": []
+        },
+        {
+          "tag": "v0.15.18",
+          "url": "https://github.com/jacob-bd/relay-ai/releases/tag/v0.15.18",
+          "published_at": "2026-10-25T23:00:13Z",
+          "prerelease_flag": false,
+          "asset_names": []
+        }
+      ],
+      "recent_closed_pull_sample": []
+    },
+    {
+      "repository": "lmgw-dev/lmgw",
+      "url": "https://github.com/lmgw-dev/lmgw",
+      "created_at": "2026-09-30T19:41:51Z",
+      "pushed_at": "2026-10-19T07:23:15Z",
+      "archived": false,
+      "license_identifier": "MIT",
+      "default_branch": "main",
+      "metadata_url": "https://api.github.com/repos/lmgw-dev/lmgw",
+      "sampled_releases": [],
+      "recent_closed_pull_sample": []
+    }
+  ],
+  "source_inspection": [
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "src/lib/db/encryption.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/src/lib/db/encryption.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "src/lib/db/providers.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/src/lib/db/providers.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "src/lib/db/settings.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/src/lib/db/settings.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "src/sse/services/keyConnectionScope.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/src/sse/services/keyConnectionScope.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "src/sse/services/auth.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/src/sse/services/auth.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "src/sse/services/credentialSelectionOptions.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/src/sse/services/credentialSelectionOptions.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "open-sse/services/accountFallback.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/open-sse/services/accountFallback.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "open-sse/services/providerConnectionPool.ts",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/open-sse/services/providerConnectionPool.ts"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "docs/security/INFERENCE_AUTH_POSTURE.md",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/docs/security/INFERENCE_AUTH_POSTURE.md"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": "docs/reference/ENVIRONMENT.md",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/docs/reference/ENVIRONMENT.md"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": ".github/workflows/electron-release.yml",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/.github/workflows/electron-release.yml"
+    },
+    {
+      "repository": "cheaper-inference/OmniRoute",
+      "path": ".github/workflows/release-acceptance.yml",
+      "revision": "ad6f33f66bda34eba98645d3bfdabbde294bc843",
+      "basis": "release",
+      "url": "https://github.com/cheaper-inference/OmniRoute/blob/ad6f33f66bda34eba98645d3bfdabbde294bc843/.github/workflows/release-acceptance.yml"
+    },
+    {
+      "repository": "yetone/magpie",
+      "path": "README.md",
+      "revision": "fd80ed99c9a97a2f6f96ee62e36eba9eefb16036",
+      "basis": "default_branch_snapshot",
+      "url": "https://github.com/yetone/magpie/blob/fd80ed99c9a97a2f6f96ee62e36eba9eefb16036/README.md"
+    },
+    {
+      "repository": "yetone/magpie",
+      "path": "internal/provider/provider.go",
+      "revision": "fd80ed99c9a97a2f6f96ee62e36eba9eefb16036",
+      "basis": "default_branch_snapshot",
+      "url": "https://github.com/yetone/magpie/blob/fd80ed99c9a97a2f6f96ee62e36eba9eefb16036/internal/provider/provider.go"
+    },
+    {
+      "repository": "yetone/magpie",
+      "path": "docs/subsystems/gateway-middleware.md",
+      "revision": "fd80ed99c9a97a2f6f96ee62e36eba9eefb16036",
+      "basis": "default_branch_snapshot",
+      "url": "https://github.com/yetone/magpie/blob/fd80ed99c9a97a2f6f96ee62e36eba9eefb16036/docs/subsystems/gateway-middleware.md"
+    },
+    {
+      "repository": "farion1231/cc-switch",
+      "path": "README.md",
+      "revision": "ddcb111765be66ed9e7e43e240497fd2c9576688",
+      "basis": "default_branch_snapshot",
+      "url": "https://github.com/farion1231/cc-switch/blob/ddcb111765be66ed9e7e43e240497fd2c9576688/README.md"
+    },
+    {
+      "repository": "farion1231/cc-switch",
+      "path": "src-tauri/src/proxy/provider_router.rs",
+      "revision": "ddcb111765be66ed9e7e43e240497fd2c9576688",
+      "basis": "default_branch_snapshot",
+      "url": "https://github.com/farion1231/cc-switch/blob/ddcb111765be66ed9e7e43e240497fd2c9576688/src-tauri/src/proxy/provider_router.rs"
+    },
+    {
+      "repository": "farion1231/cc-switch",
+      "path": "src-tauri/src/database/dao/providers.rs",
+      "revision": "ddcb111765be66ed9e7e43e240497fd2c9576688",
+      "basis": "default_branch_snapshot",
+      "url": "https://github.com/farion1231/cc-switch/blob/ddcb111765be66ed9e7e43e240497fd2c9576688/src-tauri/src/database/dao/providers.rs"
+    }
+  ],
+  "limitations": [
+    "Stars excluded from ranking.",
+    "Release presence and CI definitions do not prove runtime reliability.",
+    "OmniRoute stable source inspected at v3.8.52; newer preferredConnections documentation is not assumed available there.",
+    "Magpie and CC Switch deep source analysis uses recorded head snapshots, not complete release equivalence verification.",
+    "Bifrost sampled releases include component tags.",
+    "Repository license metadata does not replace per-file license review before reuse."
+  ]
+}

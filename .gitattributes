@@ -6,6 +6,10 @@
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
 
+# The backend's record stays byte for byte what the working copy has
+backend/*.patch -text
+backend/src/** -text
+
 # Binary assets
 *.png binary
 *.jpg binary

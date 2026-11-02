@@ -262,6 +262,31 @@ impl TargetHealth {
         self.until_ms.store(until_ms, Ordering::Release);
     }
 
+    /// Applies a key-level block (rate limit or quota) that `from`, another protocol variant
+    /// of the same account model, just ran into (ADR-003 §7): same state and deadline, without
+    /// counting a failure here. Never shortens a longer block or replaces an authentication
+    /// failure.
+    pub fn share_block(&self, from: &TargetHealth, now_ms: i64) {
+        let state = from.state();
+        if !matches!(
+            state,
+            HealthState::RateLimited | HealthState::QuotaExhausted
+        ) || self.state() == HealthState::AuthFailed
+        {
+            return;
+        }
+        let until = from.until_ms.load(Ordering::Acquire);
+        if !self.is_available(now_ms) && self.until_ms.load(Ordering::Acquire) >= until {
+            return;
+        }
+        let message = from.last_error.lock().ok().and_then(|e| e.clone());
+        self.state.store(state as u8, Ordering::Release);
+        self.until_ms.store(until, Ordering::Release);
+        if let (Some(m), Ok(mut e)) = (message, self.last_error.lock()) {
+            *e = Some(m);
+        }
+    }
+
     /// Clears any blocking state (e.g. after the user updates credentials).
     pub fn reset(&self) {
         self.state
@@ -501,5 +526,45 @@ mod tests {
         );
         r.retain(|_| false);
         assert!(r.get("m1:chat").is_none());
+    }
+
+    #[test]
+    fn shared_blocks_copy_key_level_states_without_counting_failures() {
+        let chat = TargetHealth::default();
+        let messages = TargetHealth::default();
+        chat.record_failure(
+            FailureKind::RateLimited {
+                retry_after: Some(Duration::from_secs(20)),
+            },
+            "inference exceeds tpm/rpm limit",
+            1_000,
+        );
+        messages.share_block(&chat, 1_000);
+        assert_eq!(messages.state(), HealthState::RateLimited);
+        assert!(!messages.is_available(20_999));
+        assert!(messages.is_available(21_000), "same deadline");
+        let s = messages.snapshot();
+        assert_eq!((s.failures, s.consecutive_failures), (0, 0));
+        assert_eq!(
+            s.last_error.as_deref(),
+            Some("inference exceeds tpm/rpm limit")
+        );
+
+        // A longer block stays; an authentication failure is never replaced.
+        let quota = TargetHealth::default();
+        quota.mark_quota_exhausted(100_000);
+        quota.share_block(&chat, 1_000);
+        assert_eq!(quota.state(), HealthState::QuotaExhausted);
+        let auth = TargetHealth::default();
+        auth.record_failure(FailureKind::Auth, "401", 1_000);
+        auth.share_block(&chat, 1_000);
+        assert_eq!(auth.state(), HealthState::AuthFailed);
+
+        // Endpoint-level failures stay per protocol.
+        let down = TargetHealth::default();
+        down.record_failure(FailureKind::Server, "502", 1_000);
+        let other = TargetHealth::default();
+        other.share_block(&down, 1_000);
+        assert!(other.is_available(1_000));
     }
 }

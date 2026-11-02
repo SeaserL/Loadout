@@ -1,10 +1,28 @@
-Loadout v0.4 OpenCode bridge protection update
+Loadout OpenCode Free bridge kit (install and update)
 
-This optional package updates an EXISTING LoadoutOpenCodeBridge installation.
-It does not contain OpenCode, Python, credentials or a new bridge installer.
-Requires the existing official OpenCode 2.0.32 installation and helper files.
+Optional. Lets Loadout use OpenCode's free models through the unmodified official
+OpenCode 2.0.32 server running on this computer (127.0.0.1 only). It contains our
+scripts and a small process launcher (spawn_detached.exe); it does not contain
+OpenCode itself, Python or any credentials.
 
-Extract the zip, then run in PowerShell:
+Requirements: Loadout installed and running, Python 3.9+ (python.org), internet.
+
+Fresh install (no Rust or Node.js needed). Extract the zip, then in PowerShell:
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-OpenCodeBridge.ps1
+The script downloads the official @opencode/cli-windows-x64 2.0.32 package (about
+70 MB) from registry.npmjs.org and verifies its npm integrity and SHA-256, installs
+to %LOCALAPPDATA%\LoadoutOpenCodeBridge, starts the bridge and adds or updates the
+Loadout account opencode-free/main. Options:
+  -OpenCodeExe <path>  use a local official opencode.exe 2.0.32 instead of downloading
+  -Python <path>       python.exe to use
+  -Loadout <path>      loadout.exe when Loadout is not in the default install folder
+  -Resume              finish an install whose start or account step failed
+Then in Loadout: Accounts > OpenCode Free > main > "Turn routing on". Like other
+opt-in transports it is not part of loadout/realtime|fast|default: use the full
+model name (opencode-free/main/<model>) or add it to your own pool.
+After a reboot, run Start-OpenCodeBridge.ps1 in the bridge folder again.
+
+Update an EXISTING installation:
   powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-OpenCodeBridge.ps1
 For a nonstandard existing installation, add -BridgeDir <absolute directory>.
 The script verifies process ownership, backs up scripts, restarts the bridge,

@@ -182,13 +182,20 @@ async fn endpoint_proxy(
         Ok(v) => v,
         Err(resp) => return *resp,
     };
-    let wait_ms = i64::from(app.plane.routes.load().endpoint_wait_secs(&endpoint)) * 1000;
+    let table = app.plane.routes.load();
+    let wait_ms = i64::from(table.endpoint_wait_secs(&endpoint)) * 1000;
     let deadline = ts_ms + wait_ms;
+    // One turn per client request; recovery rounds keep it (ADR-015 §5).
+    let turn = table
+        .endpoint_rotates(&endpoint)
+        .then(|| app.plane.endpoint_turns.next(&endpoint));
+    drop(table);
     loop {
         let now = now_ms();
         let scope = proxy::Scope {
             name: &endpoint,
             retry_until_ms: (now < deadline).then_some(deadline),
+            turn,
         };
         let resp = proxy::handle_bytes(
             app.plane.clone(),

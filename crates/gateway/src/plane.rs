@@ -87,7 +87,8 @@ pub struct UpstreamLimits {
     pub first_token_timeout: Duration,
     /// Whole-response limit for non-streaming passthrough.
     pub non_stream_timeout: Duration,
-    /// Candidates tried per request (ADR-003 §7).
+    /// Routes (account models) tried per request; the protocol variants of one share an
+    /// attempt (ADR-003 §7).
     pub max_attempts: usize,
 }
 
@@ -120,6 +121,25 @@ impl AccountSlots {
     }
 }
 
+/// Round-robin turns of dedicated endpoints that rotate (ADR-015 §5). Only in-memory state
+/// (it survives route-table rebuilds, not restarts), so it is allowed on the request path.
+#[derive(Debug, Default)]
+pub struct EndpointTurns(Mutex<HashMap<String, usize>>);
+
+impl EndpointTurns {
+    /// This request's turn at `endpoint`: 0, 1, 2, …
+    pub fn next(&self, endpoint: &str) -> usize {
+        let mut turns = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(turn) = turns.get_mut(endpoint) {
+            let this = *turn;
+            *turn = turn.wrapping_add(1);
+            return this;
+        }
+        turns.insert(endpoint.to_owned(), 1);
+        0
+    }
+}
+
 /// Everything the proxy handlers share.
 #[derive(Clone)]
 pub struct DataPlane {
@@ -134,6 +154,8 @@ pub struct DataPlane {
     pub policies: Arc<ClientPolicies>,
     /// Per-account concurrency limits (ADR-012).
     pub account_slots: Arc<AccountSlots>,
+    /// Round-robin turns of rotating endpoints (ADR-015 §5).
+    pub endpoint_turns: Arc<EndpointTurns>,
 }
 
 impl DataPlane {
@@ -148,6 +170,7 @@ impl DataPlane {
             sessions: Arc::default(),
             policies: Arc::default(),
             account_slots: Arc::default(),
+            endpoint_turns: Arc::default(),
         }
     }
 

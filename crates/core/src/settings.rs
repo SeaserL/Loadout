@@ -92,7 +92,8 @@ pub const SETTINGS: &[SettingDef] = &[
     SettingDef {
         key: MAX_ATTEMPTS,
         default: "3",
-        description: "Routes tried per request before giving up (ADR-003)",
+        description: "Routes (account models) tried per request before giving up; the \
+                      protocols of one account model count once (ADR-003)",
         restart_required: true,
         validate: validate_attempts,
     },

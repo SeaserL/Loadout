@@ -6,16 +6,20 @@
 node_modules/
 dist/
 .vite/
+/.build/
 *.tsbuildinfo
 
 # Tauri
 apps/desktop/src-tauri/gen/
+apps/fusion-desktop/gen/
 
 # Local data — never commit databases, secrets or env files
 *.db
 *.db-wal
 *.db-shm
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .env
 .env.*
 !.env.example
@@ -37,3 +41,23 @@ Desktop.ini
 
 # Python
 __pycache__/
+
+# Temporary upstream source checkouts; the backend's record is backend/
+/development/upstreams/
+
+# Fusion work area: this machine's packages, instances, acceptance records and experiments.
+# Conclusions live in docs/research; only the pins and license notices stay in Git.
+/development/fusion/runtime/
+/development/fusion/evidence/
+/development/fusion/acceptance/
+/development/fusion/legacy/
+/development/fusion/migrations/
+/development/fusion/current.json
+/development/fusion/notices/Node-v24.19.0-LICENSE.txt
+/development/fusion-baseline.lock.json
+/development/experiments/
+/development/source-deltas/
+/development/exports/
+
+# The shortcut holds absolute paths of this machine
+/*.lnk

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::Subcommand;
+use clap::{Subcommand, ValueEnum};
 use loadout_ipc::api::{self, EndpointInfo, EndpointRef, EndpointSaveParams};
 
 use crate::{Ctx, Failure, output};
@@ -30,8 +30,17 @@ pub enum EndpointCommand {
     },
     /// Turn an endpoint off (kept for later).
     Disable { name: String },
+    /// Round-robin: each request starts at the next account instead of the first healthy
+    /// one, spreading traffic over every member (ADR-015 §5).
+    Rotate { name: String, state: OnOff },
     /// Remove an endpoint.
     Remove { name: String },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum OnOff {
+    On,
+    Off,
 }
 
 fn print(e: &EndpointInfo) {
@@ -57,6 +66,14 @@ fn print(e: &EndpointInfo) {
     if let Some(m) = &e.default_model {
         println!("  Default model       {m}");
     }
+    println!(
+        "  Rotation            {}",
+        if e.rotate {
+            "on (each request starts at the next account)"
+        } else {
+            "off (first healthy account in order)"
+        }
+    );
     println!("  Wait for recovery   {} s", e.wait_secs);
     println!("  Models              {}", e.models.join(", "));
 }
@@ -89,6 +106,7 @@ pub async fn run(ctx: &Ctx, cmd: EndpointCommand) -> Result<(), Failure> {
                     members: accounts,
                     default_model,
                     wait_secs: wait,
+                    rotate: None,
                 })
                 .await?;
             if ctx.json {
@@ -97,20 +115,24 @@ pub async fn run(ctx: &Ctx, cmd: EndpointCommand) -> Result<(), Failure> {
             print(&e);
         }
         EndpointCommand::Disable { name } => {
-            let current = ipc
-                .call::<api::EndpointList>(&())
-                .await?
-                .into_iter()
-                .find(|e| e.name == name)
-                .ok_or_else(|| Failure::new(format!("endpoint {name} not found")))?;
+            let current = find(&mut ipc, &name).await?;
             let e = ipc
                 .call::<api::EndpointSave>(&EndpointSaveParams {
-                    name: Some(current.name),
-                    provider: current.provider,
                     enabled: false,
-                    members: current.members,
-                    default_model: current.default_model,
-                    wait_secs: Some(current.wait_secs),
+                    ..unchanged(current)
+                })
+                .await?;
+            if ctx.json {
+                return output::json(&e);
+            }
+            print(&e);
+        }
+        EndpointCommand::Rotate { name, state } => {
+            let current = find(&mut ipc, &name).await?;
+            let e = ipc
+                .call::<api::EndpointSave>(&EndpointSaveParams {
+                    rotate: Some(matches!(state, OnOff::On)),
+                    ..unchanged(current)
                 })
                 .await?;
             if ctx.json {
@@ -136,4 +158,25 @@ pub async fn run(ctx: &Ctx, cmd: EndpointCommand) -> Result<(), Failure> {
         }
     }
     Ok(())
+}
+
+async fn find(ipc: &mut loadout_ipc::IpcClient, name: &str) -> Result<EndpointInfo, Failure> {
+    ipc.call::<api::EndpointList>(&())
+        .await?
+        .into_iter()
+        .find(|e| e.name == name)
+        .ok_or_else(|| Failure::new(format!("endpoint {name} not found")))
+}
+
+/// Save parameters that keep every setting of `e`.
+fn unchanged(e: EndpointInfo) -> EndpointSaveParams {
+    EndpointSaveParams {
+        name: Some(e.name),
+        provider: e.provider,
+        enabled: e.enabled,
+        members: e.members,
+        default_model: e.default_model,
+        wait_secs: Some(e.wait_secs),
+        rotate: Some(e.rotate),
+    }
 }

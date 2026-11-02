@@ -6,7 +6,7 @@
 
 **当前状态（正式部署验收）**：用户授权后已将029五个桥接/控制插件文件部署到正式目录并核对SHA，重启官方server、bridge、Loadout daemon。正式8317端口DeepSeek能力/真实编码15请求全成功，HEALTHY；big-pickle JSON/SSE基础回归通过。当前基于手机5G热点，不代表原宽带恢复或长期可用。
 
-**403 后续归因**：此前宽带下官方无插件CLI/serve/原生任务也返回 `Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic`，热点恢复支持网络相关因素，并非只有bridge失败。尚无A-B-A及服务端判定证据，精确IP/路由/历史流量触发因素仍UNKNOWN。见文末对照。
+**403 后续归因**：此前宽带下官方无插件CLI/serve/原生任务也返回 `Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic`，热点恢复支持网络相关因素，并非只有bridge失败。尚无A-B-A及服务端判定证据，精确IP/路由/历史流量触发因素仍UNKNOWN。见文末对照。2026-10-20 官方桌面端原始响应确认为服务端 Cloudflare 后的 403 FreeTierError（非本地标记、非 Loadout 当前流量），宽带疑似 CGNAT 共享出口，见文末"官方桌面端 403 只读归因"。
 
 ## Implementation References / Source Licenses
 
@@ -24,6 +24,8 @@
 
 ## 部署与使用
 固定官方 2.0.32 binary；独立目录内有 `opencode.exe`、`spawn_detached.exe`、Python 脚本、`binding.json` 与 DPAPI secret。`Start-OpenCodeBridge.ps1` 显式启动。默认端口 bridge 18789 / official 18790，仅 loopback。没有增加系统自启；重启机器后需重新运行启动脚本。
+
+全新安装（ExecPlan 033）：桥接工具包自带预编译 `spawn_detached.exe`（`crates/platform/examples/spawn_detached.rs`）与 `Install-OpenCodeBridge.ps1`，新机器无需 Rust/Node。脚本从 registry.npmjs.org 下载固定 `@opencode/cli-windows-x64@2.0.32`，校验 npm sha512 integrity 与 `opencode.exe` SHA-256（也可 `-OpenCodeExe` 指定本地官方 exe，同样校验），写入独立目录、DPAPI 初始化、启动，再经 stdin 把 bridge key 写入 `opencode-free/main`（已有账号则 set-key 并同步模型）。不自动开启转发：仍需在面板对该账号"开启转发"。已有 `binding.json` 时拒绝，改用 Update 脚本；启动或注册失败后用 `-Resume` 续做。需要 Python 3.9+。与 Codex 订阅转发相同，opt-in 后也不进入 `loadout/realtime|fast|default`，需用完整模型名或自建 Pool。
 
 Loadout kind `opencode-bridge`，slug `opencode-free`，alias `main`。使用精确模型 `opencode-free/main/deepseek-v4.1-flash-free` 或 `opencode-free/main/big-pickle`，不进入 default/fast/realtime。DeepSeek 支持 API 客户端执行工具的循环；客户端附加的其它参数仍须符合下面的明确范围。
 
@@ -195,4 +197,25 @@ Windows Internet Settings ProxyEnable=0、无 PAC，WinHTTP direct；进程/用�
 
 连续 user 消息导入保序通过离线测试；双 worker 不启用，030 的真实并发编码验收仍未完成。已有的 SSE、tool_choice、max_tokens、工具历史能力保留，但每个工具回合都受 120 秒间隔限制，客户端需要处理限流。64 KiB/64 条消息、单次执行 45 秒等边界仍在，不宣称任意编码 Agent 无损兼容或长期稳定。
 
-主 Release 更新 Loadout 程序。外部桥接脚本需另取同 Release 的 `Loadout-0.4.0-windows-x64-opencode-bridge.zip`，解压后运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-OpenCodeBridge.ps1`。只适用于已安装的官方 2.0.32 桥接；脚本核验进程归属，备份、替换并重启，失败回滚，不做推理请求。不包含官方 binary、Python 或凭据，未完整部署任何第三方网关。内置软件更新不会自动覆盖外部桥接目录。
+主 Release 更新 Loadout 程序。外部桥接脚本需另取同 Release 的 `Loadout-0.4.0-windows-x64-opencode-bridge.zip`，解压后运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-OpenCodeBridge.ps1`。只适用于已安装的官方 2.0.32 桥接（新机器用同一工具包内的 `Install-OpenCodeBridge.ps1`）；脚本核验进程归属，备份、替换并重启，失败回滚，不做推理请求。不包含官方 binary、Python 或凭据，未完整部署任何第三方网关。内置软件更新不会自动覆盖外部桥接目录。
+
+### 官方桌面端 403 只读归因（2026-10-20）
+
+用户在官方 OpenCode Desktop 1.19.3（不经 Loadout）选择 `opencode/deepseek-v4.1-flash-free`，两次均被拒绝。本轮只读检查，没有发起推理请求，没有修改正式服务或系统网络配置。
+
+**Loadout 当时无流量**：桥接与官方 serve 进程不存在，8317/18789/18790 无监听；daemon 于 2026-10-20 00:58 UTC 经 IPC 正常停止。`request_events` 中 opencode-free 共 35 条，全部在 2026-10-18；桥接 admission 最后一次推理开始约 2026-10-18 13:31 UTC，官方 serve 日志止于 13:36 UTC。即故障发生前约 35 小时内 Loadout 未向免费网关发送请求，桌面端 403 不是 Loadout 当前调用造成的。
+
+**拒绝由服务端判定，不是本地标记**：
+- 桌面端 `app.asar` 与桥接使用的 `opencode.exe` 都不包含该提示文本（abusive traffic / free models aren't available），本地只有 `Free usage exceeded` 一类 upsell 常量。
+- 桌面端本地数据库 `~/.local/share/opencode/opencode.db` 的 assistant 消息保存了原始 `APIError`：`POST https://opencode.ai/inference/openai/v1/chat/completions` 返回 HTTP 403、`isRetryable=false`、`server: cloudflare`，响应体 `{"type":"error","error":{"type":"FreeTierError",...}}`，并带服务端 `x-opencode-log-id`（未写入本文档，可用于向官方申诉）。
+- `account`、`credential`、`account_state` 表均为空，即匿名 free 调用；`%APPDATA%/ai.opencode.desktop` 下 `opencode.global.dat` 只有 UI/模型选择等键，未见封禁或冷却字段。删除本地状态不会解除限制，此前隔离 XDG/内存 DB 的官方 CLI 同样 403 也与此一致。
+- 官方公开 `inference-proxy.ts` 只把 `cf-connecting-ip` 转为 `x-real-ip` 转发，免费资格与滥用判定由闭源的独立 inference 服务负责，具体规则不可见。
+
+**网络出口**：系统代理关闭、无 PAC、无 IPv6 出口，Cloudflare trace `loc=AU`、`warp=off`。`tracert` 第 3 跳位于 `100.64.0.0/10`（RFC 6598 运营商共享地址段），本地有两层家用 NAT；结合 ISP 为住宅宽带，当前宽带大概率处于 CGNAT 之后，公网 IPv4 可能与同运营商其他用户共享。公网 IP 地址不记录在仓库中。
+
+**可能原因（均未经官方确认）**：
+1. 共享出口 IP 上其他用户的流量（CGNAT 或手机热点运营商 NAT）触发按 IP 的风控；可解释热点也出现 403→成功→403 波动。
+2. 2026-10-18 本机密集测试（Loadout 35 次 + 多次官方 CLI/serve/第三方网关直接探测）曾计入同一 IP 的信誉；无法排除，也无法证明。
+3. 网关侧大范围收紧：上游 [Issue #56965](https://github.com/anomalyco/opencode/issues/56965)（2026-10-19，Windows 桌面端、无 VPN）报告同一错误自 10-18 开始，并关联多个同类 issue；官方 bot 回复限制来自免费网关滥用检测，仅团队可审查解除，建议邮件 help@anoma.ly，未说明规则或时长。社区另有"免费层按 IP 限流"、数据中心/代理 IP 被拦截的报告，属传闻。
+
+**结论**：可确认为服务端按网络出口判定的 FreeTierError，非本地标记，非 Loadout 当前流量造成；具体触发因素与解除时间 UNKNOWN。不采用伪装身份、代理池或 WARP 绕过（ADR-017）。用户可选择切换网络、等待、向官方申诉（附 log id），或使用付费 OpenCode Go。029/030 维持现状，恢复后仍须按既有 gate 重新验收。

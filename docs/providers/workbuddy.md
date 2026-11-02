@@ -1,13 +1,17 @@
 # WorkBuddy International (`workbuddy-bridge`)
 
-- **Last verified**: 2026-10-17（Australia/Sydney）
+- **Last verified**: 2026-10-30隔离新连接；以下正式IPC成功记录为2026-10-17历史结果（Australia/Sydney）。
 - **Subscription Transport Status**: OPT-IN, PRIVATE_ENDPOINT，ADR-016。
 - **Provider slug**: `workbuddy`；当前安装账号 `main`，绑定现有国际版桌面账号。
 - **实现**：原创 Node loopback bridge → 官方运行中客户端 Named Pipe → WorkBuddy 国际版；不是第三方 workbuddy2api 原样安装。
 
 ## 验证结论
 
-实际经客户端 IPC 调用 `deepseek-v4.1-flash`：HTTP 200、同名模型、预期 `LOADOUT_OK` 文本、SSE DONE。隔离 Loadout 和正式 Loadout 的 Chat JSON、缓冲 SSE 均通过。
+**2026-10-30日常验证（047）**：隔离046候选+窄relay，Claude Code/OpenCode文本及只读文件工具完整往返通过，3轮完整history增长到149089 bytes仍返回最早marker。Codex初始本地stream限制已按上游既有SSE要求消除，随后真实上游仍HTTP400/CHANNEL_REJECTED；纯mock证明请求已是system角色/function工具且Codex可正常完成，不增加提示词清洗。真实token未自然轮换，加密文件轮换17项相关离线检查通过。正式桥接不变，不能宣称全部客户端日常可用。详见[047报告](../research/2026-10-30-daily-client-credential-provider-validation.md)。
+
+**2026-10-30隔离更新（046）**：按用户指定参考[AidenOrz/dsh-workbuddy-connect@25680ca](https://github.com/AidenOrz/dsh-workbuddy-connect/tree/25680ca7f7ff5d7b84bb35f45de766519fccbc9d)，仅复用只读内存凭证和请求头构造。冻结OmniRoute→独立bridge→国际站直连返回200/LOADOUT_OK，约1.95秒，模型仍为deepseek-v4.1-flash；桌面5.9.4、CLI2.165.0。没有启用该插件的提示词指纹改写、自动refresh或明文凭证副本。原bridge账号绑定/模型/SSE完整性检查保留。旧IPC本轮对照未完成，前轮为400/11128，正式IPC桥接未修改。源码/实验见phase7；只证明此合成文本链路，不代表工具、长会话、凭证轮换或正式环境已修复。
+
+2026-10-17历史验收：实际经客户端 IPC 调用 `deepseek-v4.1-flash`：HTTP 200、同名模型、预期 `LOADOUT_OK` 文本、SSE DONE。隔离 Loadout 和正式 Loadout 的 Chat JSON、缓冲 SSE 均通过。
 
 完整上游目录 **UNKNOWN**：`/v3/config` 经 IPC 返回 400 / code 12403（版本 UA 检查）。没有伪造 UA 修复此接口。bridge 的 `/v1/models` 只展示经过最小 live 验证的单个模型，不代表实时发现全部模型。没有独立验证供应商内部权重身份、价格或“永久免费”。
 
@@ -90,3 +94,9 @@ python scripts/workbuddy_verify.py --loadout target\v3\release\loadout.exe --pro
 ```
 
 真实验证会发送极短 prompt，消耗以供应商计费为准。
+
+## OmniRoute 隔离首行兼容（2026-10-30，049）
+
+正式bridge不变。隔离薄relay可显式开启`firstLineCompatibility: true`，仅匹配当前Codex首条system的完整已知首行；未知文本和所有其他消息/工具数据保持不变。它没有采用原生WorkBuddy的全body字符串替换。
+
+本机Codex 0.165.0-alpha.1.2真实文本、持久会话get_goal、三轮同session长会话（最大204686 B）通过；文件工具因隔离客户端本地执行策略拒绝Get-Content而BLOCKED，mock复现同一错误，不属于新增渠道拒绝。本轮没有切换正式环境、刷新登录、修改真实账号或进行UI开发。范围和证据见[049报告](../research/2026-10-30-workbuddy-first-line-client-validation.md)。

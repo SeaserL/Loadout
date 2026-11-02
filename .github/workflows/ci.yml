@@ -37,6 +37,11 @@ jobs:
           npm ci
           npm run build
 
+      # The 1.0 console type-checks and builds here. Its package and regression suite need the
+      # upstream checkout and run through scripts/fusion-release.ps1.
+      - name: Console
+        run: npm run fusion:ui
+
       - name: Format
         run: cargo fmt --all --check
 
