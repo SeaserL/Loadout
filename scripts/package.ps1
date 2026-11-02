@@ -30,6 +30,8 @@ if (-not $SkipBuild) {
     Invoke-Checked 'npm ci' { npm.cmd ci --no-audit --no-fund }
     Invoke-Checked 'frontend build' { npm.cmd run build }
     Invoke-Checked 'cargo build' { cargo build --release -p loadout -p loadout-desktop }
+    # The bridge kit's process launcher, so installing the bridge needs no Rust (ExecPlan 033).
+    Invoke-Checked 'spawn_detached build' { cargo build --release -p loadout-platform --example spawn_detached }
 }
 
 $stage = Join-Path $OutDir $name
@@ -54,13 +56,17 @@ Compress-Archive -Path $stage -DestinationPath $zip
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
 Set-Content -Encoding ascii -Path "$zip.sha256" -Value "$hash  $name.zip"
 
-# Optional bridge protection kit: our scripts only; no official binary or credentials.
+# Optional OpenCode bridge kit (install and update): our scripts and launcher only; the
+# installer fetches the pinned official binary itself. No credentials.
 $bridgeStage = Join-Path $OutDir "$name-opencode-bridge"
+if (Test-Path $bridgeStage) { Remove-Item -Recurse -Force $bridgeStage }
 $null = New-Item -ItemType Directory -Force -Path $bridgeStage
-foreach ($file in 'Update-OpenCodeBridge.ps1','Start-OpenCodeBridge.ps1','opencode_bridge.py','opencode_protocol.py','opencode_events.py','opencode_controls.mjs') {
+foreach ($file in 'Install-OpenCodeBridge.ps1','Update-OpenCodeBridge.ps1','Start-OpenCodeBridge.ps1','opencode_bridge.py','opencode_protocol.py','opencode_events.py','opencode_controls.mjs','opencode_bridge_setup.py','workbuddy_bridge_key.py') {
     Copy-Item -LiteralPath (Join-Path 'scripts' $file) -Destination $bridgeStage -Force
 }
+Copy-Item -LiteralPath 'target\release\examples\spawn_detached.exe' -Destination $bridgeStage -Force
 Copy-Item -LiteralPath 'LICENSE' -Destination $bridgeStage -Force
+Copy-Item -LiteralPath (Join-Path $stage 'THIRD_PARTY_LICENSES.md') -Destination $bridgeStage -Force
 Copy-Item -LiteralPath 'packaging/OPENCODE-BRIDGE.txt' -Destination (Join-Path $bridgeStage 'README.txt') -Force
 $bridgeZip = Join-Path $OutDir "$name-opencode-bridge.zip"
 Compress-Archive -Path $bridgeStage -DestinationPath $bridgeZip -Force

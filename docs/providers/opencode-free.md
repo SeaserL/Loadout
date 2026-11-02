@@ -25,6 +25,8 @@
 ## 部署与使用
 固定官方 2.0.32 binary；独立目录内有 `opencode.exe`、`spawn_detached.exe`、Python 脚本、`binding.json` 与 DPAPI secret。`Start-OpenCodeBridge.ps1` 显式启动。默认端口 bridge 18789 / official 18790，仅 loopback。没有增加系统自启；重启机器后需重新运行启动脚本。
 
+全新安装（ExecPlan 033）：桥接工具包自带预编译 `spawn_detached.exe`（`crates/platform/examples/spawn_detached.rs`）与 `Install-OpenCodeBridge.ps1`，新机器无需 Rust/Node。脚本从 registry.npmjs.org 下载固定 `@opencode/cli-windows-x64@2.0.32`，校验 npm sha512 integrity 与 `opencode.exe` SHA-256（也可 `-OpenCodeExe` 指定本地官方 exe，同样校验），写入独立目录、DPAPI 初始化、启动，再经 stdin 把 bridge key 写入 `opencode-free/main`（已有账号则 set-key 并同步模型）。不自动开启转发：仍需在面板对该账号"开启转发"。已有 `binding.json` 时拒绝，改用 Update 脚本；启动或注册失败后用 `-Resume` 续做。需要 Python 3.9+。与 Codex 订阅转发相同，opt-in 后也不进入 `loadout/realtime|fast|default`，需用完整模型名或自建 Pool。
+
 Loadout kind `opencode-bridge`，slug `opencode-free`，alias `main`。使用精确模型 `opencode-free/main/deepseek-v4.1-flash-free` 或 `opencode-free/main/big-pickle`，不进入 default/fast/realtime。DeepSeek 支持 API 客户端执行工具的循环；客户端附加的其它参数仍须符合下面的明确范围。
 
 ```json
@@ -195,7 +197,7 @@ Windows Internet Settings ProxyEnable=0、无 PAC，WinHTTP direct；进程/用�
 
 连续 user 消息导入保序通过离线测试；双 worker 不启用，030 的真实并发编码验收仍未完成。已有的 SSE、tool_choice、max_tokens、工具历史能力保留，但每个工具回合都受 120 秒间隔限制，客户端需要处理限流。64 KiB/64 条消息、单次执行 45 秒等边界仍在，不宣称任意编码 Agent 无损兼容或长期稳定。
 
-主 Release 更新 Loadout 程序。外部桥接脚本需另取同 Release 的 `Loadout-0.4.0-windows-x64-opencode-bridge.zip`，解压后运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-OpenCodeBridge.ps1`。只适用于已安装的官方 2.0.32 桥接；脚本核验进程归属，备份、替换并重启，失败回滚，不做推理请求。不包含官方 binary、Python 或凭据，未完整部署任何第三方网关。内置软件更新不会自动覆盖外部桥接目录。
+主 Release 更新 Loadout 程序。外部桥接脚本需另取同 Release 的 `Loadout-0.4.0-windows-x64-opencode-bridge.zip`，解压后运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-OpenCodeBridge.ps1`。只适用于已安装的官方 2.0.32 桥接（新机器用同一工具包内的 `Install-OpenCodeBridge.ps1`）；脚本核验进程归属，备份、替换并重启，失败回滚，不做推理请求。不包含官方 binary、Python 或凭据，未完整部署任何第三方网关。内置软件更新不会自动覆盖外部桥接目录。
 
 ### 官方桌面端 403 只读归因（2026-10-20）
 

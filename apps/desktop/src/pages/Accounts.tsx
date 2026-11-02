@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   AppWindow,
   Download,
@@ -94,6 +94,20 @@ type Dialog =
 /** Built-in provider that signs in through Loadout (ADR-012). */
 const SUBSCRIPTION_SLUG = "codex-sub";
 
+/** Accounts checked at once by "Check all": enough to be quick, few enough not to burst a provider. */
+const CHECK_ALL_CONCURRENCY = 3;
+
+/** A check that proves the account works: its key, or (without a model list) a model answering. */
+const checkPassed = (r: AccountCheckResult) =>
+  r.status === "ok" || (r.status === "unsupported" && r.models.some((m) => m.ok));
+
+/** Progress of a provider-wide check. */
+interface CheckAllProgress {
+  slug: string;
+  done: number;
+  total: number;
+}
+
 export function Accounts() {
   const providers = usePoll(api.providers, 10000);
   const accounts = usePoll(api.accounts, 10000);
@@ -109,6 +123,7 @@ export function Accounts() {
   const [dialog, setDialog] = useState<Dialog>();
   const [only, setOnly] = useState<string>();
   const [query, setQuery] = useState("");
+  const [checking, setChecking] = useState<CheckAllProgress>();
 
   const reloadAll = async () => {
     await Promise.all([
@@ -195,6 +210,8 @@ export function Accounts() {
     busy: action.busy,
     onAction,
     onBench: (a) => bench(a),
+    checking,
+    onCheckAll: (p, list) => checkAll(p, list),
     onDialog: setDialog,
     onReorderAccounts: (provider, aliases) =>
       onAction(async () => {
@@ -215,6 +232,43 @@ export function Accounts() {
       const results = await api.bench(names);
       const ok = results.filter((r) => r.ok).length;
       toast(t("acc.benchDone", { ok, total: results.length }), ok === results.length ? "ok" : "bad");
+    });
+
+  // One click for every card of a provider: the key check plus a probe of each enabled model,
+  // which also refreshes health and latency (ExecPlan 033).
+  const checkAll = (p: ProviderInfo, list: AccountInfo[]) =>
+    void action.run(async () => {
+      const passed: string[] = [];
+      const failed: string[] = [];
+      let modelsOk = 0;
+      let modelsTotal = 0;
+      let next = 0;
+      const worker = async () => {
+        for (;;) {
+          const a = list[next++];
+          if (!a) return;
+          try {
+            const r = await api.checkAccount(a.provider, a.alias, a.enabled);
+            (checkPassed(r) ? passed : failed).push(a.alias);
+            modelsTotal += r.models.length;
+            modelsOk += r.models.filter((m) => m.ok).length;
+          } catch {
+            failed.push(a.alias);
+          }
+          setChecking((s) => s && { ...s, done: s.done + 1 });
+        }
+      };
+      setChecking({ slug: p.slug, done: 0, total: list.length });
+      try {
+        await Promise.all(Array.from({ length: Math.min(CHECK_ALL_CONCURRENCY, list.length) }, worker));
+      } finally {
+        setChecking(undefined);
+      }
+      await reloadAll();
+      let text = t("acc.checkAllDone", { name: p.display_name, ok: passed.length, total: list.length });
+      if (modelsTotal > 0) text += ` ${t("acc.checkAllModels", { ok: modelsOk, total: modelsTotal })}`;
+      if (failed.length > 0) text += ` ${t("acc.checkAllFailed", { list: failed.join(", ") })}`;
+      toast(text, failed.length === 0 && modelsOk === modelsTotal ? "ok" : "bad");
     });
 
   return (
@@ -430,6 +484,8 @@ function DragGrip(props: { grip: GripProps | undefined; label: string }) {
 /** Header controls of a provider: dedicated API, usage source, removal. */
 function ProviderControls(props: {
   provider: ProviderInfo;
+  /** Shown before the other controls. */
+  leading?: ReactNode;
   usageSources: string[];
   /** The provider serves inference with API keys, so a dedicated endpoint makes sense. */
   inference: boolean;
@@ -443,6 +499,7 @@ function ProviderControls(props: {
   const source = typeof p.settings?.usage_source === "string" ? p.settings.usage_source : "auto";
   return (
     <div className="provider-controls">
+      {props.leading}
       {props.inference && (
         <EndpointButton endpoint={props.endpoint} onOpen={() => props.onDialog({ kind: "endpoint", provider: p })} />
       )}
@@ -497,6 +554,9 @@ interface BoardCtx {
   busy: boolean;
   onAction: (f: () => Promise<unknown>) => void;
   onBench: (a: AccountInfo) => void;
+  /** A provider-wide check in progress. */
+  checking: CheckAllProgress | undefined;
+  onCheckAll: (p: ProviderInfo, accounts: AccountInfo[]) => void;
   onDialog: (d: Dialog) => void;
   onReorderAccounts: (provider: string, aliases: string[]) => void;
 }
@@ -531,6 +591,10 @@ function ProviderSection(props: {
   const span = n <= 1 ? "single" : n >= 4 ? "multi span-all" : `multi span-${n}`;
   // Said once for the provider instead of on every card.
   const allEstimated = n > 1 && props.accounts.every((a) => !c.usageOf(a)?.supported);
+  // The cards that have a check button (see AccountCard); one click checks them all.
+  const optIn = signIn || web || !!kind?.requires_transport_opt_in;
+  const checkable = web ? [] : props.accounts.filter((a) => optIn || a.account_type !== "subscription");
+  const progress = c.checking?.slug === p.slug ? c.checking : undefined;
   return (
     <section className={`provider-group ${span} ${props.boardClass}`} data-board-item={p.slug}>
       <div className="provider-head">
@@ -551,6 +615,20 @@ function ProviderSection(props: {
         </div>
         <ProviderControls
           provider={p}
+          leading={
+            checkable.length > 1 && (
+              <Button
+                icon={<Stethoscope size={16} />}
+                disabled={c.busy}
+                title={t("acc.checkAllHint")}
+                onClick={() => c.onCheckAll(p, checkable)}
+              >
+                {progress
+                  ? t("acc.checkAllProgress", { done: progress.done, total: progress.total })
+                  : t("acc.checkAll")}
+              </Button>
+            )
+          }
           usageSources={kind?.usage_sources ?? []}
           inference={isInference(kind)}
           endpoint={c.endpointOf(p.slug)}
@@ -849,8 +927,14 @@ function AccountCard(props: {
           ) : (
             <Badge title={t("sub.routingOffHint")}>{t("sub.routingOff")}</Badge>
           ))}
+        {/* Opt-in transports never join loadout/realtime|fast|default (ADR-012, ADR-017). */}
+        {optIn && a.transport_opt_in && (
+          <Badge title={t("sub.notInBuiltinHint", { name: `${name}/<model>` })}>{t("sub.notInBuiltin")}</Badge>
+        )}
         {!usageOnly && (
-          <span className="small muted">{t("acc.modelsRouted", { on: a.enabled_models, all: a.models })}</span>
+          <span className="small muted">
+            {t(routable ? "acc.modelsRouted" : "acc.modelsSelected", { on: a.enabled_models, all: a.models })}
+          </span>
         )}
         {!usageOnly && !optIn && !a.has_key && <Badge tone="warn">{t("acc.noKey")}</Badge>}
         {props.signIn && loginExpired && <Badge tone="bad">{t("sub.loginExpired")}</Badge>}
