@@ -1,241 +1,208 @@
 <div align="center">
 
-<img src="apps/desktop/src-tauri/icons/icon.png" width="96" alt="Loadout" />
+<img src="apps/fusion-desktop/icons/icon.png" width="84" alt="" />
 
 # Loadout
 
 **All your AI, one endpoint.**
 
-你已有的 API key、订阅、余额和本地模型，汇成一个本地的 OpenAI / Anthropic 兼容接口。<br/>
-自动选最快的路由，出错立刻换下一条，用量一目了然 —— 数据和密钥都只在你的电脑上。
+你手上的 API 密钥、编码套餐和本地模型，汇成电脑上的一个地址。<br/>
+所有软件都填它。账号出错自动换下一个，每个 token 往哪走都看得见。
 
-[![Release](https://img.shields.io/github/v/release/SeaserL/Loadout?label=release&color=0f766e)](https://github.com/SeaserL/Loadout/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.0.0-0f766e)](#安装)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#安装)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Rust](https://img.shields.io/badge/built%20with-Rust%20%2B%20Tauri-b7410e)](#从源码构建)
-
-[下载](https://github.com/SeaserL/Loadout/releases/latest) · [快速开始](#快速开始) · [提供方](#支持的提供方) · [文档](#文档)
-
-<img src="docs/images/accounts-dark.png" alt="账号与用量" width="100%" />
+[![Runtime](https://img.shields.io/badge/runtime-OmniRoute%20v3.8.52-555)](backend/README.md)
 
 </div>
 
-> **English:** Loadout is a Windows desktop app and local gateway that pools your API keys, subscriptions and local models behind one OpenAI- / Anthropic-compatible endpoint on `127.0.0.1`. It routes by measured latency, fails over automatically, shows quotas and balances in one place, and keeps every key in Windows Credential Manager. The UI is available in Simplified Chinese and English.
+<img src="docs/images/overview.png" alt="总览：上游账号经 Loadout 流向使用它们的软件，线束上有光点在移动" width="100%" />
 
----
+<sub>总览页。左边是上游账号，右边是使用它们的软件。线束的粗细是真实用量，光点是正在回复的请求，网关空闲时图是静止的。本页所有截图都用合成数据。</sub>
 
-## 为什么用 Loadout
+> **English:** Loadout is a Windows desktop app and local gateway. It pools your API keys, coding plans and local models behind one OpenAI- and Anthropic-compatible address on `127.0.0.1`, fails over between accounts, and shows every request flowing from upstream to the app that made it. Keys stay in Windows Credential Manager; request logs hold metadata only. The interface is available in Simplified Chinese and English; the built-in guide is in Chinese.
 
-v0.4 起，“设置 → 软件更新”每六小时检查本仓库的正式 Release，默认自动下载并校验 SHA-256。可手动安装，或显式开启自动安装与重启。只有 `%LOCALAPPDATA%\Programs\Loadout` 标准安装支持内置替换；开发目录只下载。安装前备份程序，失败恢复旧程序，数据库迁移的回退能力仍取决于版本兼容性。v0.3 用户需先用 v0.4 发布包升级一次。
+## 一个地址
 
-私有仓库更新读取本机 Git Credential Manager 已有的 GitHub 登录，账号须有仓库读取权限；不交互登录、不另存凭据。安装失败会暂停自动安装，避免反复重启，需手动重试。
+```text
+http://127.0.0.1:8318/v1
+```
 
-OpenCode 免费模型仍属实验性连接，存在官方原生调用也返回 403 的情况。v0.4 提供单并发、120 秒间隔、403 后 30 分钟冷却保护，无法保证避免上游限制。已有外部桥接还须应用同 Release 的 `opencode-bridge.zip` 脚本更新包，详见 [OpenCode 限制与安装说明](docs/providers/opencode-free.md)。
+OpenAI SDK 在后面接 `/chat/completions`，Anthropic SDK 接 `/v1/messages`，都能到达同一个网关。不用分两个地址，也不用管软件说的是哪种协议：Chat Completions、Responses、Messages 之间互相转换，流式和工具调用都支持。
 
-| | |
+每个软件用自己的客户端密钥，模型名用下面任何一种写法：
+
+| 模型名 | 意思 |
 |---|---|
-| 🔌 **一个地址接入所有工具** | Claude Code、OpenCode、Cursor 类工具、你自己的脚本，只要支持 OpenAI 或 Anthropic API，填一个 Base URL 和一把 client key 就能用。三种协议（Chat / Responses / Messages）自动互转，流式同样支持。 |
-| ⚡ **按延迟自动选路** | 实测首 token 时间，把路由分成 超快 / 快 / 普通 三档。`loadout/realtime`、`loadout/fast`、`loadout/default` 永远先用最快的那条，平时粘在同一条上，保护上游的 prompt cache。 |
-| 🔁 **出错立刻换下一条** | 限流、额度用完、凭证失效、超时……自动切到下一条路由，冷却到期后再回来（专用端点里的账号由后台探测确认恢复）。卡片上实时显示"限流中 · 18 秒后恢复"。 |
-| 📊 **用量、余额、订阅一屏看完** | Codex、Claude Code、Gemini CLI、Kimi Code 的额度窗口，DeepSeek / Moonshot / OpenRouter 的余额，以及 Loadout 自己统计的请求数、token 和花费。 |
-| 🧩 **专用端点（总 API）** | 给某个平台单独一个地址，例如 `http://127.0.0.1:8317/e/sensenova/v1`：客户端用裸模型名，请求在该平台的所有账号间自动 failover，全部限流时还会等第一个恢复的账号接手。 |
-| 🗂️ **子号池** | 把一部分账号存成"子号池"，一键切换后路由只用这些账号；随时切回主号池。 |
-| 🔐 **密钥只在本机** | API key 存在 Windows 凭据管理器，从不写进数据库或日志；请求日志只记元数据，不存提示词和回复。想和朋友共享账号？可以一键导出**加密**文件（两步确认）。 |
-| 🖐️ **顺手的桌面端** | 拖动卡片调整顺序（账号顺序就是 failover 顺序），宽屏自动多列，深色 / 浅色主题，托盘常驻，关窗不停网关。 |
+| `loadout/分组名` | 你在模型页建的分组。账号挂了自动换下一个，日常用这个 |
+| `服务商/模型` | 这家服务商的任一账号，按账号页的顺序选 |
+| `服务商/账号/模型` | 优先用这个账号。它不可用时由同一模型的其他账号接手 |
+| `loadout/default`、`fast`、`realtime` | 按测速结果自动排列候选，默认关闭。它们可能切换模型，要固定模型请用分组 |
 
-## 截图
+## 一个请求经过的路
+
+软件左侧的导航就是请求走的路：账号、模型、路由、客户端。按这个顺序设置一遍就能用，每页的 `?` 打开内置说明的对应章节。
+
+### 账号
+
+<img src="docs/images/accounts.png" alt="账号页：按服务商分组的账号卡片" width="100%" />
+
+- 一家服务商可以放多个账号。拖动卡片调整顺序，这就是故障切换的顺序。
+- 密钥存在 Windows 凭据管理器，数据库里只有引用。
+- 卡片上有官方额度和余额（点了才读取），读不到的服务商显示 Loadout 自己记的请求数和估算费用。填上订阅价格和续费日，还能算出这个月用回了多少。
+- **子号池**：把一部分账号存起来，切过去后所有路由只在这些账号里选，范围外的账号被点名也会被拒绝。
+- **总 API**：给一家服务商单独一个地址 `/e/名称/v1`，客户端写裸模型名，请求只发给这家的账号。可以勾选每次请求换下一个账号，把额度摊开。
+- **一键导出**：所有账号打包成一个加密的 `.loadout-keys` 文件，在另一台电脑上导入，缺的服务商和账号自动创建。
+- **扫描本机**：找到已登录的 Codex、Claude Code 等工具并显示额度。这些登录默认只读，不转发请求。
+
+### 模型
+
+<img src="docs/images/models.png" alt="模型页：左边是分组，右边是所有账号提供的模型" width="100%" />
+
+把右边的模型拖到左边的分组上，这个分组对客户端来说就是一个模型名。分组怎么选账号由你定：按顺序、最快优先、轮转、快重置优先、便宜优先、最少使用优先、随机。
+
+同一页还有**比价**（同一个模型在不同账号上的价格，按你的输入、输出、缓存比例算出综合单价）、**价格表**和**免费模型目录**（哪家有什么免费额度，标出可能用提示词训练的那些）。费用都是估算，查不到价格时显示未知，不当作免费。
+
+### 路由
+
+<img src="docs/images/routes.png" alt="路由页：一个分组的候选账号和当前状态" width="100%" />
+
+选中一个分组，能看到它的候选账号：哪个在用，哪个在冷却，失败后轮到谁，最近一次请求走了哪条路。
+
+失败时有三层保护：分组里的账号都在短暂冷却时先等一等；一个账号失败后休息一段时间，连续失败时间加倍；一家服务商连续报 5xx 时暂时熔断。网关不会自己定时探测上游，只有客户端请求和你的点击才会访问上游。
+
+### 客户端
+
+<img src="docs/images/policy.png" alt="客户端策略：输入模型名时出现预测，只能选已有的模型" width="100%" />
+
+每个软件一把密钥，用量才分得开。策略里可以限定：
+
+- **允许的模型**：输入时出现预测，按 Tab 或点击加入。不存在的名字存不进去。
+- **账号**：这把密钥只用这些账号。
+- **上限**：每天、每周、每月的费用，每分钟的请求数。到上限后这个客户端返回 429，其他客户端不受影响。
+
+## 看得见发生了什么
+
+### 总览
+
+页面顶部的动图就是总览。所有动效都来自真实请求：
+
+| 看到的 | 发生的事 |
+|---|---|
+| 一个灰点走向上游 | 请求刚发出去 |
+| 线束流动，光点从左到右 | 上游正在回复，密度和流速跟着实际字节速度走，中间的图标随流量发亮 |
+| 红点停在中间 | 这次上游失败，没有到达客户端 |
+
+点一端聚焦这条流向，其他线变淡，数字换成这条流向的量。拖一端调整上下顺序。
+
+### 用量
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/dashboard-dark.png" alt="总览" /><br/><sub><b>总览</b>：运行状态、接入地址（含专用端点）、今日用量、虚拟模型当前首选路由</sub></td>
-    <td width="50%"><img src="docs/images/routes-light.png" alt="路由" /><br/><sub><b>路由</b>：每个虚拟模型的路由顺序、延迟档位与输出速度</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/images/accounts-light.png" alt="账号与用量（浅色）" /><br/><sub><b>账号与用量</b>（浅色主题）：ChatGPT / Codex 合并卡片 —— Codex 用量、Codex 反代、网页会话放在一起，额度只显示一次</sub></td>
+    <td width="74%"><img src="docs/images/usage.png" alt="用量页：顶部是请求数和费用，中间是趋势柱状图和按月分块的热力图" /></td>
+    <td width="26%"><img src="docs/images/brief.png" alt="当日简报：环状图显示这一天的 Token 占比，下面是各小时的忙闲" /></td>
   </tr>
 </table>
 
-## 工作原理
+- 请求数、成功率、Token、费用和首字时间，按模型、路由、服务商、客户端、日期分组。
+- **热力图**：最近一年，每天一格，每月一块，可以换成每周或累计。顶部是累计 Token、单日峰值和连续使用天数。
+- **当日简报**：点任何一根柱子或一个方块，右侧滑出这一天的简报。环状图按模型、账号、客户端显示 Token 占比，下面是各小时的忙闲。开着时直接点别的日子，方向键切换前后一天。
 
-```mermaid
-flowchart LR
-    subgraph clients["你的工具"]
-        cc["Claude Code"]
-        oc["OpenCode / Cursor 类"]
-        sdk["脚本 / SDK"]
-    end
-    clients -- "client key" --> gw["Loadout 网关<br/>127.0.0.1:8317"]
-    gw --> router{"路由快照<br/>延迟档位 · 健康 · 额度"}
-    router --> api["API key 平台<br/>DeepSeek · SenseNova · OpenRouter · …"]
-    router --> sub["订阅转发（可选）<br/>Codex 订阅 · ChatGPT 网页"]
-    router --> local["本地模型<br/>Ollama"]
-    ui["桌面端 / 命令行"] -. "命名管道（仅当前用户）" .-> gw
-```
+日期按这台电脑的时区算。请求记录保留 400 天。
 
-- 网关是独立的后台进程（`loadoutd`），桌面端和命令行只是通过命名管道控制它的客户端；关掉窗口网关照常工作。
-- 选路只读内存中的路由快照，请求路径上没有数据库查询和额外网络请求。
-- 用量、余额、延迟测量都在后台定时刷新。
+### 日志
 
----
+<img src="docs/images/logs.png" alt="日志页：每个请求的时间、客户端、模型、状态、Token 和耗时" width="100%" />
+
+只记录元数据：时间、客户端、模型、账号、状态、Token、耗时。提示词、回复和工具参数都不保存。点一行展开协议转换和切换记录。
+
+## 外观
+
+<img src="docs/images/palettes.png" alt="六套配色：松石、青花、紫藤、琥珀、胭脂、水墨" width="100%" />
+
+六套配色，各有浅色和深色，从左下角的调色板随时切换。页面切换、数字滚动和图表进场都有动效，**界面动效**是一个全局开关，关掉后所有动画停止，图表直接显示结果。
+
+使用说明内置在软件里，不用翻网页。
+
+## 服务商
+
+| 类型 | 服务商 |
+|---|---|
+| 平台 API | DeepSeek、SenseNova 商汤日日新、Moonshot（Kimi API）、智谱 GLM、阿里云百炼、火山方舟、MiniMax、阶跃星辰、百度千帆、OpenAI、Google Gemini、xAI、Mistral、Groq、Cerebras |
+| 中转和套餐 | OpenRouter、硅基流动、Command Code、OpenCode Go |
+| 本机已登录 | WorkBuddy（复用桌面端的登录） |
+| 逐账号开启 | ChatGPT / Codex 订阅（设备码登录，默认不参与路由） |
+| 本地和自定义 | Ollama、LM Studio、任意 OpenAI 兼容地址 |
+
+这些是内置的预设，底层路由和协议转换来自 OmniRoute。1.0 用真实请求验证过的是 WorkBuddy 和 DeepSeek，其他服务商只用模拟上游测试过。
+
+> [!WARNING]
+> WorkBuddy 连接和 Codex 订阅转发都不是官方 API，可能违反服务条款，账号有被限制的风险，由你自行决定是否使用。详见 [docs/providers](docs/providers/README.md)。
+
+## 安全和隐私
+
+- 网关只监听 `127.0.0.1`，检查 Host 和 Origin，`/v1` 的每个请求都要带客户端密钥。
+- 打开软件不用输密码，但管理接口不是敞开的：桌面窗口通过私有管道拿到会话，这台电脑上的其他用户和网页进不来。
+- 上游密钥只在 Windows 凭据管理器。客户端密钥只存哈希，只在创建时显示一次。
+- 请求正文不落盘。
+- 空闲时不连接任何上游。OmniRoute 自带的更新检查和公网 IP 查询被拦下了。打开免费目录同步后，它会访问目录服务，只传目录请求。
 
 ## 安装
 
-### 从发布包安装（推荐）
+**1.0 的发布包还没有上传。** [Releases](https://github.com/SeaserL/Loadout/releases) 里最新的 v0.4.0 是上一代 Rust 版（见下文）。现在要用 1.0，需要从源码构建。
 
-1. 从 [Releases](https://github.com/SeaserL/Loadout/releases/latest) 下载 `Loadout-<版本>-windows-x64.zip` 并解压。
-2. 双击 `install.cmd`（或 `powershell -ExecutionPolicy Bypass -File install.ps1`）。可选参数：
-   - `-AddToPath`：在新终端里可以直接使用 `loadout` 命令
-   - `-Autostart`：登录 Windows 时自动启动网关
-   - `-NoStart`：安装后不立即启动
-3. 从开始菜单打开 **Loadout**。
+需要：Windows 10/11 x64、Git、Python 3、[Node.js 24.22.1](https://nodejs.org/dist/v24.22.1/)、Rust（版本由 `rust-toolchain.toml` 固定）、Visual Studio Build Tools（C++）、WebView2。
 
-| 内容 | 位置 |
-|---|---|
-| 程序 | `%LOCALAPPDATA%\Programs\Loadout`（`loadout-app.exe` 桌面端、`loadoutd.exe` 网关、`loadout.exe` 命令行） |
-| 数据 | `%LOCALAPPDATA%\Loadout`（数据库、日志、备份） |
-| API key | Windows 凭据管理器（目标名以 `loadout:` 开头），**从不**写入数据库或日志 |
+```powershell
+git clone https://github.com/SeaserL/Loadout.git
+cd Loadout
+npm ci
 
-**升级**：解压新版本后再次运行 `install.cmd`（先优雅停止网关，替换程序后重新启动；数据库会自动迁移）。
-**卸载**：`powershell -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\Programs\Loadout\uninstall.ps1"`，加 `-RemoveData` 同时删除数据与已保存的 API key。
+# 还原后端：按固定版本克隆 OmniRoute，应用 backend/ 里的改动
+python scripts\fusion\backend-source.py prepare
+npm ci --ignore-scripts --prefix development\upstreams\omniroute\.claude\worktrees\loadout-phase11-v52
+npm ci --prefix development\fusion\tools
 
-系统要求：Windows 10 / 11 x64，WebView2 Runtime（通常已预装）。
-
-### 从源码构建
-
-需要：Rust（版本由 `rust-toolchain.toml` 固定）、Visual Studio Build Tools（C++）、Node.js LTS、WebView2。
-
-```text
-npm install
-npm run build                                     # 桌面端前端（必须先于 cargo 构建）
-cargo build --release -p loadout -p loadout-desktop
-powershell -ExecutionPolicy Bypass -File scripts\package.ps1   # 生成 dist\Loadout-<版本>-windows-x64.zip
+# 构建并装配，最后一行输出包的位置
+powershell -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -Action package -Node C:\path\to\node.exe
 ```
 
-开发规则见 [AGENTS.md](AGENTS.md)。
+运行包里的 `Start-Loadout.cmd`。关掉窗口后网关留在后台，软件照常能用；要完全退出，在托盘图标上右键选“退出并停止网关”。
 
----
+这套步骤还没有在一台干净的电脑上完整跑过。遇到问题请[开一个 issue](https://github.com/SeaserL/Loadout/issues)。发布和回归流程见[发布入口](docs/architecture/fusion-release-operations.md)。
 
-## 快速开始
+## 和 0.4 的关系
 
-### 桌面端
+1.0 是一次重做。网关运行时从自研的 Rust 换成了 [OmniRoute](https://github.com/cheaper-inference/OmniRoute)，保留 Loadout 的账号规则、分组、总 API、子号池和加密导出，界面全部重写。取舍见 [ADR-019](docs/adr/ADR-019-product-fusion-boundaries.md)。
 
-1. **账号与用量 → 添加账号**：选择提供方，填入 API key，模型列表会自动同步。
-   **扫描本机** 可发现已登录的 Codex / Claude Code / Gemini CLI / Kimi Code，导入后显示其额度（Claude Code 也能从 Claude 桌面应用识别）。
-2. **客户端密钥 → 新建**：为每个应用创建一把 client key（只显示一次）。
-3. 在应用里设置 Base URL `http://127.0.0.1:8317/v1`，API key 填上面的 client key，模型名见[下文](#模型名)。
-4. **路由 → 测量未测速的路由**：测一次延迟后，`loadout/realtime` 与 `loadout/fast` 才会有路由（真实请求也会持续计入）。
+| | 0.4 | 1.0 |
+|---|---|---|
+| 运行时 | Rust（`crates/`） | OmniRoute + `backend/` |
+| 界面 | `apps/desktop` | `apps/fusion-console`、`apps/fusion-desktop` |
+| 地址 | `127.0.0.1:8317` | `127.0.0.1:8318` |
+| 管理方式 | 命名管道、`loadout` 命令行 | 桌面窗口 |
 
-关闭窗口只是隐藏到托盘，网关继续运行。界面默认简体中文，可在侧栏底部切换为 English。
+两者可以同时运行，数据互不影响。要把账号带过来，在 0.4 里导出 `.loadout-keys`，在 1.0 里导入。
 
-### 命令行
+0.4 的内置更新只看 Releases，所以目前不会升级到 1.0。Rust 线的代码还在仓库里，版本号也同步到了 1.0.0，但不再是开发重点。
 
-```text
-loadout daemon start
-loadout provider add deepseek
-loadout account add deepseek main            # 提示输入 API key（不回显），并同步模型
-loadout client create my-app                 # 输出 client key（只显示一次）
-loadout model list                           # 可用的 provider/account/model 名称
-loadout bench                                # 测量所有未测速的路由
-loadout route list                           # 各虚拟模型与 Pool 的路由顺序
-loadout route status                         # 每条路由的健康状态、档位、TTFT、tok/s
-loadout usage --refresh                      # 额度、余额、订阅计划、本月花费
-loadout endpoint enable sensenova            # 开启商汤总 API（专用端点）
-loadout subpool save work deepseek/main sensenova/work && loadout subpool use work
-loadout logs --errors --hours 24             # 最近失败的请求
-loadout --help                               # 全部命令
-```
+ChatGPT 网页会话转发、`loadout` 命令行和 `loadout setup` 只在 0.4 有。1.0 也还没有安装器和开机自启。
 
-### 接入示例
+## 致谢
 
-```text
-# OpenAI 兼容（OpenCode、大多数 SDK 与工具）
-OPENAI_BASE_URL=http://127.0.0.1:8317/v1
-OPENAI_API_KEY=lo-…
-
-# Anthropic 兼容（Claude Code、Anthropic SDK）
-ANTHROPIC_BASE_URL=http://127.0.0.1:8317
-ANTHROPIC_API_KEY=lo-…
-```
-
-`loadout setup` 可以一键把 Claude Code、Codex、OpenCode 指向 Loadout（会先备份它们的配置）。
-
----
-
-## 模型名
-
-| 写法 | 含义 |
+| 项目 | 用在哪里 |
 |---|---|
-| `loadout/default` | 所有已启用模型，最快的在前（实测档位，再按输出速度） |
-| `loadout/fast` | 仅"超快"和"快"两档的路由 |
-| `loadout/realtime` | 仅"超快"路由（默认 P90 首 token 时间 < 800 ms，可在设置中调整） |
-| `loadout/<pool>` | 你自己建的 Pool：手动顺序或按延迟排序（路由页面 / `loadout pool set …`） |
-| `provider/account/model` | 精确到账号，例如 `deepseek/main/deepseek-v4-flash`；该账号不可用时切到同一提供方其他账号的同一模型 |
-| `provider/model` | 该提供方任一账号上的该模型 |
-| `/e/<端点>/v1` 里的 `model` | 专用端点内直接写上游模型名，例如 `deepseek-v4-flash` |
+| [OmniRoute](https://github.com/cheaper-inference/OmniRoute)（MIT） | 网关运行时：路由、协议转换、SQLite、价格和免费目录。Loadout 在 v3.8.52 上打补丁 |
+| [yetone/magpie](https://github.com/yetone/magpie)（MIT） | 界面和丝带流向图的设计参考。没有复制它的代码、Logo 或素材 |
+| [AidenOrz/dsh-workbuddy-connect](https://github.com/AidenOrz/dsh-workbuddy-connect)（MIT） | WorkBuddy 连接器的部分模块，在 `fusion/vendor/` |
 
-可选请求头：`X-Loadout-Session-ID`（同一会话固定同一路由）、`X-Loadout-No-Failover: true`（不切换）。响应头 `X-Loadout-Route` 告诉你实际用了哪条路由。
-
-某个应用只能发送固定模型名（如 `gpt-4o`）时，在 **客户端密钥 → 策略** 给它设"默认模型"；同一处还能限制可用模型、每日 token / 费用上限和每分钟请求数。
-
-支持的接口：`/v1/chat/completions`、`/v1/responses`（无状态完整支持；`previous_response_id` 仅在上游原生支持 Responses 时固定路由转发）、`/v1/messages`、`/v1/models`。
-
----
-
-## 支持的提供方
-
-| 类型 | 提供方 |
-|---|---|
-| **API key（国内）** | SenseNova 商汤日日新 · DeepSeek · Moonshot（Kimi API）· 智谱 GLM · 阿里云百炼（Qwen）· 火山方舟（豆包）· 硅基流动 · MiniMax · 阶跃星辰 · 百度千帆 |
-| **API key（国际）** | OpenAI · Anthropic · OpenRouter · xAI · Google Gemini · Mistral · Groq · Cerebras |
-| **编码订阅 / 套餐** | OpenCode Go · Command Code · Kimi Code |
-| **只读用量** | Codex · Claude Code · Gemini CLI（官方 CLI 的登录只用于读取额度，不转发请求） |
-| **可选转发（有风险，需两步确认）** | Codex 订阅（Loadout 单独登录）· ChatGPT 网页会话 |
-| **本地 / 自定义** | Ollama · 任意 OpenAI 兼容端点 · 任意 Anthropic 兼容端点 |
-
-每个提供方的认证方式、接口、用量来源与风险说明见 [docs/providers](docs/providers/README.md)。没有余额接口的平台（例如商汤）由 Loadout 按自己的请求记录估算用量。
-
-> ⚠️ Codex 订阅转发与 ChatGPT 网页会话不是官方 API，有被限制或封号的风险，默认关闭，详见 [ADR-012](docs/adr/ADR-012-subscription-transport-opt-in.md) 与 [ADR-014](docs/adr/ADR-014-browser-session-transport.md)。Loadout 不伪装浏览器、不处理验证页、不读取 cookie。
-
----
-
-## 进阶功能
-
-### 专用端点（总 API）
-
-在账号页某个提供方卡片上点 **总 API**（或 `loadout endpoint enable <提供方>`），会得到一个只属于它的地址：
-
-- OpenAI 兼容：`http://127.0.0.1:8317/e/sensenova/v1`；Anthropic SDK：`http://127.0.0.1:8317/e/sensenova`
-- 默认包含当前号池里该提供方的全部账号（以后新增的也自动加入），也可以只勾选部分账号；
-- 每个请求按账号顺序逐个尝试，单个账号出错立刻换下一个；全部被限流时最多等待 30 秒（可调）让第一个恢复的账号接手；
-- 某个账号的套餐不含某个模型时，Loadout 会只在该账号上自动停用这个模型，并在卡片上注明。
-
-### 子号池
-
-**账号与用量 → 管理子号池**：把部分账号存成子号池，顶部下拉框一键切换，路由（包括虚拟模型、Pool 和精确名）只在这些账号中选择。启动时默认回到主号池；在管理对话框里打开"重启后保留当前切换状态"可以记住选择。
-
-### 共享账号（加密导出 / 导入）
-
-**账号与用量 → 导出 API 账号**：第一步确认风险，第二步设置口令（至少 8 位）并输入 `EXPORT`。导出的 `.loadout-keys` 文件用 PBKDF2-SHA256 + ChaCha20-Poly1305 加密，里面看不到任何 key、提供方名或别名。对方用 **导入 API 账号** 选择文件、输入口令即可，缺少的提供方和账号会自动创建并同步模型。请通过另一个渠道告诉对方口令；文件泄露时请到各平台吊销 key。
-
-### 备份与恢复
-
-- 网关每天自动导出一次配置（不含任何 key）到 `%LOCALAPPDATA%\Loadout\backups\auto`，保留 7 份；也可以在 设置 → 备份 或 `loadout backup export` 手动导出。
-- 数据库损坏时，网关会把坏文件改名保留并以空库启动，界面与 `loadout daemon status` 会提示从自动备份恢复。
-
----
-
-## 安全与隐私
-
-- 网关只监听 `127.0.0.1`，每个请求都需要 client key；校验 Host 头（防 DNS rebinding），默认拒绝浏览器跨域请求（[ADR-011](docs/adr/ADR-011-local-gateway-security.md)）。
-- 管理操作只能通过当前 Windows 用户专属的命名管道，没有 HTTP 管理接口。
-- API key 只存在 Windows 凭据管理器（[ADR-004](docs/adr/ADR-004-secret-storage.md)）；请求日志只保存时间、客户端、模型、路由、token、耗时、费用和状态，不存提示词与回复（[ADR-008](docs/adr/ADR-008-request-logging-privacy.md)）。
+完整记录见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和[参考项目速查](docs/legal/reference-map.md)。
 
 ## 文档
 
-- [产品与技术设计](docs/product/product-technical-design.md) · [开发规范（Harness）](docs/development-harness.md) · [架构决策（ADR）](docs/adr/README.md) · [术语表](docs/architecture/glossary.md)
-- [执行计划](docs/exec-plans/completed) · [性能基线](docs/performance/baseline.md) · [系统测试清单](docs/testing/system-test-plan.md) · [提供方说明](docs/providers/README.md)
-- [许可证与参考项目](docs/legal/reference-map.md)
+- [后端：补丁和控制面](backend/README.md) · [发布入口](docs/architecture/fusion-release-operations.md) · [功能清单](docs/architecture/fusion-backend-status.md) · [产品重做记录](docs/research/2026-11-02-fusion-product-rebuild.md)
+- [架构决策](docs/adr/README.md) · [执行计划](docs/exec-plans/completed) · [服务商说明](docs/providers/README.md) · [开发规范](docs/development-harness.md)
 
 ## 许可证
 
-[Apache License 2.0](LICENSE)。第三方许可证见发布包中的 `THIRD_PARTY_LICENSES.md`（由 `scripts/third_party_licenses.py` 生成并检查）与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。贡献遵循 [DCO](https://developercertificate.org/)（`git commit -s`）。
+[Apache License 2.0](LICENSE)。贡献遵循 [DCO](https://developercertificate.org/)（`git commit -s`）。

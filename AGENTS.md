@@ -31,6 +31,8 @@
 | `docs/providers/<provider>.md` | 每个 Provider 的实现参考、认证方式、ToS 风险、最后验证日期 |
 | `docs/exec-plans/` | 多步骤任务的执行计划 |
 
+**两条线**：1.0 主线（Loadout Fusion，ADR-019 Accepted）以 OmniRoute 为运行时，代码在 `backend/`、`apps/fusion-console`、`apps/fusion-desktop`、`fusion/`、`tests/fusion/`、`scripts/fusion/`，先读 [docs/architecture/fusion-backend-status.md](docs/architecture/fusion-backend-status.md)。上一代 Rust 线在 `crates/`、`apps/desktop`、`apps/loadout`，用户本机的 0.4 安装仍在运行。本文件 §3、§4 的硬规则约束 Rust 线；1.0 主线的差异以 ADR-019 为准，密钥不进 SQLite 和日志、正文不落盘这两条对两条线都生效。动手前先确认任务属于哪条线。
+
 **优先级**：ADR > Harness > 产品设计文档。产品设计文档写于对齐之前，凡与 ADR 冲突之处，以 ADR 为准。
 
 ---
@@ -111,7 +113,8 @@ docs/exec-plans/active/NNN-title.md
 
 - 默认分支 `main`。
 - Commit 需要 DCO sign-off：`git commit -s`。
-- 不提交：数据库文件、`.env`、任何真实 credential、`target/`、`node_modules/`。
+- 不提交：数据库文件、`.env`、任何真实 credential、`target/`、`node_modules/`。`development/` 只有 README、上游锁文件、构建工具清单和许可证 notice 进 Git，其余是本机工作区。
+- 仓库是公开的。上传前核对真实账号名、本机路径和密钥（截图和 fixture 只用合成数据）。
 - 推送（`git push`）由仓库所有者确认执行。
 
 ---
@@ -140,7 +143,17 @@ powershell -ExecutionPolicy Bypass -File scripts\package.ps1   发布包：dist\
 
 发布包内的 `install.ps1` / `uninstall.ps1` 源文件在 `packaging/`。测试安装脚本时必须传 `-InstallDir <临时目录> -ShortcutDir <临时目录> -NoStart`，不要触碰真实安装与开始菜单。
 
-### 运行
+### 1.0 主线（Fusion）
+
+```text
+python scripts\fusion\backend-source.py prepare|export|check    后端工作副本 <-> backend/（打包前强制一致）
+powershell -File scripts\fusion-release.ps1 -Action package -Node <node 24.22.1>   只构建和装配
+powershell -File scripts\fusion-release.ps1                    构建、打包、全量回归、审计、预检、推广（需要已有候选）
+```
+
+后端在被忽略的工作副本 `development/upstreams/omniroute/.claude/worktrees/loadout-phase11-v52` 里改，改完运行 `export`。构建期间上游文件被临时替换，**不要中断 `scripts/fusion/build.mjs`，也不要在构建时改工作副本**。详见 [发布入口](docs/architecture/fusion-release-operations.md) 和 [backend/README.md](backend/README.md)。
+
+### 运行（Rust 线）
 
 ```text
 loadout daemon start                              启动 daemon（数据在 %LOCALAPPDATA%\Loadout）

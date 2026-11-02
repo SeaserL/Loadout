@@ -20,6 +20,7 @@
 | [016](ADR-016-workbuddy-international-ipc-bridge.md) | WorkBuddy International local IPC bridge | Accepted |
 | [017](ADR-017-opencode-official-bridge.md) | OpenCode official server text bridge | Accepted |
 | [018](ADR-018-release-updater.md) | Stable release updater and OpenCode protection | Accepted |
+| [019](ADR-019-product-fusion-boundaries.md) | Product Fusion Boundaries（1.0 主线） | Accepted |
 
 ## Status 含义
 

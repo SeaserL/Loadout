@@ -1,7 +1,9 @@
 # SenseNova 商汤日日新 (`sensenova`)
 
-- **Last Verified Date**: 2026-10-24
+- **Last Verified Date**: 2026-10-30（有限隔离推理；下面接口/配额资料保留各自历史日期）
 - **Module**: `crates/providers/src/presets.rs` (row `sensenova`, ExecPlan 018)
+
+2026-10-30（047）：采用046限流修复候选，单原账号、固定deepseek-v4-flash、20秒minTime/1并发/3rpm。第一条真实合成请求约1.67秒返回429，出口立即停止；总计1次，无换号/换模型。用户确认额度正常，本次不能以429断言余额或账号失效，也没有新增真实重试间隔证据；节流修复的20秒证据仍来自046完整包mock回归。正式环境未改，详见[047报告](../research/2026-10-30-daily-client-credential-provider-validation.md)。
 
 ## Official Authentication Method
 
