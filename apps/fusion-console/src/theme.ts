@@ -42,21 +42,37 @@ function readPalette(): PaletteId {
 
 let palette: PaletteId = readPalette();
 
-/** The global motion switch. Off, or when the system asks for less motion, nothing animates. */
+/** How fast everything moves: 1 is as designed, 2 twice as fast, 0 is still. */
 const MOTION_KEY = "loadout.motion";
 const reduced = typeof window !== "undefined" ? window.matchMedia?.("(prefers-reduced-motion: reduce)") : undefined;
 
-function readMotion(): boolean {
+function readMotion(): number {
   try {
-    return window.localStorage.getItem(MOTION_KEY) !== "off";
+    const stored = window.localStorage.getItem(MOTION_KEY);
+    // The earlier on/off switch stored words.
+    if (stored === "off") return 0;
+    const rate = Number(stored);
+    if (stored !== null && stored !== "on" && rate >= 0 && rate <= 2) return rate;
   } catch {
-    return true;
+    // Storage unavailable: the designed speed.
   }
+  return 1;
 }
 
 let motion = readMotion();
 
-export const motionAllowed = () => motion && !reduced?.matches;
+/** The speed in effect. The system asking for less motion counts as 0. */
+export const motionRate = () => (reduced?.matches ? 0 : motion);
+export const motionAllowed = () => motionRate() > 0;
+
+/** CSS animations and transitions have no global speed, so each one is told as it starts. */
+function pace(event: Event) {
+  const rate = motionRate();
+  if (rate <= 0 || rate === 1 || !(event.target instanceof Element)) return;
+  for (const running of event.target.getAnimations({ subtree: !!(event as AnimationEvent).pseudoElement })) {
+    running.playbackRate = rate;
+  }
+}
 
 function resolve(p: ThemePreference): Theme {
   if (p === "system") return media?.matches ? "dark" : "light";
@@ -71,7 +87,10 @@ function apply() {
   window.setTimeout(() => root.classList.remove("theme-switching"), 50);
   root.dataset.theme = theme;
   root.dataset.palette = palette;
-  root.dataset.motion = motionAllowed() ? "on" : "off";
+  const rate = motionRate();
+  root.dataset.motion = rate > 0 ? "on" : "off";
+  root.style.setProperty("--motion-rate", String(rate || 1));
+  if (rate > 0) for (const running of document.getAnimations?.() ?? []) running.playbackRate = rate;
   root.style.colorScheme = theme;
   for (const l of listeners) l();
 }
@@ -96,10 +115,10 @@ export function setPalette(p: PaletteId) {
   apply();
 }
 
-export function setMotion(on: boolean) {
-  motion = on;
+export function setMotion(rate: number) {
+  motion = rate;
   try {
-    window.localStorage.setItem(MOTION_KEY, on ? "on" : "off");
+    window.localStorage.setItem(MOTION_KEY, String(rate));
   } catch {
     // Not remembered, but still applied for this session.
   }
@@ -113,6 +132,8 @@ export function initTheme() {
     if (preference === "system") apply();
   });
   reduced?.addEventListener?.("change", apply);
+  document.addEventListener("animationstart", pace, true);
+  document.addEventListener("transitionrun", pace, true);
 }
 
 function subscribe(l: () => void) {
@@ -122,8 +143,8 @@ function subscribe(l: () => void) {
   };
 }
 
-export function useMotion(): { on: boolean; setMotion: (on: boolean) => void } {
-  return { on: useSyncExternalStore(subscribe, () => motion), setMotion };
+export function useMotion(): { rate: number; setMotion: (rate: number) => void } {
+  return { rate: useSyncExternalStore(subscribe, () => motion), setMotion };
 }
 
 export function usePalette(): { palette: PaletteId; setPalette: (p: PaletteId) => void } {

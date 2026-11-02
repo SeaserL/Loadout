@@ -21,7 +21,7 @@ import type { FlowLink, LiveDone, LiveRequest } from "./api";
 import { HubMark } from "./components";
 import { num, tokens as fmtTokens, usd } from "./format";
 import { t } from "./i18n";
-import { motionAllowed, useMotion } from "./theme";
+import { motionAllowed, motionRate, useMotion } from "./theme";
 
 export type FlowMetric = "tokens" | "requests";
 type Side = "left" | "right";
@@ -35,7 +35,7 @@ const ROW = 58;
 const MAX_NODES = 6;
 const LABEL = 190;
 const HUB_X = WIDTH / 2;
-const HUB_R = 31;
+const HUB_R = 24;
 const MAX_STRANDS = 30;
 const HUES = 6;
 const OTHER = "\0other";
@@ -207,6 +207,7 @@ function useFlowMotion(
     let energy = 0;
     let ticks = 0;
     let ink = readInk(node);
+    const hub = node.parentElement?.querySelector<HTMLElement>(".flow-hub");
 
     const fit = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -221,7 +222,7 @@ function useFlowMotion(
 
     const draw = (now: number) => {
       frame = 0;
-      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+      const dt = (last ? Math.min(0.05, (now - last) / 1000) : 0.016) * motionRate();
       last = now;
       if (++ticks % 40 === 1) ink = readInk(node);
       const streams = streamsRef.current;
@@ -330,14 +331,16 @@ function useFlowMotion(
           const p = Math.max(0, Math.min(1, (v - 0.32) / 0.36));
           return mix(colourOf(c.fromHue), colourOf(c.toHue), p);
         };
-        const fade = Math.min(1, c.t * 9, (1 - c.t) * 9, c.failed ? (0.5 - c.t) * 6 + 0.4 : 1) * seen(c.up, c.down);
+        // It dissolves into the mark on one side and comes out of it on the other.
+        const fade = Math.min(1, c.t * 9, (1 - c.t) * 9, Math.abs(c.t - 0.5) * 22, c.failed ? (0.5 - c.t) * 6 + 0.4 : 1) * seen(c.up, c.down);
         const steps = 8;
         const reach = 0.011 + c.size * 0.006;
         let [px, py] = at(c.t);
         for (let s = 1; s <= steps; s++) {
           const v = c.t - s * reach;
+          // Nothing covers the gap around the mark, so a tail does not reach across it.
+          if ((c.t - 0.5) * (v - 0.5) < 0) break;
           const [x, y] = at(v);
-          // Across the gateway the tail would jump: it is hidden under the hub anyway.
           ctx.globalAlpha = fade * (1 - s / (steps + 1)) ** 2 * 0.8;
           ctx.strokeStyle = rgb(colour(v));
           ctx.lineWidth = c.size * (1 - s / (steps + 2)) * dpr;
@@ -377,24 +380,9 @@ function useFlowMotion(
         ctx.stroke();
       }
 
-      // The gateway warms with what passes through and cools slowly.
-      if (energy > 0.01) {
-        const cx = HUB_X * k;
-        const cy = hubY * k;
-        const r = HUB_R * k * (1.3 + energy * 0.85);
-        const glow = ctx.createRadialGradient(cx, cy, HUB_R * k * 0.72, cx, cy, r);
-        const [a, b, c] = ink.hub;
-        glow.addColorStop(0, `rgba(${a},${b},${c},${0.42 * energy})`);
-        glow.addColorStop(1, `rgba(${a},${b},${c},0)`);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fill();
-        energy *= 1 - dt * 1.35;
-      } else {
-        energy = 0;
-      }
+      // The mark warms with what passes through and cools slowly: its own shape glows, no halo.
+      energy = energy > 0.01 ? energy * (1 - dt * 1.35) : 0;
+      hub?.style.setProperty("--energy", energy.toFixed(3));
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
 
@@ -406,6 +394,7 @@ function useFlowMotion(
           comets.length = 0;
           sparks.length = 0;
           energy = 0;
+          hub?.style.setProperty("--energy", "0");
         }
         ctx.clearRect(0, 0, node.width, node.height);
       }
@@ -540,8 +529,8 @@ export function Flow(props: {
             key: `${side}-${node.id}-${n}`,
             s:
               side === "up"
-                ? { x1: leftEdge, y1: y + spread, x2: HUB_X - HUB_R, y2: center + spread * 0.42 }
-                : { x1: HUB_X + HUB_R, y1: center + spread * 0.42, x2: rightEdge, y2: y + spread },
+                ? { x1: leftEdge, y1: y + spread, x2: HUB_X - HUB_R, y2: center + spread * 0.36 }
+                : { x1: HUB_X + HUB_R, y1: center + spread * 0.36, x2: rightEdge, y2: y + spread },
             side,
             node: node.id,
             nth: n,
@@ -637,10 +626,10 @@ export function Flow(props: {
   const seen = useRef(new Map<string, { bytes: number; at: number }>());
   const justEnded = useRef(new Map<string, number>());
   useFlowMotion(canvas, center, streams, comets, focusRef, wake);
-  const { on: motion } = useMotion();
+  const { rate } = useMotion();
   useEffect(() => {
-    if (motion) wake.current();
-  }, [motion]);
+    if (rate > 0) wake.current();
+  }, [rate]);
 
   useEffect(() => {
     const now = performance.now();
@@ -853,14 +842,16 @@ export function Flow(props: {
         <svg viewBox={`0 0 ${WIDTH} ${height}`} role="img" aria-label={t("flow.aria")} preserveAspectRatio="none">
           <defs>
             {hues.map((h) => (
-              <linearGradient key={`u${h}`} id={`flow-up-${h ?? 0}`} gradientUnits="userSpaceOnUse" x1={leftEdge} y1="0" x2={HUB_X} y2="0">
+              <linearGradient key={`u${h}`} id={`flow-up-${h ?? 0}`} gradientUnits="userSpaceOnUse" x1={leftEdge} y1="0" x2={HUB_X - HUB_R} y2="0">
                 <stop offset="0" style={{ stopColor: hueVar(h), stopOpacity: 0.95 }} />
-                <stop offset="1" style={{ stopColor: hueVar(h), stopOpacity: 0.32 }} />
+                <stop offset="0.86" style={{ stopColor: hueVar(h), stopOpacity: 0.34 }} />
+                <stop offset="1" style={{ stopColor: hueVar(h), stopOpacity: 0 }} />
               </linearGradient>
             ))}
             {hues.map((h) => (
-              <linearGradient key={`d${h}`} id={`flow-down-${h ?? 0}`} gradientUnits="userSpaceOnUse" x1={HUB_X} y1="0" x2={rightEdge} y2="0">
-                <stop offset="0" style={{ stopColor: hueVar(h), stopOpacity: 0.32 }} />
+              <linearGradient key={`d${h}`} id={`flow-down-${h ?? 0}`} gradientUnits="userSpaceOnUse" x1={HUB_X + HUB_R} y1="0" x2={rightEdge} y2="0">
+                <stop offset="0" style={{ stopColor: hueVar(h), stopOpacity: 0 }} />
+                <stop offset="0.14" style={{ stopColor: hueVar(h), stopOpacity: 0.34 }} />
                 <stop offset="1" style={{ stopColor: hueVar(h), stopOpacity: 0.95 }} />
               </linearGradient>
             ))}

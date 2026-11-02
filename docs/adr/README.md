@@ -21,6 +21,7 @@
 | [017](ADR-017-opencode-official-bridge.md) | OpenCode official server text bridge | Accepted |
 | [018](ADR-018-release-updater.md) | Stable release updater and OpenCode protection | Accepted |
 | [019](ADR-019-product-fusion-boundaries.md) | Product Fusion Boundaries（1.0 主线） | Accepted |
+| [020](ADR-020-updater.md) | 1.0 Software Updates | Accepted |
 
 ## Status 含义
 

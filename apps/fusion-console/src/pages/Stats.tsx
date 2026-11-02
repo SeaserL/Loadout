@@ -227,7 +227,7 @@ export function Stats(props: { day?: string }) {
         </header>
         {rows.length === 0 && !stats.loading && <Empty>{t("stats.empty")}</Empty>}
         {rows.length > 0 && (
-          <div className="table-wrap">
+          <div className="table-wrap tab-panel" key={group}>
             <table>
               <thead>
                 <tr>

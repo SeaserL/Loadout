@@ -55,7 +55,7 @@ jobs:
         run: |
           python -m unittest discover -s scripts -p "test_opencode*.py"
           python -m unittest discover -s scripts -p "test_update_package.py"
-          node --test scripts/opencode_controls.test.mjs scripts/workbuddy_bridge.test.mjs
+          node --test --test-timeout=120000 scripts/opencode_controls.test.mjs scripts/workbuddy_bridge.test.mjs scripts/fusion_updater.test.mjs
 
       - name: Benchmarks compile
         run: cargo bench -p loadout-benchmarks --no-run

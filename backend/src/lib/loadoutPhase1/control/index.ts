@@ -7,6 +7,7 @@ import * as models from "./models";
 import * as routing from "./routing";
 import * as stats from "./stats";
 import * as system from "./system";
+import * as updates from "./updates";
 import { nativeClient, RpcError, snapshot, type Native } from "./shared";
 import { listSubscriptions, loginStatus, startLogin, transport } from "../subscription";
 
@@ -114,6 +115,12 @@ const METHODS: Record<string, Handler> = {
   "settings.set": (p, n) => system.settingSet(n, p.key, p.value),
   "settings.reset": (p, n) => system.settingReset(n, p.key),
   "backup.database": (p) => system.backupDatabase(p),
+  "update.status": () => updates.updateStatus(),
+  "update.check": () => updates.updateStart("check"),
+  "update.download": () => updates.updateStart("download"),
+  "update.install": () => updates.updateStart("install"),
+  "update.set_auto_check": (p) => updates.updateAutoCheck(p.enabled),
+  "update.open_notes": () => updates.updateOpenNotes(),
   "system.open_url": (p) => system.openSignInPage(p.url),
 
   "discovery.scan": () => system.scanTools(),

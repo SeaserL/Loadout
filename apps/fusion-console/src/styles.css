@@ -5272,36 +5272,25 @@ main:focus {
 /* ---- the gateway: an object, not an outline --------------------------------------------- */
 
 .flow-hub,
-.flow-hub.live {
-  width: 62px;
-  height: 62px;
-  margin: -31px 0 0 -31px;
-  border: 0;
-  background:
-    radial-gradient(circle at 34% 26%, color-mix(in srgb, #ffffff 70%, var(--surface)) 0%, var(--surface) 46%, var(--surface-2) 100%);
-  box-shadow:
-    0 8px 22px color-mix(in srgb, var(--hub-c) 26%, transparent),
-    0 1px 3px color-mix(in srgb, var(--hub-c) 22%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75),
-    inset 0 -2px 5px color-mix(in srgb, var(--hub-c) 10%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--hub-b) 16%, var(--border));
-}
-
+.flow-hub.live,
 [data-theme="dark"] .flow-hub,
 [data-theme="dark"] .flow-hub.live {
-  background: radial-gradient(circle at 34% 26%, color-mix(in srgb, #ffffff 14%, var(--surface-2)) 0%, var(--surface-2) 52%, var(--surface) 100%);
-  box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 0 1px color-mix(in srgb, var(--hub-b) 30%, var(--border));
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .hub-mark {
   display: block;
-  width: 42px;
-  height: 42px;
+  width: 54px;
+  height: 54px;
   overflow: visible;
-  filter: drop-shadow(0 2px 2px color-mix(in srgb, var(--hub-c) 30%, transparent));
+  filter:
+    drop-shadow(0 2px 2px color-mix(in srgb, var(--hub-c) 30%, transparent))
+    drop-shadow(0 0 calc(var(--energy, 0) * 9px) color-mix(in srgb, var(--comet) calc(var(--energy, 0) * 85%), transparent));
 }
 
 .hub-mark .slab {
@@ -5337,50 +5326,6 @@ main:focus {
 }
 
 /* ---- appearance ---------------------------------------------------------------------------- */
-
-.sidebar {
-  position: relative;
-  z-index: 2;
-  overflow: visible;
-}
-
-.gateway-row {
-  display: flex;
-  align-items: center;
-  margin: 6px 10px 0 0;
-}
-
-.gateway-row .gateway-line {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-
-.appearance {
-  position: relative;
-  flex: none;
-}
-
-.appearance > .icon-btn {
-  width: 28px;
-  height: 28px;
-  color: var(--muted);
-}
-
-.appearance-pop {
-  position: absolute;
-  z-index: 30;
-  left: 0;
-  bottom: 34px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 340px;
-  padding: 12px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--shadow-pop);
-}
 
 .palette-grid {
   display: grid;
@@ -5426,23 +5371,6 @@ main:focus {
   margin-top: 14px;
 }
 
-@media (max-width: 1040px) {
-  .gateway-row {
-    flex-direction: column-reverse;
-    margin-right: 0;
-    gap: 2px;
-  }
-
-  .gateway-row .gateway-line {
-    width: 100%;
-  }
-
-  .appearance {
-    align-self: flex-start;
-    margin-left: 4px;
-  }
-}
-
 /* ---- motion: every page arrives, and one switch stops all of it ------------------------------ */
 
 [data-motion="off"] *,
@@ -5481,43 +5409,43 @@ main:focus {
 }
 
 /* A dialog or the brief is a child of the page too, but arrives when asked for, not with the page. */
-.page-stage > .page > :not(.modal-backdrop, .brief) {
+.page-stage > .page > :not(.modal-backdrop, .brief, .tab-panel) {
   animation: page-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 .page-stage > .page > *:nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: calc(40ms / var(--motion-rate, 1));
 }
 
 .page-stage > .page > *:nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: calc(80ms / var(--motion-rate, 1));
 }
 
 .page-stage > .page > *:nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: calc(120ms / var(--motion-rate, 1));
 }
 
 .page-stage > .page > *:nth-child(5) {
-  animation-delay: 160ms;
+  animation-delay: calc(160ms / var(--motion-rate, 1));
 }
 
 .page-stage > .page > *:nth-child(n + 6) {
-  animation-delay: 200ms;
+  animation-delay: calc(200ms / var(--motion-rate, 1));
 }
 
 /* New rows slide in; rows already on screen keep their place. Only what fits on screen moves. */
 .page-stage tbody tr:nth-child(-n + 14),
 .recent-row {
-  animation: row-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: row-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
-.page-stage tbody tr:nth-child(2) { animation-delay: 20ms; }
-.page-stage tbody tr:nth-child(3) { animation-delay: 40ms; }
-.page-stage tbody tr:nth-child(4) { animation-delay: 60ms; }
-.page-stage tbody tr:nth-child(5) { animation-delay: 80ms; }
-.page-stage tbody tr:nth-child(6) { animation-delay: 100ms; }
-.page-stage tbody tr:nth-child(7) { animation-delay: 120ms; }
-.page-stage tbody tr:nth-child(8) { animation-delay: 140ms; }
+.page-stage tbody tr:nth-child(2) { animation-delay: calc(20ms / var(--motion-rate, 1)); }
+.page-stage tbody tr:nth-child(3) { animation-delay: calc(40ms / var(--motion-rate, 1)); }
+.page-stage tbody tr:nth-child(4) { animation-delay: calc(60ms / var(--motion-rate, 1)); }
+.page-stage tbody tr:nth-child(5) { animation-delay: calc(80ms / var(--motion-rate, 1)); }
+.page-stage tbody tr:nth-child(6) { animation-delay: calc(100ms / var(--motion-rate, 1)); }
+.page-stage tbody tr:nth-child(7) { animation-delay: calc(120ms / var(--motion-rate, 1)); }
+.page-stage tbody tr:nth-child(8) { animation-delay: calc(140ms / var(--motion-rate, 1)); }
 
 .share-fill,
 .quota-fill {
@@ -5532,7 +5460,7 @@ main:focus {
 .route-group,
 .map-target,
 .map-client {
-  animation: row-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: row-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 .day-bar {
@@ -5583,6 +5511,36 @@ main:focus {
 .sidebar .nav,
 .gateway-row {
   position: relative;
+}
+
+/* A tab's content arrives as one calm piece; nothing inside it starts an entrance of its own. */
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tab-panel,
+.page-stage > .page > .tab-panel {
+  animation: tab-in 0.65s cubic-bezier(0.25, 0.6, 0.3, 1) backwards;
+  animation-delay: 0s;
+}
+
+.page-stage .tab-panel tbody tr:nth-child(n),
+.page-stage .tab-panel .recent-row,
+.page-stage .tab-panel .account-card,
+.page-stage .tab-panel .pool-card,
+.page-stage .tab-panel .model-group,
+.page-stage .tab-panel .catalog-card,
+.page-stage .tab-panel .route-group,
+.page-stage .tab-panel .map-target,
+.page-stage .tab-panel .map-client {
+  animation: none;
 }
 
 /* ---- trend bars ------------------------------------------------------------------------------ */
@@ -5707,7 +5665,7 @@ main:focus {
 
 .heat-months.ready .heat-month {
   animation: month-in 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  animation-delay: calc(var(--m, 0) * 28ms);
+  animation-delay: calc(var(--m, 0) * 28ms / var(--motion-rate, 1));
 }
 
 .heat-cell {
@@ -5956,7 +5914,7 @@ main:focus {
   border-radius: 2px 2px 0 0;
   background: color-mix(in srgb, var(--accent) 45%, var(--pill));
   animation: hour-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  animation-delay: calc(var(--i) * 14ms);
+  animation-delay: calc(var(--i) * 14ms / var(--motion-rate, 1));
   transition: height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -5968,4 +5926,47 @@ main:focus {
   display: flex;
   justify-content: space-between;
   margin-top: -10px;
+}
+
+/* ---- settings: speed and updates ------------------------------------------------------------- */
+
+.motion-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.motion-rate input {
+  width: 150px;
+  accent-color: var(--accent);
+}
+
+.motion-rate output {
+  min-width: 2.6em;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-bar {
+  height: 6px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--pill);
+}
+
+.update-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.nav-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 8px 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
 }

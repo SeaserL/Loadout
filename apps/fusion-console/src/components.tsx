@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Check, CircleAlert, CircleCheck, CircleHelp, Copy, Info, Languages, Lock, Monitor, Moon, Palette, Sun, X } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, CircleHelp, Copy, Info, Languages, Lock, Monitor, Moon, Sun, X } from "lucide-react";
 import { useRolling } from "./hooks";
 import { LANGS, type Lang, type MessageKey, t, useLang } from "./i18n";
 import { PALETTES, type ThemePreference, useMotion, usePalette, useTheme } from "./theme";
@@ -677,56 +677,22 @@ export function PaletteGrid() {
   );
 }
 
-/** Everything that moves answers to this one switch. */
-export function MotionSwitch() {
-  const { on, setMotion } = useMotion();
+/** The speed of everything that moves. All the way down is off. */
+export function MotionRate() {
+  const { rate, setMotion } = useMotion();
   return (
-    <span className="check-row small">
-      <Switch checked={on} label={t("settings.motion")} onChange={setMotion} />
-      {t("settings.motion")}
+    <span className="motion-rate">
+      <input
+        type="range"
+        min={0}
+        max={2}
+        step={0.25}
+        value={rate}
+        aria-label={t("settings.motion")}
+        onChange={(e) => setMotion(Number(e.target.value))}
+      />
+      <output>{rate === 0 ? t("settings.off") : `${rate}x`}</output>
     </span>
-  );
-}
-
-/** Colours and light or dark, reachable from any page so they can be judged on any page. */
-export function AppearanceMenu() {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as globalThis.Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("pointerdown", away);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("pointerdown", away);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-  return (
-    <div className="appearance" ref={box}>
-      <button
-        type="button"
-        className="icon-btn"
-        title={t("settings.appearance")}
-        aria-label={t("settings.appearance")}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <Palette size={15} aria-hidden />
-      </button>
-      {open && (
-        <div className="appearance-pop">
-          <PaletteGrid />
-          <ThemeSwitch />
-          <MotionSwitch />
-        </div>
-      )}
-    </div>
   );
 }
 

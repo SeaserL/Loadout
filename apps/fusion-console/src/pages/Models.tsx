@@ -105,10 +105,12 @@ export function Models() {
           ]}
         />
       </div>
-      {tab === "groups" && <GroupsView />}
-      {tab === "prices" && <Prices />}
-      {tab === "table" && <PriceTable />}
-      {tab === "free" && <FreeCatalog />}
+      <div className="tab-panel" key={tab}>
+        {tab === "groups" && <GroupsView />}
+        {tab === "prices" && <Prices />}
+        {tab === "table" && <PriceTable />}
+        {tab === "free" && <FreeCatalog />}
+      </div>
     </section>
   );
 }

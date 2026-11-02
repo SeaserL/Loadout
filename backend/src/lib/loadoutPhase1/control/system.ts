@@ -10,7 +10,7 @@ import { resolveCallLogRetentionDays } from "../../usage/callLogRetention";
 import { instanceDir, invalid, kvGet, kvSet, snapshot, type Native } from "./shared";
 import { subpoolRemember, subpoolState } from "./routing";
 
-function instanceConfig() {
+export function instanceConfig() {
   try {
     return JSON.parse(fs.readFileSync(path.join(instanceDir(), "instance.json"), "utf8"));
   } catch {

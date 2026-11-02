@@ -123,6 +123,7 @@ export function Routes(props: { gateway: string }) {
       </div>
       <ErrorText error={action.error ?? virtuals.error?.message ?? routes.error?.message} />
 
+      <div className="tab-panel" key={tab}>
       {tab === "groups" && (
         <>
           {selected && (
@@ -258,6 +259,7 @@ export function Routes(props: { gateway: string }) {
       )}
 
       {tab === "retry" && <Resilience />}
+      </div>
 
       {bench && <BenchDialog results={bench} onClose={() => setBench(undefined)} />}
       {editing && (

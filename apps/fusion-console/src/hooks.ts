@@ -2,7 +2,7 @@
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { IpcFailure } from "./api";
-import { motionAllowed } from "./theme";
+import { motionAllowed, motionRate } from "./theme";
 
 /** The rendered width of an element, kept current with a ResizeObserver (for SVG charts). */
 export function useWidth<T extends HTMLElement>(): [RefObject<T | null>, number] {
@@ -77,8 +77,9 @@ export function useRolling(value: number) {
     }
     const start = performance.now();
     const origin = from.current;
+    const length = 650 / motionRate();
     let frame = requestAnimationFrame(function step(now) {
-      const p = Math.min(1, (now - start) / 650);
+      const p = Math.min(1, (now - start) / length);
       const v = origin + (value - origin) * (1 - (1 - p) ** 3);
       from.current = v;
       setShown(v);
