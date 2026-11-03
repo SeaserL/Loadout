@@ -49,6 +49,10 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
             )}
             <dt>{t("settings.network")}</dt>
             <dd>{s.network === "direct" ? t("settings.networkDirect") : t("settings.networkLocal")}</dd>
+            <dt>{t("settings.autostart")}</dt>
+            <dd>
+              <AutostartSwitch />
+            </dd>
           </dl>
           <div className="card-foot">
             <div className="spacer" />
@@ -154,6 +158,24 @@ export function Settings(props: { status: DaemonStatus; onDaemonChange: () => Pr
         </div>
       </Card>
     </Page>
+  );
+}
+
+/** A Windows setting, so it is read from Windows each time rather than kept here. */
+function AutostartSwitch() {
+  const state = usePoll(api.autostart, 0);
+  const action = useAction();
+  const [fresh, setFresh] = useState<boolean>();
+  return (
+    <>
+      <Switch
+        checked={fresh ?? state.data?.enabled ?? false}
+        disabled={!state.data || action.busy}
+        label={t("settings.autostartLabel")}
+        onChange={(on) => void action.run(async () => setFresh((await api.setAutostart(on)).enabled))}
+      />
+      <ErrorText error={action.error ?? state.error?.message} />
+    </>
   );
 }
 

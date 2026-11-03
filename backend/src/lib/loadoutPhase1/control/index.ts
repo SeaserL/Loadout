@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // One entry point for the desktop UI, named after the daemon's IPC methods.
 import * as accounts from "./accounts";
+import * as autostart from "./autostart";
 import * as clients from "./clients";
 import * as keys from "./keys";
 import * as models from "./models";
@@ -78,6 +79,7 @@ const METHODS: Record<string, Handler> = {
   "model.sync": (p, n) => models.syncAccountModels(n, p.provider, p.alias),
   "model.add": (p) => models.modelAdd(p),
   "model.set_enabled": (p) => models.modelEnabled(p.name, p.enabled),
+  "model.set_enabled_many": (p) => models.modelEnabledMany(p?.names, p?.enabled === true),
   "model.set_price": (p) => models.modelPrice(p.name, p.input, p.output),
   "model.set_tier": (p) => models.modelTier(p.name, p.tier),
   "model.remove": (p) => models.modelRemove(p.name),
@@ -122,6 +124,8 @@ const METHODS: Record<string, Handler> = {
   "update.set_auto_check": (p) => updates.updateAutoCheck(p.enabled),
   "update.open_notes": () => updates.updateOpenNotes(),
   "system.open_url": (p) => system.openSignInPage(p.url),
+  "system.autostart": () => autostart.autostartStatus(),
+  "system.set_autostart": (p) => autostart.autostartSet(p?.enabled === true),
 
   "discovery.scan": () => system.scanTools(),
   "discovery.connect": (p) => system.connectTool(p.kind),

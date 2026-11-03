@@ -7,6 +7,9 @@ import { Instance, freePort, isolatedPath, packageRoot, verifyPackage } from "./
 
 // Portable control-plane entry. Backend ownership remains with the existing supervisor.
 const USUAL_PORT = 8318;
+// The window keeps its WebView profile in the instance folder and creates it before it asks for the
+// backend (apps/fusion-desktop/src/main.rs), so a first start finds that folder already there.
+const WINDOW_PROFILE = "webview";
 export function desktopDirectory(argument) {
   return isolatedPath(argument ?? path.join(path.dirname(packageRoot), "loadout-fusion-isolated", "desktop-current"));
 }
@@ -28,7 +31,12 @@ export async function prepareDesktop(argument) {
     ? new Instance(dir)
     // Clients are configured with this address, so it is chosen once and stays. Another program
     // on the usual port moves a new install for good, not from run to run.
-    : await Instance.create(dir, undefined, { network: "direct", port: argument ? await freePort() : await choosePort(USUAL_PORT) });
+    : await Instance.create(
+        dir,
+        undefined,
+        { network: "direct", port: argument ? await freePort() : await choosePort(USUAL_PORT) },
+        { keep: [WINDOW_PROFILE] },
+      );
   let state = await instance.status();
   if (state.status !== "ready") state = await instance.start();
   if (state.status !== "ready" || state.port === 8317 || state.port <= 1024)

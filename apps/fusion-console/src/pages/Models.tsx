@@ -2,7 +2,8 @@
 //
 // Models and their groups. The left column is what clients can ask for (a group = a pool, an
 // ordered failover list); the right column is everything the accounts offer. Dragging a model onto
-// a group adds it; dragging inside a group sets its order.
+// a group adds it; dragging inside a group sets its order. Ticked models are turned on or off, or
+// put into a group, together.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Copy, FolderPlus, GripVertical, Plus, RefreshCw, Search, Trash, X } from "lucide-react";
@@ -43,6 +44,34 @@ function tierValue(m: ModelInfo): string {
       return "auto";
   }
 }
+
+/** One tick box for one model or a whole list of them; part of a list shows as a dash. */
+function Check(props: { names: string[]; selected: Set<string>; label: string; onChange: (names: string[], on: boolean) => void }) {
+  const some = props.names.some((n) => props.selected.has(n));
+  const every = props.names.length > 0 && props.names.every((n) => props.selected.has(n));
+  return (
+    <input
+      type="checkbox"
+      className="row-check"
+      aria-label={props.label}
+      title={props.label}
+      checked={every}
+      disabled={props.names.length === 0}
+      ref={(el) => {
+        if (el) el.indeterminate = some && !every;
+      }}
+      onChange={(e) => props.onChange(props.names, e.target.checked)}
+    />
+  );
+}
+
+/** A group name from a model id: what the backend accepts, nothing else. */
+const groupName = (model: string) =>
+  model
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[^a-z0-9]+/, "")
+    .slice(0, 61);
 
 /** Follows the pointer while a model is dragged out of the catalog. */
 function useModelDrag(onDrop: (model: string, pool: string) => void) {
@@ -126,10 +155,12 @@ function GroupsView() {
   const [filter, setFilter] = useState("");
   const [showDisabled, setShowDisabled] = useState(false);
   const [closed, setClosed] = useState<Set<string>>(new Set());
-  const [creating, setCreating] = useState<string | true>();
+  const [creating, setCreating] = useState<string[]>();
   const [price, setPrice] = useState<ModelInfo>();
   const [adding, setAdding] = useState(false);
   const [picking, setPicking] = useState<string>();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState<string>();
 
   const tierOf = useMemo(() => new Map((routes.data ?? []).map((r) => [r.name, r.tier])), [routes.data]);
   const all = models.data ?? [];
@@ -166,6 +197,54 @@ function GroupsView() {
   };
   const drag = useModelDrag(addToPool);
 
+  const choose = (names: string[], on: boolean) => {
+    const next = new Set(selected);
+    for (const n of names) {
+      if (on) next.add(n);
+      else next.delete(n);
+    }
+    setSelected(next);
+  };
+  // In the catalog's own order, so a new group fails over the way the list reads.
+  const chosen = all.filter((m) => selected.has(m.name)).map((m) => m.name);
+  const setChosen = (on: boolean) =>
+    run(async () => {
+      const r = await api.setModelsEnabled(chosen, on);
+      toast(t("models.toggledMany", { n: r.updated }), "ok");
+      setSelected(new Set());
+    });
+  const addChosen = (name: string) => {
+    const pool = pools.data?.find((p) => p.name === name);
+    if (!pool) return;
+    const fresh = chosen.filter((m) => !pool.members.includes(m));
+    if (fresh.length === 0) {
+      toast(t("models.alreadyInGroup", { name }), "info");
+      return;
+    }
+    run(async () => {
+      await api.savePool(name, pool.ordering, [...pool.members, ...fresh]);
+      toast(t("models.addedMany", { n: fresh.length, name }), "ok");
+      setSelected(new Set());
+    });
+  };
+  // Accounts imported by an older version came without their model lists.
+  const syncAll = () =>
+    void action.run(async () => {
+      const list = accounts.data ?? [];
+      const failed: string[] = [];
+      try {
+        for (const [i, a] of list.entries()) {
+          setSyncing(t("models.syncing", { i: i + 1, n: list.length }));
+          await api.syncModels(a.provider, a.alias).catch(() => failed.push(`${a.provider}/${a.alias}`));
+        }
+      } finally {
+        setSyncing(undefined);
+      }
+      await reload();
+      if (failed.length) toast(t("models.syncAllFailed", { n: failed.length, list: failed.join(", ") }), "bad");
+      else toast(t("models.syncAllDone", { n: list.length }), "ok");
+    });
+
   return (
     <>
       <ErrorText error={action.error ?? models.error?.message} />
@@ -173,7 +252,7 @@ function GroupsView() {
         <aside className="groups-pane">
           <div className="pane-head">
             <h2>{t("models.groups")}</h2>
-            <Button icon={<FolderPlus size={15} />} onClick={() => setCreating(true)}>
+            <Button icon={<FolderPlus size={15} />} onClick={() => setCreating([])}>
               {t("models.newGroup")}
             </Button>
           </div>
@@ -195,6 +274,7 @@ function GroupsView() {
 
         <div className="catalog-pane">
           <div className="pane-tools">
+            <Check names={list.map((m) => m.name)} selected={selected} label={t("models.selectAll")} onChange={choose} />
             <label className="search" style={{ flex: 1 }}>
               <Search size={16} aria-hidden />
               <input
@@ -212,13 +292,61 @@ function GroupsView() {
               {t("models.addManual")}
             </Button>
           </div>
-          {groups.length === 0 && !models.loading && <Empty>{t("models.empty")}</Empty>}
+          {chosen.length > 0 && (
+            <div className="bulk-bar" role="toolbar" aria-label={t("models.selected", { n: chosen.length })}>
+              <span className="strong">{t("models.selected", { n: chosen.length })}</span>
+              <Button disabled={action.busy} onClick={() => setChosen(true)}>
+                {t("common.enable")}
+              </Button>
+              <Button disabled={action.busy} onClick={() => setChosen(false)}>
+                {t("common.disable")}
+              </Button>
+              {(pools.data ?? []).length > 0 && (
+                <select
+                  value=""
+                  disabled={action.busy}
+                  aria-label={t("models.addToGroup")}
+                  onChange={(e) => e.target.value && addChosen(e.target.value)}
+                >
+                  <option value="">{t("models.addToGroup")}</option>
+                  {(pools.data ?? []).map((p) => (
+                    <option key={p.name} value={p.name}>
+                      loadout/{p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button icon={<FolderPlus size={15} />} disabled={action.busy} onClick={() => setCreating(chosen)}>
+                {t("models.newGroup")}
+              </Button>
+              <span className="spacer" />
+              <IconButton label={t("models.clearSelection")} onClick={() => setSelected(new Set())}>
+                <X size={15} />
+              </IconButton>
+            </div>
+          )}
+          {groups.length === 0 &&
+            !models.loading &&
+            (all.length === 0 && (accounts.data ?? []).length > 0 ? (
+              <Empty
+                action={
+                  <Button kind="primary" icon={<RefreshCw size={15} />} disabled={action.busy} onClick={syncAll}>
+                    {syncing ?? t("models.syncAll")}
+                  </Button>
+                }
+              >
+                {t("models.noModelsYet")}
+              </Empty>
+            ) : (
+              <Empty>{t("models.empty")}</Empty>
+            ))}
           {groups.map(([key, rows]) => {
             const open = !closed.has(key);
             const [provider, account] = key.split("/");
             return (
               <section className="model-group" key={key}>
                 <header>
+                  <Check names={rows.map((m) => m.name)} selected={selected} label={key} onChange={choose} />
                   <button
                     type="button"
                     className="model-group-toggle"
@@ -253,6 +381,7 @@ function GroupsView() {
                     const tier = tierOf.get(m.name) ?? "UNMEASURED";
                     return (
                       <div className={`model-row ${m.enabled ? "" : "dim"} ${drag.dragging === m.name ? "dragging" : ""}`} key={m.name}>
+                        <Check names={[m.name]} selected={selected} label={m.name} onChange={choose} />
                         <span
                           className="drag-grip"
                           role="button"
@@ -324,9 +453,12 @@ function GroupsView() {
       )}
       {creating && (
         <GroupDialog
-          first={typeof creating === "string" ? creating : undefined}
+          members={creating}
           onClose={() => setCreating(undefined)}
-          onDone={() => void reload()}
+          onDone={() => {
+            setSelected(new Set());
+            void reload();
+          }}
         />
       )}
       {picking && (
@@ -348,7 +480,7 @@ function GroupsView() {
           <Button
             icon={<FolderPlus size={15} />}
             onClick={() => {
-              setCreating(picking);
+              setCreating([picking]);
               setPicking(undefined);
             }}
           >
@@ -368,6 +500,8 @@ function GroupsView() {
   );
 }
 
+const FOLD_AFTER = 5;
+
 function PoolCard(props: {
   pool: PoolInfo;
   over: boolean;
@@ -380,6 +514,10 @@ function PoolCard(props: {
   const confirm = useConfirm();
   const doCopy = useCopy();
   const manual = p.ordering === "manual";
+  // A long group shows its head; the failover order is read from the top anyway.
+  const [unfolded, setUnfolded] = useState(false);
+  const folds = p.members.length > FOLD_AFTER + 1;
+  const shown = folds && !unfolded ? p.members.slice(0, FOLD_AFTER) : p.members;
   const members = usePointerReorder({
     scope: p.name,
     scopeAttr: "members",
@@ -424,7 +562,7 @@ function PoolCard(props: {
         </IconButton>
       </header>
       <ol className="pool-members" data-members={p.name}>
-        {p.members.map((name, i) => {
+        {shown.map((name, i) => {
           const tier = props.tierOf.get(name);
           const [provider, account, ...rest] = name.split("/");
           const grip = manual ? members.grip(name) : undefined;
@@ -455,63 +593,146 @@ function PoolCard(props: {
           );
         })}
       </ol>
+      {folds && (
+        <button type="button" className="pool-more" aria-expanded={unfolded} onClick={() => setUnfolded(!unfolded)}>
+          {unfolded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {unfolded ? t("models.fewerMembers") : t("models.moreMembers", { n: p.members.length - FOLD_AFTER })}
+        </button>
+      )}
     </section>
   );
 }
 
-function GroupDialog(props: { first?: string; onClose: () => void; onDone: () => void }) {
+/**
+ * A group is usually one model across many accounts, so those are offered first: one click takes
+ * every copy. A search picks anything else; models ticked in the catalog arrive already picked.
+ */
+function GroupDialog(props: { members: string[]; onClose: () => void; onDone: () => void }) {
   const action = useAction();
   const models = usePoll(api.models, 0);
+  const catalog = models.data ?? [];
+  const usable = catalog.filter((m) => m.enabled || props.members.includes(m.name));
   const [name, setName] = useState("");
   const [ordering, setOrdering] = useState("manual");
-  const [first, setFirst] = useState(props.first ?? "");
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set(props.members));
+  const suggestions = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const m of catalog) if (m.enabled) count.set(m.upstream_model, (count.get(m.upstream_model) ?? 0) + 1);
+    return [...count.entries()]
+      .filter(([, n]) => n > 1)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 8);
+  }, [models.data]);
+  // Ticked models that are all the same model name the group after it.
+  useEffect(() => {
+    if (name || props.members.length === 0 || !models.data) return;
+    const same = new Set(models.data.filter((m) => props.members.includes(m.name)).map((m) => m.upstream_model));
+    if (same.size === 1) setName(groupName([...same][0] as string));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [models.data]);
+  const pick = (names: string[], on: boolean) => {
+    const next = new Set(picked);
+    for (const n of names) {
+      if (on) next.add(n);
+      else next.delete(n);
+    }
+    setPicked(next);
+  };
+  const takeAll = (model: string) => {
+    pick(
+      usable.filter((m) => m.upstream_model === model).map((m) => m.name),
+      true,
+    );
+    setQuery(model);
+    if (!name) setName(groupName(model));
+  };
+  const q = query.trim().toLowerCase();
+  const matches = q ? usable.filter((m) => m.name.toLowerCase().includes(q)) : [];
+  const ordered = catalog.map((m) => m.name).filter((n) => picked.has(n));
   return (
     <Modal
       title={t("models.newGroup")}
       onClose={props.onClose}
+      wide
       footer={
         <>
           <Button onClick={props.onClose}>{t("common.cancel")}</Button>
           <Button
             kind="primary"
-            disabled={action.busy || !name || !first}
+            disabled={action.busy || !name || ordered.length === 0}
             onClick={() =>
               void action.run(async () => {
-                await api.savePool(name, ordering, [first]);
+                await api.savePool(name, ordering, ordered);
                 props.onDone();
                 props.onClose();
               })
             }
           >
-            {t("common.create")}
+            {ordered.length ? t("models.createWith", { n: ordered.length }) : t("common.create")}
           </Button>
         </>
       }
     >
-      <Field label={t("common.name")}>
-        <input value={name} autoFocus onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="daily-coding" />
-      </Field>
-      <Field label={t("routes.order")}>
-        <select value={ordering} onChange={(e) => setOrdering(e.target.value)}>
-          {ORDERINGS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {t(o.label)}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label={t("models.firstMember")}>
-        <select value={first} onChange={(e) => setFirst(e.target.value)}>
-          <option value="">{t("acc.choose")}</option>
-          {(models.data ?? [])
-            .filter((m) => m.enabled)
-            .map((m) => (
-              <option key={m.name} value={m.name}>
-                {m.name}
+      <div className="grid cols-2">
+        <Field label={t("common.name")}>
+          <input value={name} autoFocus onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="deepseek-flash" />
+        </Field>
+        <Field label={t("routes.order")}>
+          <select value={ordering} onChange={(e) => setOrdering(e.target.value)}>
+            {ORDERINGS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.label)}
               </option>
             ))}
-        </select>
-      </Field>
+          </select>
+        </Field>
+      </div>
+      {suggestions.length > 0 && (
+        <div className="field suggest-block">
+          <span className="label">{t("models.sameModel")}</span>
+          <div className="suggest-row">
+            {suggestions.map(([model, n]) => (
+              <button type="button" key={model} className="suggest-chip" onClick={() => takeAll(model)}>
+                <span className="mono">{model}</span>
+                <span className="muted num">×{n}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="field">
+        <span className="label">{t("models.members")}</span>
+        <label className="search">
+          <Search size={16} aria-hidden />
+          <input placeholder={t("models.search")} aria-label={t("models.search")} value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+      </div>
+      {matches.length > 0 && (
+        <div className="pick-list">
+          <label className="pick-all">
+            <Check names={matches.map((m) => m.name)} selected={picked} label={t("models.pickAll", { n: matches.length })} onChange={pick} />
+            {t("models.pickAll", { n: matches.length })}
+          </label>
+          {matches.slice(0, 300).map((m) => (
+            <label key={m.name}>
+              <Check names={[m.name]} selected={picked} label={m.name} onChange={pick} />
+              <span className="mono">{m.upstream_model}</span>
+              <span className="small muted">
+                {m.provider}/{m.account}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+      {ordered.length > 0 && (
+        <div className="picked-line small">
+          <span>{t("models.picked", { n: ordered.length })}</span>
+          <button type="button" className="btn link small" onClick={() => setPicked(new Set())}>
+            {t("models.clearPicked")}
+          </button>
+        </div>
+      )}
       <ErrorText error={action.error} />
     </Modal>
   );

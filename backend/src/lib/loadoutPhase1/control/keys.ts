@@ -223,15 +223,17 @@ export async function importKeys(native: Native, p: any) {
         continue;
       }
       try {
-        // Import is local; models are synced from the account card when the user asks.
-        await accountAdd(native, {
+        // Models are fetched right away: an account without them offers nothing to route, and
+        // nobody guesses that a refresh arrow is the missing step. A failed fetch is reported,
+        // the account stays.
+        const added = await accountAdd(native, {
           provider: provider.slug,
           alias: account.alias,
           api_key: account.api_key,
           display_name: account.display_name,
-          sync_models: false,
         });
         report.accounts += 1;
+        if (added.sync_error) report.sync_errors.push(`${name}：${added.sync_error}`);
       } catch (e) {
         report.skipped.push(`${name}：${(e as Error).message}`);
       }

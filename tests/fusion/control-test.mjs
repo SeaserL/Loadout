@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createDecipheriv, pbkdf2Sync } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { Instance, sleep, baseline } from "./harness.mjs";
+import { spawnSync } from "node:child_process";
+import { Instance, sleep, baseline, pkg } from "./harness.mjs";
 
 const root = path.resolve(process.env.FUSION_RELEASE_ROOT);
 const dir = path.join(root, "runs/loadout-fusion-isolated/control-" + Date.now());
@@ -56,6 +57,26 @@ await once(mock, "listening");
 const base = `http://127.0.0.1:${mock.address().port}/v1`;
 
 let i, clientKey;
+// The sign-in entry is written to a throwaway key; the real Run key is only ever read, to show it
+// did not change.
+const AUTOSTART_KEY = "HKCU:\\Software\\Loadout-Test\\control-" + Date.now();
+const RUN_KEY = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+const POWERSHELL = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+function registry(key, action = "read", value = "") {
+  if (action !== "read" && !key.startsWith("HKCU:\\Software\\Loadout-Test\\")) throw Error("only the test key is written");
+  const script =
+    "$ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $k=$env:FIXTURE_KEY; " +
+    "if ($env:FIXTURE_ACTION -eq 'write') { if (-not (Test-Path -LiteralPath $k)) { $null = New-Item -Path $k -Force }; Set-ItemProperty -LiteralPath $k -Name Loadout -Value $env:FIXTURE_VALUE } " +
+    "elseif ($env:FIXTURE_ACTION -eq 'drop') { Remove-Item -LiteralPath $k -Recurse -Force -ErrorAction SilentlyContinue } " +
+    "else { $v = (Get-ItemProperty -LiteralPath $k -Name Loadout -ErrorAction SilentlyContinue).Loadout; if ($v) { [Console]::Out.Write($v) } }";
+  const done = spawnSync(POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true,
+    env: { ...process.env, FIXTURE_KEY: key, FIXTURE_ACTION: action, FIXTURE_VALUE: value },
+  });
+  if (done.status !== 0) throw Error("registry fixture failed");
+  return done.stdout.trim();
+}
 const check = async (name, fn) => {
   try {
     await fn();
@@ -88,7 +109,7 @@ async function served1(model, url) {
 }
 
 try {
-  i = await Instance.create(dir, undefined, { network: "loopback-only", port: 0 });
+  i = await Instance.create(dir, undefined, { network: "loopback-only", port: 0, autostartKey: AUTOSTART_KEY });
   await i.start();
 
   await check("rpc-needs-the-session-and-refuses-inference-credentials", async () => {
@@ -105,6 +126,25 @@ try {
     });
     assert.equal(foreign.status, 403);
     assert.equal((await rpcError("no.such.method")).code, "unknown_method");
+  });
+
+  await check("sign-in-entry-starts-this-package-and-removes-only-its-own-value", async () => {
+    const realBefore = registry(RUN_KEY);
+    const expected = `"${path.join(pkg, "Loadout.exe")}" --instance "${dir}" --background`;
+    assert.deepEqual(await rpc("system.autostart"), { enabled: false });
+    assert.deepEqual(await rpc("system.set_autostart", { enabled: true }), { enabled: true });
+    assert.equal(registry(AUTOSTART_KEY), expected);
+    assert.deepEqual(await rpc("system.set_autostart", { enabled: false }), { enabled: false });
+    assert.equal(registry(AUTOSTART_KEY), "");
+    // Another program's value under the same name, in a folder with Chinese in it, is not ours.
+    const foreign = "C:\\工具\\其他\\other.exe --background";
+    registry(AUTOSTART_KEY, "write", foreign);
+    assert.deepEqual(await rpc("system.autostart"), { enabled: false });
+    assert.deepEqual(await rpc("system.set_autostart", { enabled: false }), { enabled: false });
+    assert.equal(registry(AUTOSTART_KEY), foreign);
+    assert.deepEqual(await rpc("system.set_autostart", { enabled: true }), { enabled: true });
+    assert.equal(registry(AUTOSTART_KEY), expected);
+    assert.equal(registry(RUN_KEY), realBefore, "the real sign-in entry is never touched");
   });
 
   await check("status-and-provider-presets", async () => {
@@ -428,8 +468,25 @@ try {
     const report = await rpc("keys.import", { content, passphrase: "fixture-passphrase", overwrite: false });
     assert.equal(report.accounts, 1);
     assert.equal(report.skipped.length, 2);
-    await rpc("model.sync", { provider: "north", alias: "c" });
+    // The imported account comes with its models: nobody has to find the refresh arrow first.
+    assert.deepEqual(report.sync_errors, []);
+    assert((await rpc("model.list")).some((m) => m.name === "north/c/fixture-chat"));
     assert.equal(await served1("north/c/fixture-chat"), KEYS.c);
+  });
+
+  await check("models-switch-on-and-off-together-and-an-unknown-name-stops-the-batch", async () => {
+    const names = ["north/a/fixture-chat", "north/b/fixture-chat"];
+    const enabled = async () => {
+      const list = await rpc("model.list");
+      return names.map((n) => list.find((m) => m.name === n)?.enabled);
+    };
+    assert.deepEqual(await rpc("model.set_enabled_many", { names, enabled: false }), { updated: 2 });
+    assert.deepEqual(await enabled(), [false, false]);
+    assert.match((await rpcError("model.set_enabled_many", { names: [...names, "north/a/no-such-model"], enabled: true })).message, /no-such-model/);
+    assert.deepEqual(await enabled(), [false, false], "a refused batch changes nothing");
+    assert((await rpcError("model.set_enabled_many", { names: [], enabled: true })).message);
+    assert.deepEqual(await rpc("model.set_enabled_many", { names, enabled: true }), { updated: 2 });
+    assert.deepEqual(await enabled(), [true, true]);
   });
 
   await check("settings-apply-and-idle-gateway-stays-quiet", async () => {
@@ -489,6 +546,9 @@ try {
 } finally {
   mock.close();
   if (i) await i.cleanup().catch(() => undefined);
+  try {
+    registry(AUTOSTART_KEY, "drop");
+  } catch {}
   result.cleaned = true;
   fs.writeFileSync(path.join(root, "evidence/control.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ passed: result.cases.length, failed: !!result.failure }));

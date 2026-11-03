@@ -10,7 +10,7 @@ const root = path.resolve(process.env.FUSION_RELEASE_ROOT);
 const { prepareDesktop, desktopDirectory, choosePort } = await import(pathToFileURL(path.join(pkg, "tools/desktop.mjs")));
 const dir = path.join(root, "runs/loadout-fusion-isolated/desktop-entry-" + Date.now());
 const result = { baseline: baseline(), cases: [] };
-let i, target, before;
+let i, target, before, windowFirst;
 async function check(name, fn) { await fn(); result.cases.push({ name, pass: true }); }
 async function cli(command) {
   const child = spawn(path.join(pkg, "node.exe"), [path.join(pkg, "tools/desktop.mjs"), command, dir], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -75,6 +75,39 @@ try {
     await new Promise((resolve) => held.close(resolve));
     assert.equal(await choosePort(taken), taken);
   });
+  await check("a-lock-left-by-a-shutdown-does-not-block-the-next-start", async () => {
+    // After a restart the numbers in a stale lock can belong to any program; here, a ping.
+    assert.deepEqual(await cli("stop"), { status: "stopped" });
+    const other = spawn(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "PING.EXE"), ["-n", "120", "127.0.0.1"], { windowsHide: true, stdio: "ignore" });
+    try {
+      fs.writeFileSync(path.join(dir, "operation.lock"), JSON.stringify({ id: "left-by-a-shutdown", pid: other.pid, backendPid: other.pid }));
+      assert.equal((await i.status()).status, "stopped");
+      assert.deepEqual(await cli("prepare"), target);
+      assert.equal((await i.status()).status, "ready");
+    } finally {
+      other.kill();
+    }
+  });
+  await check("first-start-after-the-window-made-its-profile", async () => {
+    // The window builds <instance>\webview before it asks for the backend: on a new install that
+    // folder is all there is, and the start must not stop there.
+    const fresh = path.join(root, "runs/loadout-fusion-isolated/desktop-window-first-" + Date.now());
+    fs.mkdirSync(path.join(fresh, "webview", "EBWebView"), { recursive: true });
+    windowFirst = (await prepareDesktop(fresh)).instance;
+    assert.equal((await windowFirst.status()).status, "ready");
+    assert(fs.existsSync(path.join(fresh, "instance.json")));
+    assert(fs.existsSync(path.join(fresh, "webview", "EBWebView")), "the window's profile is kept");
+  });
+  await check("anything-else-in-a-new-instance-folder-is-still-refused", async () => {
+    const makers = { file: (d) => fs.writeFileSync(path.join(d, "notes.txt"), "x"), data: (d) => fs.mkdirSync(path.join(d, "data")) };
+    for (const [name, make] of Object.entries(makers)) {
+      const taken = path.join(root, `runs/loadout-fusion-isolated/desktop-not-empty-${name}-` + Date.now());
+      fs.mkdirSync(path.join(taken, "webview"), { recursive: true });
+      make(taken);
+      await assert.rejects(prepareDesktop(taken), /TARGET_EXISTS/);
+      assert(!fs.existsSync(path.join(taken, "instance.json")));
+    }
+  });
   await check("launch-receipt-does-not-contain-bootstrap-secrets", async () => {
     const secret = await i.secrets();
     const publicText = JSON.stringify(target) + fs.readFileSync(path.join(dir, "instance.json"), "utf8");
@@ -83,6 +116,7 @@ try {
 } catch (error) { result.failure = { name: error.name, message: error.message }; process.exitCode = 1; }
 finally {
   if (i) await i.cleanup();
+  if (windowFirst) await windowFirst.cleanup();
   result.cleaned = true;
   fs.writeFileSync(path.join(root, "evidence/desktop.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ passed: result.cases.length, failed: !!result.failure }));

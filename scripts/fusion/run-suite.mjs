@@ -12,8 +12,8 @@ const groups = [
   ["pricing",25,"pricing-latest.json"], ["subscription",18,"subscription-latest.json"],
   ["quota-model",22,"quota-model-latest.json"], ["upgrade",4,"upgrade-result.json"], ["preflight",8,"preflight-test.json"],
   ["console",7,"console.json"],
-  ["desktop",7,"desktop.json"],
-  ["control",21,"control.json"],
+  ["desktop",10,"desktop.json"],
+  ["control",23,"control.json"],
 ];
 const rows = [];
 for (const [name, expected, resultName] of groups) {
