@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# Optional, run by hand: removes candidates and work folders that the current package replaced.
+# Optional, run by hand after a candidate is promoted: removes every release run's work folder and
+# the candidates the current package replaced. Each run keeps one or two full packages, a baseline
+# and archives, so without this the disk grows by several GiB per release.
 # Keeps the current package, all source, evidence, isolated data, credentials and the installed app.
 [CmdletBinding()]
 param([switch]$WhatIf)
@@ -9,15 +11,13 @@ if ($repo -ne 'D:\Loadout') { throw 'WORKSPACE_SCOPE' }
 $current = Get-Content -LiteralPath (Join-Path $repo 'development\fusion\current.json') -Raw | ConvertFrom-Json
 $keep = [IO.Path]::GetFullPath($current.runtime)
 $runs = Join-Path $repo 'development\fusion\runs'
+# Every run is a work folder: promotion has copied what it proved to development\fusion\evidence.
+# Not for the time between a new candidate's build and its promotion: that run would go too.
 $targets = @(
     (Join-Path $repo 'development\fusion\runtime\current'),
     (Join-Path $repo '.build\fusion-desktop')
 ) + @(Get-ChildItem -LiteralPath (Join-Path $repo 'dist\fusion') -File -Filter '*.zip' | Where-Object { $_.FullName -ne $current.archive } | ForEach-Object { $_.FullName }
-) + @(Get-ChildItem -LiteralPath $runs -Directory | Where-Object { $_.Name -ne '067-product' } | ForEach-Object { $_.FullName })
-$product = Join-Path $runs '067-product'
-if (Test-Path -LiteralPath $product) {
-    $targets += @(Get-ChildItem -LiteralPath $product -Directory | Where-Object { $_.Name -in @('baseline', 'packages', 'build') } | ForEach-Object { $_.FullName })
-}
+) + @(if (Test-Path -LiteralPath $runs) { Get-ChildItem -LiteralPath $runs -Directory | ForEach-Object { $_.FullName } })
 $running = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($runs + '\', [StringComparison]::OrdinalIgnoreCase) })
 if ($running.Count) { throw "Still running from the work folders: $($running.ProcessId -join ', '). Stop them first." }
 $total = 0L

@@ -74,10 +74,12 @@ try {
       chunks++;
       text += Buffer.from(c).toString();
     }
+  // Events, not network chunks: a short reply that arrives at once can come in two chunks.
+  const events = text.split("\n").filter((line) => line.startsWith("data: ")).length;
   note(
     "chat, streaming",
-    stream.ok && text.includes("[DONE]") && chunks > 2,
-    `HTTP ${stream.status} first byte ${first}ms, ${chunks} chunks in ${Date.now() - started}ms`,
+    stream.ok && text.includes("[DONE]") && events > 2,
+    `HTTP ${stream.status} first byte ${first}ms, ${events} events in ${chunks} chunks, ${Date.now() - started}ms`,
   );
 
   await json(
