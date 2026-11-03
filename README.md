@@ -155,7 +155,7 @@ http://127.0.0.1:8318/v1
 1. 从 [Releases](https://github.com/SeaserL/Loadout/releases/latest) 下载 `Loadout-1.0.0-portable-windows-x64.zip`（约 380 MB），解压到一个路径不太深的文件夹，比如 `D:\Apps\Loadout`。
 2. 双击里面的 `Loadout.exe`。
 
-需要 Windows 10/11 x64 和 WebView2 Runtime（通常已预装）。这是绿色版，没有安装器和开机自启，运行时自带。数据放在程序文件夹旁边的 `loadout-fusion-isolated`，密钥在 Windows 凭据管理器。
+需要 Windows 10/11 x64 和 WebView2 Runtime（通常已预装）。这是绿色版，没有安装器，运行时自带。数据放在程序文件夹旁边的 `loadout-fusion-isolated`，密钥在 Windows 凭据管理器。要开机启动，在“设置”里打开“开机启动”：登录 Windows 时网关在后台启动，托盘里有图标，不弹窗口。
 
 关掉窗口后网关留在后台，软件照常能用；要完全退出，在托盘图标上右键选“退出并停止网关”。
 
