@@ -10,7 +10,9 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -Action package -Node <Node v24.22.1 的 node.exe>
 ```
 
-需要先准备后端工作副本（并在其中 `npm ci --ignore-scripts`）和 `development/fusion/tools/`（`npm ci`）。完整的 `release` 动作还要一个已有候选作为升级基线，所以只能在已有候选的机器上跑。
+需要先准备后端工作副本（`python scripts\fusion\backend-source.py prepare`，然后在其中 `npm ci --ignore-scripts`）、`development/fusion/tools/`（`npm ci`），并在仓库根目录 `npm ci`。完整的 `release` 动作还要一个已有候选作为升级基线，所以只能在已有候选的机器上跑。
+
+包的大小取决于工作副本里装上了哪些可选依赖。按上面的方式装，OmniRoute 的可选组件（本地推理 onnxruntime 和 transformers、提示词压缩、wreq、ngrok 等平台二进制）都会被打进包，压缩包约 566 MB；发布的 1.0.0 没有这些组件，约 381 MB，很可能是当时它们下载失败被 npm 跳过了（可选依赖装不上只警告）。不要用 `--omit=optional` 来精简：`sharp` 的平台二进制也是可选依赖，缺了它构建会失败。要稳定地精简，需要在装配时明确排除这些组件并重新验证，尚未做。
 
 ## 开发者入口
 
@@ -26,7 +28,7 @@ ZIP 校验核对成员集合、重复路径和每个文件的 SHA-256（包括�
 
 当前候选的位置和SHA见 `development/fusion/current.json`；ZIP放在 `dist/fusion/`，精简证据放在 `development/fusion/evidence/`。旧包仅在升级测试期间临时保留。失败不推广、不删除旧候选；失败工作目录保留，核对停止状态后再处理，不能把整个开发目录当成缓存删除。
 
-验收用的编译版展开在 `dist/fusion/app/`（`current.json` 的 `runtime`），仓库根目录的 `Loadout.lnk` 以 `--instance development/fusion/isolated/loadout-fusion-isolated/main` 启动它。快捷方式含绝对路径，不进版本库。被替换的旧候选和工作目录由 `scripts/fusion/cleanup-superseded.ps1` 手动清理，可先加 `-WhatIf` 查看；它保留当前包、源码、证据、隔离数据和凭据。
+验收用的编译版展开在 `dist/fusion/app/`（`current.json` 的 `runtime`），仓库根目录的 `Loadout.lnk` 以 `--instance development/fusion/isolated/loadout-fusion-isolated/main` 启动它。快捷方式含绝对路径，不进版本库。被替换的旧候选和工作目录由 `scripts/fusion/cleanup-superseded.ps1` 手动清理，可先加 `-WhatIf` 查看；它保留当前包、源码、证据、隔离数据和凭据。每次推广后都跑一次：每个工作目录里有一到两份完整的包、展开的升级基线和压缩包，不清理的话每次发布要多占几 GB。推广前不要跑，否则等待推广的候选也会被删。
 
 只重新做实际预检：
 
