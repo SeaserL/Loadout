@@ -459,6 +459,8 @@ export const api = {
   updateInstall: () => call<UpdateStatus>("update.install"),
   updateSetAutoCheck: (enabled: boolean) => call<UpdateStatus>("update.set_auto_check", { enabled }),
   updateOpenNotes: () => call<unknown>("update.open_notes"),
+  autostart: () => call<{ enabled: boolean }>("system.autostart"),
+  setAutostart: (enabled: boolean) => call<{ enabled: boolean }>("system.set_autostart", { enabled }),
   stats: (since_ms: number, group_by: string, until_ms?: number) =>
     call<StatsEntry[]>("stats.summary", { since_ms, group_by, until_ms, tz_offset_min: -new Date().getTimezoneOffset() }),
 
@@ -511,6 +513,8 @@ export const api = {
   addModel: (p: { provider: string; account: string; model: string; protocols: string[]; context_window: number | null }) =>
     call<ModelInfo>("model.add", p),
   setModelEnabled: (name: string, enabled: boolean) => call<ModelInfo>("model.set_enabled", { name, enabled }),
+  setModelsEnabled: (names: string[], enabled: boolean) =>
+    call<{ updated: number }>("model.set_enabled_many", { names, enabled }),
   setModelPrice: (name: string, input: number | null, output: number | null) =>
     call<ModelInfo>("model.set_price", { name, input, output, cache_read: null, cache_write: null }),
   setModelTier: (name: string, tier: string | null) => call<ModelInfo>("model.set_tier", { name, tier }),

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { once } from "node:events";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { randomUUID, createHash, createPublicKey } from "node:crypto";
@@ -22,10 +22,13 @@ export function validateConfig(config) {
   if (
     !config ||
     Object.keys(config).some(
-      (k) => !["network", "port", "hosts", "workbuddy", "radar", "pricingSync", "updateFeed"].includes(k),
+      (k) => !["network", "port", "hosts", "workbuddy", "radar", "pricingSync", "updateFeed", "autostartKey"].includes(k),
     )
   )
     throw Error("INVALID_CONFIG");
+  // Tests point the sign-in entry at a throwaway key; it can never be the real Run key.
+  if (config.autostartKey !== undefined && !/^HKCU:\\Software\\Loadout-Test\\[A-Za-z0-9-]{1,64}$/.test(config.autostartKey))
+    throw Error("INVALID_ISOLATED_CONFIG");
   if (
     !["loopback-only", "allowlist", "direct"].includes(config.network) ||
     !Number.isInteger(config.port) ||
@@ -122,9 +125,14 @@ export function noLinks(target) {
   }
   return p;
 }
-export function safeFresh(target) {
+/** A folder to create: absent, or holding only the real folders named in `keep` and nothing else. */
+export function safeFresh(target, keep = []) {
   const p = noLinks(target);
-  if (fs.existsSync(p)) throw Error("TARGET_EXISTS");
+  if (!fs.existsSync(p)) return p;
+  const kept =
+    fs.lstatSync(p).isDirectory() &&
+    fs.readdirSync(p, { withFileTypes: true }).every((e) => keep.includes(e.name) && e.isDirectory());
+  if (!kept) throw Error("TARGET_EXISTS");
   return p;
 }
 export function isolatedPath(target) {
@@ -181,6 +189,19 @@ export async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return port;
 }
+// A lock outlives a shutdown, and after a restart its numbers can belong to any program. Only a
+// node.exe counts as a holder; tasklist runs only when a recorded number is alive at all.
+const holders = new Set();
+function holds(pid) {
+  if (!alive(pid)) return false;
+  if (holders.has(pid)) return true;
+  const tasklist = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tasklist.exe");
+  const done = spawnSync(tasklist, ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], { encoding: "utf8", windowsHide: true, timeout: 5000 });
+  // Unknown stays busy: a second backend on the same data is worse than waiting.
+  const node = done.status !== 0 || /^"node\.exe",/im.test(done.stdout ?? "");
+  if (node) holders.add(pid);
+  return node;
+}
 function readLock(file) {
   try { return json(file); }
   catch (error) { if (error.code === "ENOENT") return null; throw error; }
@@ -193,7 +214,7 @@ export function takeLock(instance) {
   const file = path.join(instance.dir, "operation.lock");
   const old = readLock(file);
   if (old) {
-    if (alive(old.pid) || alive(old.backendPid)) throw Error("INSTANCE_BUSY");
+    if (holds(old.pid) || holds(old.backendPid)) throw Error("INSTANCE_BUSY");
     removeLock(file);
   }
   const fd = fs.openSync(file, "wx"),
@@ -243,10 +264,11 @@ export class Instance {
     dir,
     initial,
     config = { network: "loopback-only", port: 0 },
+    { keep = [] } = {},
   ) {
     verifyPackage(false);
     isolatedPath(dir);
-    safeFresh(dir);
+    safeFresh(dir, keep);
     validateConfig(config);
     fs.mkdirSync(dir, { recursive: true });
     const id = randomUUID();
@@ -309,7 +331,7 @@ export class Instance {
       const lock = readLock(file) ?? {};
       return {
         status:
-          alive(lock.pid) || alive(lock.backendPid) ? "unavailable" : "stopped",
+          holds(lock.pid) || holds(lock.backendPid) ? "unavailable" : "stopped",
         instance: this.meta.id,
       };
     }
@@ -459,8 +481,8 @@ export class Instance {
     const lock = readLock(file);
     if (lock) {
       if (
-        alive(lock.backendPid) ||
-        (alive(lock.pid) && !(ownOperation && lock.pid === process.pid))
+        holds(lock.backendPid) ||
+        (holds(lock.pid) && !(ownOperation && lock.pid === process.pid))
       )
         throw Error("STOP_BEFORE_OPERATION");
     }

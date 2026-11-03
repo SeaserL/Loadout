@@ -279,10 +279,10 @@ export function Accounts() {
           >
             {t("acc.refresh")}
           </Button>
-          <Button icon={<Upload size={16} />} onClick={() => setDialog({ kind: "keysImport" })}>
+          <Button icon={<Download size={16} />} onClick={() => setDialog({ kind: "keysImport" })}>
             {t("keys.import")}
           </Button>
-          <Button icon={<Download size={16} />} onClick={() => setDialog({ kind: "keysExport" })}>
+          <Button icon={<Upload size={16} />} onClick={() => setDialog({ kind: "keysExport" })}>
             {t("keys.export")}
           </Button>
           <Button icon={<ScanSearch size={16} />} onClick={() => setDialog({ kind: "scan" })}>

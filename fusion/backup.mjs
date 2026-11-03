@@ -88,6 +88,10 @@ export async function restore(archive, destination, password) {
 // Rollback uses the old package and its pre-upgrade archive in a fresh directory.
 export async function upgrade(archive, destination, password, sourceManifest) {
   const target = manifest();
+  // Builds of one profile share the OmniRoute base and the schema; every 1.0.x release is 067.1.
+  const sameProfile = /^fusion-v3\.8\.52-isolated-067\.1-[a-f0-9]{12}$/.test(sourceManifest?.releaseId ?? "") &&
+    sourceManifest.upstream === target.upstream && target.upstream === "ad6f33f66bda34eba98645d3bfdabbde294bc843" &&
+    sourceManifest.adapterProfile === "067.1" && target.adapterProfile === "067.1";
   // Same OmniRoute base, same schema: the isolated data moves forward as it is.
   const desktopUpgrade = ["fusion-v3.8.52-isolated-064.1-c03260835d4c", "fusion-v3.8.52-isolated-066.1-cec9977a9720"].includes(sourceManifest?.releaseId) &&
     sourceManifest.upstream === target.upstream && target.upstream === "ad6f33f66bda34eba98645d3bfdabbde294bc843" &&
@@ -114,7 +118,7 @@ export async function upgrade(archive, destination, password, sourceManifest) {
     target.upstream === sourceManifest.upstream && sourceManifest.adapterProfile === "052.1" &&
     target.adapterProfile === "053.1" && sourceManifest.releaseId === "fusion-v3.8.52-isolated-052.1-eb2d7b7aede2";
   if (
-    !desktopUpgrade && !consoleUpgrade && !releaseConsolidation && !quotaModelUpgrade && !pricingUpgrade && !radarUpgrade && !readOnlyUpgrade && !subscriptionUpgrade && (
+    !sameProfile && !desktopUpgrade && !consoleUpgrade && !releaseConsolidation && !quotaModelUpgrade && !pricingUpgrade && !radarUpgrade && !readOnlyUpgrade && !subscriptionUpgrade && (
     sourceManifest?.upstream !== "c1e30b7676975feb298b49eff6ff58923c04b89e" ||
     target.upstream !== "ad6f33f66bda34eba98645d3bfdabbde294bc843" ||
     sourceManifest.adapterProfile !== "052.1" ||

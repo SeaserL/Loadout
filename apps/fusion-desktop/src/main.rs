@@ -5,6 +5,9 @@
 //! own supervisor: closing or quitting this window leaves it serving clients (ADR-002). There is no
 //! login page: a helper reads the machine secret from the OS vault and hands the session cookie to
 //! this process over a private pipe, so it never reaches a file, a command line or the page's JS.
+//!
+//! `--background` is the sign-in entry (ADR-002): it starts the backend and waits in the tray. The
+//! window, and with it the WebView, is only built when someone opens it.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -16,6 +19,7 @@ use tauri::webview::Cookie;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const WINDOW: &str = "main";
+const TRAY: &str = "main";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const PRODUCTION_PORT: u16 = 8317;
 
@@ -23,6 +27,13 @@ const PRODUCTION_PORT: u16 = 8317;
 struct Prepared {
     url: String,
     session: String,
+}
+
+/// What the window needs, kept so that it can be built later than the tray.
+struct Launch {
+    root: PathBuf,
+    instance: Option<String>,
+    profile: PathBuf,
 }
 
 fn package_root() -> Result<PathBuf, String> {
@@ -41,6 +52,10 @@ fn instance_arg() -> Option<String> {
         }
     }
     None
+}
+
+fn background_requested(args: impl IntoIterator<Item = String>) -> bool {
+    args.into_iter().any(|arg| arg == "--background")
 }
 
 fn default_instance(root: &Path) -> PathBuf {
@@ -86,12 +101,38 @@ fn is_local_console(url: &tauri::Url) -> bool {
         && url.fragment().is_none()
 }
 
+/// Shows the window, building it first when this process started in the background.
 fn show(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(WINDOW) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        return;
     }
+    if let Err(e) = open_window(app) {
+        tray_note(app, &format!("打不开窗口：{e}"));
+    }
+}
+
+fn open_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let launch = app.state::<Launch>();
+    std::fs::create_dir_all(&launch.profile)?;
+    WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("index.html".into()))
+        .title("Loadout")
+        .inner_size(1320.0, 880.0)
+        .min_inner_size(980.0, 640.0)
+        .center()
+        .data_directory(launch.profile.clone())
+        .on_navigation(|target| {
+            // The console and the bundled splash; everything else stays out of the window.
+            (target.scheme() == "http"
+                && target.host_str() == Some("127.0.0.1")
+                && target.path().starts_with("/loadout/"))
+                || target.host_str() == Some("tauri.localhost")
+        })
+        .build()?;
+    connect(app.clone(), launch.root.clone(), launch.instance.clone());
+    Ok(())
 }
 
 fn report(app: &tauri::AppHandle, message: &str) {
@@ -100,6 +141,13 @@ fn report(app: &tauri::AppHandle, message: &str) {
         let _ = window.eval(format!(
             "document.getElementById('status').textContent={text};document.getElementById('bar').hidden=true;"
         ));
+    }
+}
+
+/// With no window, the tray is the only place a problem can show.
+fn tray_note(app: &tauri::AppHandle, message: &str) {
+    if let Some(tray) = app.tray_by_id(TRAY) {
+        let _ = tray.set_tooltip(Some(format!("Loadout：{message}")));
     }
 }
 
@@ -137,6 +185,24 @@ fn connect(app: tauri::AppHandle, root: PathBuf, instance: Option<String>) {
     });
 }
 
+/// The sign-in entry: the gateway comes up and nothing appears on screen.
+fn start_in_background(app: tauri::AppHandle, root: PathBuf, instance: Option<String>) {
+    std::thread::spawn(move || {
+        let output = helper(&root, "prepare", instance.as_deref())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output();
+        match output {
+            Ok(o) if o.status.success() => {}
+            Ok(o) => tray_note(
+                &app,
+                &format!("启动失败：{}", String::from_utf8_lossy(&o.stderr).trim()),
+            ),
+            Err(e) => tray_note(&app, &format!("启动失败：{e}")),
+        }
+    });
+}
+
 fn stop_backend(root: &Path, instance: Option<&str>) {
     let _ = helper(root, "stop", instance)
         .stdout(Stdio::null())
@@ -147,39 +213,28 @@ fn stop_backend(root: &Path, instance: Option<&str>) {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = package_root()?;
     let instance = instance_arg();
+    let background = background_requested(std::env::args().skip(1));
     let profile = instance
         .clone()
         .map_or_else(|| default_instance(&root), PathBuf::from)
         .join("webview");
-    std::fs::create_dir_all(&profile)?;
     let quit_root = root.clone();
     let quit_instance = instance.clone();
-    let connect_root = root;
-    let connect_instance = instance;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
         .setup(move |app| {
-            WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("index.html".into()))
-                .title("Loadout")
-                .inner_size(1320.0, 880.0)
-                .min_inner_size(980.0, 640.0)
-                .center()
-                .data_directory(profile.clone())
-                .on_navigation(|target| {
-                    // The console and the bundled splash; everything else stays out of the window.
-                    (target.scheme() == "http"
-                        && target.host_str() == Some("127.0.0.1")
-                        && target.path().starts_with("/loadout/"))
-                        || target.host_str() == Some("tauri.localhost")
-                })
-                .build()?;
+            app.manage(Launch {
+                root: root.clone(),
+                instance: instance.clone(),
+                profile,
+            });
             let open = MenuItem::with_id(app, "open", "打开 Loadout", true, None::<&str>)?;
             let leave =
                 MenuItem::with_id(app, "leave", "退出窗口（网关继续运行）", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出并停止网关", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &leave, &quit])?;
-            let mut tray = TrayIconBuilder::new()
+            let mut tray = TrayIconBuilder::with_id(TRAY)
                 .tooltip("Loadout")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -206,11 +261,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
-            connect(
-                app.handle().clone(),
-                connect_root.clone(),
-                connect_instance.clone(),
-            );
+            if background {
+                start_in_background(app.handle().clone(), root.clone(), instance.clone());
+            } else {
+                open_window(app.handle())?;
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -226,7 +281,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_local_console;
+    use super::{background_requested, is_local_console};
 
     #[test]
     fn config_is_separate_from_the_installed_app() {
@@ -234,6 +289,18 @@ mod tests {
         assert_eq!(context.config().identifier, "dev.loadout.fusion");
         assert!(context.config().app.windows.is_empty());
         assert!(context.config().app.security.capabilities.is_empty());
+    }
+
+    #[test]
+    fn background_is_an_explicit_flag() {
+        let args = |list: &[&str]| list.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        assert!(background_requested(args(&[
+            "--instance",
+            r"D:\x",
+            "--background"
+        ])));
+        assert!(!background_requested(args(&["--instance", r"D:\x"])));
+        assert!(!background_requested(args(&["--backgrounds"])));
     }
 
     #[test]

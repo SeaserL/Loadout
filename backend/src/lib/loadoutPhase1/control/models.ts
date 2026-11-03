@@ -197,6 +197,18 @@ export async function modelEnabled(name: string, enabled: boolean) {
   setOverride(name, { enabled, disabled_reason: null });
   return row(name);
 }
+/** Many at once: the catalog is built once and the overrides are written once. */
+export async function modelEnabledMany(names: unknown, enabled: boolean) {
+  if (!Array.isArray(names) || names.length === 0 || names.length > 5000 || names.some((n) => typeof n !== "string"))
+    throw invalid("需要模型列表");
+  const known = new Set((await listModels()).map((m) => m.name));
+  const unknown = (names as string[]).find((n) => !known.has(n));
+  if (unknown) throw missing(`没有找到模型 ${unknown}`);
+  const all = overrides();
+  for (const name of names as string[]) all[name] = { ...(all[name] ?? {}), enabled, disabled_reason: null };
+  kvSet("modelOverrides", all);
+  return { updated: names.length };
+}
 export async function modelTier(name: string, tier: string | null) {
   const map: Record<string, string> = {
     "ultra-fast": "ULTRA_FAST",
