@@ -2784,6 +2784,12 @@ textarea {
   padding-right: 2px;
 }
 
+/* The column scrolls; its groups keep their height. Left to shrink, a short window squeezed them
+   and their own overflow cut off the last members and the fold button. */
+.groups-pane > * {
+  flex: none;
+}
+
 .pane-head {
   display: flex;
   justify-content: space-between;
@@ -4621,6 +4627,14 @@ td {
   .groups-layout,
   .dash-lists.two {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* One column: the groups sit above the catalog. Pinned, they would cover it on scroll. */
+  .groups-pane {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 }
 
