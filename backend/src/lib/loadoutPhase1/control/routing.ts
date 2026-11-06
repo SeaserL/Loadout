@@ -187,7 +187,8 @@ export async function benchRun(native: Native, names: string[]) {
 
 const POOL_NAME = /^[a-z0-9][a-z0-9._-]{0,60}$/;
 const PREFIX = "loadout/";
-export const VIRTUAL = ["realtime", "fast", "default"];
+// cheap (1.1): every enabled API-key route, the lowest input price first; unknown prices last.
+export const VIRTUAL = ["realtime", "fast", "default", "cheap"];
 const NATIVE_STRATEGY: Record<string, string> = { manual: "priority", latency: "priority" };
 type PoolMeta = { ordering: string };
 const poolMeta = () => kvGet<Record<string, PoolMeta>>("pools", {});
@@ -354,6 +355,15 @@ async function virtualMembers(providers: Provider[], name: string) {
       })
       .map((m) => m.name)
   );
+  if (name === "cheap") {
+    const price = (m: { input_price: number | null; output_price: number | null }) =>
+      m.input_price ?? Number.MAX_SAFE_INTEGER;
+    return rows
+      .filter((m) => eligible.has(m.name))
+      .sort((a, b) => price(a) - price(b) || (a.output_price ?? Number.MAX_SAFE_INTEGER) - (b.output_price ?? Number.MAX_SAFE_INTEGER))
+      .map((m) => m.name)
+      .slice(0, MAX_VIRTUAL_MEMBERS);
+  }
   const accepted: Record<string, string[]> = {
     realtime: ["ULTRA_FAST"],
     fast: ["ULTRA_FAST", "FAST"],
@@ -387,7 +397,8 @@ export async function virtualSet(native: Native, name: string, enabled: boolean)
   if (enabled) {
     const providers = await snapshot();
     const members = await virtualMembers(providers, short);
-    if (!members.length) throw invalid("还没有符合这个档位的路由，先测速。");
+    if (!members.length)
+      throw invalid(short === "cheap" ? "还没有可用的模型" : "还没有符合这个档位的路由，先测速。");
     await saveCombo(native, "virtual-" + short, PREFIX + short, "priority", comboEntries(providers, members));
   } else {
     const mapping = mappingRows().find((m) => m.pattern === PREFIX + short);
@@ -406,7 +417,7 @@ export async function virtuals(native: Native) {
     out.push({
       name: PREFIX + name,
       kind: "builtin",
-      ordering: "latency",
+      ordering: name === "cheap" ? "cost-optimized" : "latency",
       routes: await virtualMembers(providers, name),
       enabled: !!flags[name],
     });

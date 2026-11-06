@@ -4,7 +4,7 @@ Loadout 1.0 的网关是 [OmniRoute](https://github.com/cheaper-inference/OmniRo
 
 | 路径 | 内容 | 许可证 |
 |---|---|---|
-| `omniroute-v3.8.52.patch` | 对 27 个上游文件的修改（+272/-32） | 上游部分 MIT，见 `LICENSE-OmniRoute.txt` |
+| `omniroute-v3.8.52.patch` | 对 41 个上游文件的修改和 2 个新增的上游单元测试（共 +687/-63） | 上游部分 MIT，见 `LICENSE-OmniRoute.txt` |
 | `src/lib/loadoutPhase1/` | 账号策略、凭据存储和控制面（`control/`） | Apache-2.0 |
 | `src/app/api/loadout/` | 控制面的 HTTP 入口 `POST /api/loadout/rpc` | Apache-2.0 |
 
@@ -22,6 +22,11 @@ Loadout 1.0 的网关是 [OmniRoute](https://github.com/cheaper-inference/OmniRo
 | 入口 | `src/proxy.ts`、`next.config.mjs` | 管理入口白名单和 Host/Origin 检查；同一地址同时接 OpenAI 和 Anthropic 路径；总 API 的 `/e/<名称>/v1` |
 | 安全默认 | `src/lib/db/settings.ts`、`api/providers`、`api/radar/settings` | 固定不可改的安全设置；新建账号时不自动探测上游；Radar 不接受赞助密钥 |
 | 构建 | `tsconfig.json` | Next 构建时写回的类型路径和排版，没有功能改动 |
+| 1.1 中文 | `open-sse/services/compression/rules/zh/filler.json`、`engines/session-dedup/fuzzy.ts`、`src/lib/memory/{retrieval,extraction}.ts`、`src/shared/utils/inputSanitizer.ts` | Caveman 的“请”只删句首的；去重把汉字当词；记忆的中文检索（`Intl.Segmenter` 切词）和中文提取规则；注入防护的中文说法 |
+| 1.1 AI 组件包 | `engines/llmlingua/{constants,index,modelStore,onnxWorker}.ts`、`src/lib/memory/embedding/transformersLocal.ts` | 多语言 LLMLingua-2 模型、去掉汉字间空格、只在配置了 sidecar 时才请求它；transformers.js 只读 `ai/models`，从不下载 |
+| 1.1 开关 | `src/lib/guardrails/{promptInjection,visionBridge}.ts`、`open-sse/mcp-server/server.ts`、`src/proxy.ts` | 注入防护关闭时不扫描；看图桥的本地识字模式；MCP 只公开精选工具，操作类另开；`/api/mcp/stream` 进入口白名单 |
+| 1.1 体积 | `src/i18n/request.ts` | 只打包英文和简体中文两种界面语言 |
+| 测试 | `tests/unit/loadout-{features,zh-text}.test.ts` | 1.1 默认值、开关和中文处理的上游单元测试 |
 
 ## 怎么用
 

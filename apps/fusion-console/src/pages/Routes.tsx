@@ -29,7 +29,7 @@ import { Resilience } from "./Resources";
 import { GripVertical, X } from "lucide-react";
 
 /** Loadout's two orders plus OmniRoute's strategies, each said in plain words. */
-export const ORDERINGS: { value: string; label: MessageKey; hint: MessageKey }[] = [
+export const ORDERINGS: { value: string; label: MessageKey; hint: MessageKey; advanced?: boolean }[] = [
   { value: "manual", label: "routes.ordManual", hint: "routes.orderManualHint" },
   { value: "latency", label: "routes.ordLatency", hint: "routes.orderLatencyHint" },
   { value: "round-robin", label: "routes.orderRotate", hint: "routes.orderRotateHint" },
@@ -37,6 +37,13 @@ export const ORDERINGS: { value: string; label: MessageKey; hint: MessageKey }[]
   { value: "cost-optimized", label: "routes.orderCost", hint: "routes.orderCostHint" },
   { value: "least-used", label: "routes.orderLeast", hint: "routes.orderLeastHint" },
   { value: "random", label: "routes.orderRandom", hint: "routes.orderRandomHint" },
+  // 1.1: OmniRoute strategies that need nothing beyond the member list.
+  { value: "p2c", label: "routes.orderP2c", hint: "routes.orderP2cHint", advanced: true },
+  { value: "strict-random", label: "routes.orderDeck", hint: "routes.orderDeckHint", advanced: true },
+  { value: "quota-weighted", label: "routes.orderQuota", hint: "routes.orderQuotaHint", advanced: true },
+  { value: "lkgp", label: "routes.orderLkgp", hint: "routes.orderLkgpHint", advanced: true },
+  { value: "context-optimized", label: "routes.orderContext", hint: "routes.orderContextHint", advanced: true },
+  { value: "cache-optimized", label: "routes.orderCache", hint: "routes.orderCacheHint", advanced: true },
 ];
 export function orderingLabel(ordering: string | null): string {
   const found = ORDERINGS.find((o) => o.value === ordering);
@@ -490,10 +497,14 @@ function PoolDialog(props: { pool?: PoolInfo; routes: string[]; onClose: () => v
         </Field>
         <Field label={t("routes.order")} hint={orderingHint(ordering)}>
           <select value={ordering} onChange={(e) => setOrdering(e.target.value)}>
-            {ORDERINGS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {t(o.label)}
-              </option>
+            {[false, true].map((advanced) => (
+              <optgroup key={String(advanced)} label={t(advanced ? "routes.orderAdvanced" : "routes.orderBasic")}>
+                {ORDERINGS.filter((o) => !!o.advanced === advanced).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </Field>

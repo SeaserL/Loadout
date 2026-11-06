@@ -1,6 +1,7 @@
 # ADR-019: Product Fusion Boundaries
 
 - **Status**: Accepted (2026-11-03)
+- **1.1 (2026-11-06, ExecPlan 071)**: 用户决定不发 1.0.1，直接发 1.1，分 lite 和全量两个版本（[ADR-020](ADR-020-updater.md) 1.1 修订）。1.0 由 `fusionSafety` 固定的密钥脱敏、缓存亲和、会话粘性、MCP 改为开关，1.0 的取值作为一次性默认值写入；OmniRoute 默认开着的看图桥（会让别的模型回答图片请求）和 API key 账号自动排队（60 rpm、350 ms 间隔）在 1.1 默认关闭。响应缓存、记忆、压缩去重这三个会保存内容的功能按 [ADR-008](ADR-008-request-logging-privacy.md) 1.1 修订处理。上游仍是 v3.8.52。
 - **Acceptance (2026-11-03, 067/068)**: 用户验收 067 的编译版，要求作为大版本 1.0.0 上传到 GitHub。从此产品主线是 OmniRoute 运行时加 Loadout 控制面，下面 067 记录的决定全部生效。接受的是产品方向和这些边界，不包括：替换本机已安装的 0.4（`loadoutd`、8317 不变）、安装器和开机自启、0.4 内置更新器升级到 1.0、上游 OmniRoute 换版本。这些需要另行决定。本节以下的 “Proposed”“未批准切换” 都是当时的记录。`crates/` 和 `apps/desktop` 的 Rust 线继续受原有 ADR 约束；受影响 ADR 对 1.0 主线不再生效的部分，以本 ADR 为准。
 - **0.4 retired, sign-in start (2026-11-03, 070)**: 用户停用了本机的 0.4（程序和数据保留），并要求在软件里加开机自启开关。按 ADR-002 做成可选项：`Loadout.exe --background` 只启动后台、放托盘，开关由控制面写 `HKCU\...\Run` 的 `Loadout` 值。安装器仍不在范围内。见 [ExecPlan 070](../exec-plans/completed/070-first-start-and-autostart.md)。
 - **Release decision (2026-11-03, 068)**: 用户要求先确认 0.4 能否覆盖更新到 1.0，确实不能就照常发 Release。实测 `packaging/update.ps1` 拒绝 1.0 的包（`Unexpected or duplicate archive path`，文件未动），因为它只接受 `Loadout-<版本>-windows-x64/` 下的白名单文件和三个固定程序。所以 0.4 不提供升级路径，用户手动下载，账号用 `.loadout-keys` 带过来。1.0 的发布资产刻意不用 `Loadout-<版本>-windows-x64.zip` 这个名字：包只有 381 MiB，低于 0.4 的 384 MiB 上限，用了这个名字 0.4 默认会自动下载再安装失败。代价是 0.4 的更新页会显示找不到发布资产。当时 1.0 自身没有更新器，后来由 [ADR-020](ADR-020-updater.md) 补上。

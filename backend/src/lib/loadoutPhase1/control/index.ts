@@ -3,6 +3,8 @@
 import * as accounts from "./accounts";
 import * as autostart from "./autostart";
 import * as clients from "./clients";
+import * as clientConfig from "./clientConfig";
+import * as features from "./features";
 import * as keys from "./keys";
 import * as models from "./models";
 import * as routing from "./routing";
@@ -106,12 +108,19 @@ const METHODS: Record<string, Handler> = {
   "client.create": (p, n) => clients.clientCreate(n, p.name),
   "client.revoke": (p, n) => clients.clientRevoke(n, p.name),
   "client.set_policy": (p, n) => clients.clientPolicy(n, p.name, p.policy),
+  "client.set_mcp": (p, n) => clients.clientMcp(n, p.name, p.enabled === true),
+  "client.tools": () => clientConfig.clientTools(),
+  "client.connect_tool": (p, n) => clientConfig.connectClientTool(n, String(p?.tool), String(p?.model ?? ""), p?.mcp === true),
 
   "stats.summary": (p) => stats.statsSummary(p.since_ms, p.group_by, p.until_ms, p.tz_offset_min),
   "stats.flow": (p) => stats.statsFlow(p?.since_ms ?? 0),
   "stats.live": (p) => stats.statsLive(p?.after ?? null),
   "requests.recent": (p) => stats.requestsRecent(p),
   "usage.list": (p) => stats.usageList(!!p?.refresh),
+
+  "features.list": () => features.featureList(),
+  "features.set": (p) => features.featureSet(String(p?.key), p?.enabled === true),
+  "features.set_option": (p) => features.featureOption(String(p?.key), String(p?.option), String(p?.value)),
 
   "settings.list": () => system.settingsList(),
   "settings.set": (p, n) => system.settingSet(n, p.key, p.value),
@@ -123,6 +132,10 @@ const METHODS: Record<string, Handler> = {
   "update.install": () => updates.updateStart("install"),
   "update.set_auto_check": (p) => updates.updateAutoCheck(p.enabled),
   "update.open_notes": () => updates.updateOpenNotes(),
+  "update.install_pack": async () => {
+    const { aiPackState } = await import("../aiPack");
+    return updates.packInstall(aiPackState().installed);
+  },
   "system.open_url": (p) => system.openSignInPage(p.url),
   "system.autostart": () => autostart.autostartStatus(),
   "system.set_autostart": (p) => autostart.autostartSet(p?.enabled === true),

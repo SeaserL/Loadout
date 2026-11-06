@@ -30,22 +30,35 @@ elif mode=='archive':
     r=read(root/'runs/package-latest-v52.json');src=Path(r['directory']).resolve()
     standalone=(repo/'development/upstreams/omniroute/.claude/worktrees/loadout-phase11-v52/.build/loadout-fusion/standalone').resolve()
     assert src.is_relative_to(root) or src==standalone
-    archive=root/(r['releaseId']+'.zip')
-    with zipfile.ZipFile(archive,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=1,allowZip64=True) as z:
-        for f in sorted(src.rglob('*')):
-            assert not f.is_symlink()
-            if f.is_file(): z.write(f,f.relative_to(src).as_posix())
-    # Verify every archived byte without retaining another unpacked package.
-    manifest=read(src/'fusion-manifest.json')
-    expected={f['path']:f['sha256'] for f in manifest['files']}
-    expected['fusion-manifest.json']=digest(src/'fusion-manifest.json')
-    with zipfile.ZipFile(archive) as z:
-        assert set(z.namelist())==set(expected), 'ARCHIVE_MEMBERS'
-        assert len(z.namelist())==len(expected), 'ARCHIVE_DUPLICATES'
-        for name,sha in expected.items():
-            with z.open(name) as f: assert hashlib.file_digest(f,'sha256').hexdigest()==sha, 'ARCHIVE_CONTENT'
+    # One folder, three archives (ExecPlan 071): the full edition is everything; lite is the app the
+    # manifest lists; the AI pack is what ai-pack.json lists. Level 9: 14% smaller than level 1.
+    manifest=read(src/'fusion-manifest.json');pack=read(src/'ai-pack.json')
+    app={f['path']:f['sha256'] for f in manifest['files']};app['fusion-manifest.json']=digest(src/'fusion-manifest.json')
+    packed={f['path']:f['sha256'] for f in pack['files']};packed['ai-pack.json']=digest(src/'ai-pack.json')
+    assert not set(app)&set(packed), 'PACK_OVERLAP'
+    on_disk={f.relative_to(src).as_posix() for f in src.rglob('*') if f.is_file()}
+    assert on_disk==set(app)|set(packed), 'FOLDER_NOT_APP_PLUS_PACK'
+    def make(name, members):
+        archive=root/name
+        with zipfile.ZipFile(archive,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=9,allowZip64=False) as z:
+            for rel in sorted(members):
+                f=src/rel
+                assert not f.is_symlink()
+                z.write(f,rel)
+        # Verify every archived byte without retaining another unpacked package.
+        with zipfile.ZipFile(archive) as z:
+            assert set(z.namelist())==set(members), 'ARCHIVE_MEMBERS'
+            assert len(z.namelist())==len(members), 'ARCHIVE_DUPLICATES'
+            for n,sha in members.items():
+                with z.open(n) as f: assert hashlib.file_digest(f,'sha256').hexdigest()==sha, 'ARCHIVE_CONTENT'
+        return archive
+    full=make(r['releaseId']+'.zip',{**app,**packed})
+    lite=make(r['releaseId']+'-lite.zip',app)
+    ai=make(r['releaseId']+'-ai-'+pack['packVersion']+'.zip',packed)
     dest=src
-    write(root/'runs/release-latest.json',{**r,'archive':str(archive),'archiveSha256':digest(archive),
-        'bytes':archive.stat().st_size,'extracted':str(dest)})
+    write(root/'runs/release-latest.json',{**r,'archive':str(full),'archiveSha256':digest(full),
+        'bytes':full.stat().st_size,'extracted':str(dest),
+        'liteArchive':str(lite),'liteSha256':digest(lite),'liteBytes':lite.stat().st_size,
+        'packArchive':str(ai),'packSha256':digest(ai),'packBytes':ai.stat().st_size,'packVersion':pack['packVersion']})
 else: raise ValueError('UNKNOWN_ACTION')
 print(mode+' complete')

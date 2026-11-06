@@ -34,7 +34,7 @@ const feed = () => instanceConfig().config?.updateFeed as string | undefined;
 const allowed = () => instanceConfig().config?.network === "direct" || !!feed();
 const autoCheck = () => kvGet<{ auto_check?: boolean }>("updates", {}).auto_check !== false;
 
-function launch(action: "check" | "download" | "install") {
+function launch(action: "check" | "download" | "install" | "pack") {
   const home = process.env.LOADOUT_USER_HOME ?? "";
   const local = process.env.LOADOUT_USER_LOCALAPPDATA ?? "";
   // What a program needs and the owner's real folders. Not the backend's secrets, and not its
@@ -106,6 +106,29 @@ export function updateStart(action: "check" | "download" | "install") {
   launch(action);
   return { ...updateStatus(), phase: action === "check" ? "checking" : action === "download" ? "downloading" : "installing" };
 }
+/** Installing the AI pack into a lite install (ExecPlan 071); same updater process, own status. */
+export function packStatus(installed: boolean) {
+  const saved = read("status.json") ?? {};
+  let phase: string = installed ? "installed" : (saved.pack_phase ?? "absent");
+  let error: string | null = installed ? null : (saved.pack_error ?? null);
+  if (!installed && (phase === "downloading" || phase === "installing") && !alive(saved.pid)) {
+    phase = "error";
+    error = "上次安装 AI 组件被中断了，请重试";
+  }
+  if (!installed && phase === "installed") phase = "absent";
+  return { phase, progress: installed ? null : (saved.pack_progress ?? null), error };
+}
+export function packInstall(installed: boolean) {
+  if (installed) return packStatus(true);
+  if (!allowed()) throw invalid("本机模式下不能下载 AI 组件");
+  const { phase } = current();
+  if (BUSY.has(phase)) throw invalid("正在更新，稍后再装 AI 组件");
+  const pack = packStatus(false);
+  if (pack.phase === "downloading" || pack.phase === "installing") return pack;
+  launch("pack");
+  return { phase: "downloading", progress: null, error: null };
+}
+
 /** The page of the version on offer. It takes no address: this is not a way to open anything else. */
 export function updateOpenNotes() {
   const version = String(read("status.json")?.latest_version ?? "");

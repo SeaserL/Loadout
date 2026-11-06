@@ -115,6 +115,24 @@ export interface ClientInfo {
   policy: ClientPolicy;
   tokens_today: number;
   cost_today_usd: number;
+  /** This key may open Loadout's MCP endpoint. */
+  mcp: boolean;
+}
+
+export interface ClientTool {
+  id: string;
+  name: string;
+  installed: boolean;
+  config_path: string;
+  usage: string | null;
+}
+
+export interface ToolConnected {
+  client: ClientInfo;
+  tool: string;
+  written: string;
+  backup: string | null;
+  usage: string | null;
 }
 
 export interface StatsEntry {
@@ -154,6 +172,36 @@ export interface Setting {
   is_default: boolean;
   description: string;
   restart_required: boolean;
+}
+
+export type FeatureGroup = "save" | "safety" | "extend";
+export interface FeatureOption {
+  key: string;
+  /** "model": pick one of this install's models; "choice": a short fixed set. */
+  kind: "choice" | "model";
+  value: string;
+  choices: { value: string; available?: boolean }[];
+}
+export interface Feature {
+  key: string;
+  group: FeatureGroup;
+  enabled: boolean;
+  /** False when the feature needs the AI pack and this install does not have it. */
+  available: boolean;
+  /** True for features that keep request or reply text on this computer (ADR-008). */
+  stores_content: boolean;
+  options: FeatureOption[];
+}
+export interface FeatureList {
+  edition: "full" | "lite";
+  ai_pack: {
+    installed: boolean;
+    version: string | null;
+    phase: "absent" | "downloading" | "installing" | "installed" | "error";
+    progress: { done: number; total: number } | null;
+    error: string | null;
+  };
+  features: Feature[];
 }
 
 export interface ProviderKind {
@@ -450,6 +498,10 @@ export const api = {
   clients: () => call<ClientInfo[]>("client.list"),
   createClient: (name: string) => call<ClientCreated>("client.create", { name }),
   revokeClient: (name: string) => call<Revoked>("client.revoke", { name }),
+  setClientMcp: (name: string, enabled: boolean) => call<{ mcp: boolean }>("client.set_mcp", { name, enabled }),
+  clientTools: () => call<ClientTool[]>("client.tools"),
+  connectClientTool: (tool: string, model: string, mcp: boolean) =>
+    call<ToolConnected>("client.connect_tool", { tool, model, mcp }),
   setClientPolicy: (name: string, policy: ClientPolicy) =>
     call<ClientInfo>("client.set_policy", { name, policy }),
   /** Days and hours are the viewer's own, not UTC. */
@@ -464,6 +516,11 @@ export const api = {
   stats: (since_ms: number, group_by: string, until_ms?: number) =>
     call<StatsEntry[]>("stats.summary", { since_ms, group_by, until_ms, tz_offset_min: -new Date().getTimezoneOffset() }),
 
+  features: () => call<FeatureList>("features.list"),
+  installAiPack: () => call<FeatureList["ai_pack"]>("update.install_pack"),
+  setFeature: (key: string, enabled: boolean) => call<Feature>("features.set", { key, enabled }),
+  setFeatureOption: (key: string, option: string, value: string) =>
+    call<Feature>("features.set_option", { key, option, value }),
   settings: () => call<Setting[]>("settings.list"),
   setSetting: (key: string, value: string) => call<Setting>("settings.set", { key, value }),
   resetSetting: (key: string) => call<Setting>("settings.reset", { key }),

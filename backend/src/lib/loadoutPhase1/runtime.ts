@@ -6,6 +6,8 @@ export async function initializeRuntime() {
   await initialize();
   // Reconcile interrupted writes before serving requests, using native persisted refs.
   await write(async () => {});
+  const { applyReleaseDefaults } = await import("./releaseDefaults");
+  await applyReleaseDefaults();
   const { kvGet, kvSet } = await import("./control/shared");
   const subpools = kvGet<any>("subpools", null);
   if (subpools?.active && subpools.remember === false) kvSet("subpools", { ...subpools, active: null });

@@ -20,7 +20,13 @@ const MAX_PACKAGE = 1024 * 1024 * 1024;
 const MAX_EXPANDED = 8 * 1024 * 1024 * 1024;
 const REQUIRED = ["node.exe", "Loadout.exe", "tools/desktop.mjs", "server.js"];
 
-export const assetName = (version) => `Loadout-${version}-portable-windows-x64.zip`;
+// 1.1 (ExecPlan 071): updates always fetch the app alone (the lite asset); the AI pack is its own
+// asset, fetched only when the installed pack is missing or another version is needed. The full
+// asset (app and pack together) is for first downloads only.
+export const assetName = (version) => `Loadout-${version}-lite-portable-windows-x64.zip`;
+export const fullAssetName = (version) => `Loadout-${version}-portable-windows-x64.zip`;
+export const packAssetName = (packVersion) => `Loadout-ai-${packVersion}-windows-x64.zip`;
+export const PACK_FILE = "ai-pack.json";
 
 export function parseVersion(text) {
   const parts = String(text).replace(/^v/, "").split(".");
@@ -112,8 +118,7 @@ export async function latestVersion(feed, onHost) {
   return parseLatestLocation(new URL(response.headers.get("location") ?? "", url).href, baseOf(feed));
 }
 /** The exact addresses a release's assets must come from. */
-export function assetsFor(version, feed) {
-  const name = assetName(version);
+export function assetsFor(version, feed, name = assetName(version)) {
   const tag = `${baseOf(feed)}/releases/download/v${version}/`;
   return { version, name, zipUrl: tag + name, checksumUrl: tag + name + ".sha256", releaseUrl: `${baseOf(feed)}/releases/tag/v${version}` };
 }
@@ -282,7 +287,10 @@ export async function verifyPackageTree(root, { version, upstreamVersion, onProg
   if (upstreamVersion && manifest.upstreamVersion !== upstreamVersion) throw Error("UPSTREAM_CHANGED");
   const expected = new Map(manifest.files.map((f) => [f.path, f.sha256]));
   for (const required of REQUIRED) if (!expected.has(required)) throw Error("PACKAGE_INCOMPLETE");
-  const actual = listFiles(root).filter((f) => f !== "fusion-manifest.json");
+  // The AI pack's files are checked against its own list (verifyPack).
+  const pack = readPack(root);
+  const packed = new Set(pack?.files.map((f) => f.path) ?? []);
+  const actual = listFiles(root).filter((f) => f !== "fusion-manifest.json" && f !== PACK_FILE && !packed.has(f));
   if (actual.length !== expected.size || actual.some((f) => !expected.has(f))) throw Error("PACKAGE_FILES");
   let done = 0;
   for (const [file, sha] of expected) {
@@ -290,6 +298,42 @@ export async function verifyPackageTree(root, { version, upstreamVersion, onProg
     onProgress?.(++done, expected.size);
   }
   return manifest;
+}
+
+/** The AI pack list in a package folder, or null for a package without one (lite). */
+export function readPack(root) {
+  const file = path.join(root, PACK_FILE);
+  if (!fs.existsSync(file)) return null;
+  const pack = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (!Array.isArray(pack.files) || typeof pack.packVersion !== "string") throw Error("PACK_INVALID");
+  if (createHash("sha256").update(JSON.stringify(pack.files)).digest("hex") !== pack.treeHash) throw Error("PACK_INVALID");
+  for (const f of pack.files) safeTarget(root, f.path);
+  return pack;
+}
+/** Every file the pack lists is there with its hash; the pack is the version the app asks for. */
+export async function verifyPack(root, packVersion, onProgress) {
+  const pack = readPack(root);
+  if (!pack) throw Error("PACK_MISSING");
+  if (pack.packVersion !== packVersion) throw Error("PACK_VERSION");
+  let done = 0;
+  for (const f of pack.files) {
+    if ((await hashFile(safeTarget(root, f.path))) !== f.sha256) throw Error("PACK_CONTENT");
+    onProgress?.(++done, pack.files.length);
+  }
+  return pack;
+}
+/**
+ * Copies the pack's files, then its list, from one package folder into another. The list marks the
+ * folder as full, so with `check` every copy is hashed before the list goes in.
+ */
+export async function copyPack(from, to, pack, { check = false } = {}) {
+  for (const f of pack.files) {
+    const target = safeTarget(to, f.path);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(safeTarget(from, f.path), target);
+  }
+  if (check) for (const f of pack.files) if ((await hashFile(safeTarget(to, f.path))) !== f.sha256) throw Error("PACK_CONTENT");
+  fs.copyFileSync(path.join(from, PACK_FILE), path.join(to, PACK_FILE));
 }
 
 /** The backend's environment is cleaned, so the system proxy has to be read from where it lives. */
@@ -401,7 +445,15 @@ export class Updater {
       this.write({ phase: "extracting", progress: null });
       await extractZip(zip, staged, every("extracting"));
       this.write({ phase: "verifying", progress: null });
-      await verifyPackageTree(staged, { version, upstreamVersion: this.manifest.upstreamVersion, onProgress: every("verifying") });
+      const app = await verifyPackageTree(staged, { version, upstreamVersion: this.manifest.upstreamVersion, onProgress: every("verifying") });
+      // A full install stays full: the same pack comes along from this folder, a new one is fetched.
+      const current = readPack(this.packageRoot);
+      if (current && app.aiPack) {
+        if (current.packVersion === app.aiPack) await copyPack(this.packageRoot, staged, current);
+        else await this.fetchPack(version, app.aiPack, staged, every("downloading"));
+        this.write({ phase: "verifying", progress: null });
+        await verifyPack(staged, app.aiPack, every("verifying"));
+      }
     } catch (error) {
       fs.rmSync(staged, { recursive: true, force: true });
       throw error;
@@ -409,6 +461,65 @@ export class Updater {
       fs.rmSync(zip, { force: true });
     }
     return this.write({ phase: "ready", ready_version: version, progress: null });
+  }
+  /** Downloads one release's AI pack asset and unpacks it into `destination`. */
+  async fetchPack(version, packVersion, destination, onProgress) {
+    const assets = assetsFor(version, this.feed, packAssetName(packVersion));
+    const size = await probeSize(assets.zipUrl, { feed: this.feed, onHost: this.noteHost });
+    const checksum = await readLimited(await request(assets.checksumUrl, { feed: this.feed, onHost: this.noteHost }), 1024);
+    const sha256 = parseDigest(checksum, assets.name);
+    const zip = path.join(this.dir, assets.name);
+    const unpacked = path.join(this.dir, "pack-" + packVersion + "-" + process.pid);
+    try {
+      await downloadVerified(assets.zipUrl, zip, { size, sha256, feed: this.feed, onHost: this.noteHost, onProgress: (done) => onProgress?.(done, size) });
+      await extractZip(zip, unpacked);
+      const pack = await verifyPack(unpacked, packVersion);
+      const extra = listFiles(unpacked).filter((f) => f !== PACK_FILE && !pack.files.some((p) => p.path === f));
+      if (extra.length) throw Error("PACK_FILES");
+      await copyPack(unpacked, destination, pack);
+    } finally {
+      fs.rmSync(zip, { force: true });
+      fs.rmSync(unpacked, { recursive: true, force: true });
+    }
+  }
+  /** Adds the AI pack to this (lite) install. Its files are new, so nothing running is replaced. */
+  async installPack() {
+    const needed = this.manifest.aiPack;
+    if (!needed) throw Error("PACK_UNAVAILABLE");
+    if (readPack(this.packageRoot)?.packVersion === needed) return this.write({ pack_phase: "installed", pack_error: null });
+    this.write({ pack_phase: "downloading", pack_error: null, pack_progress: null });
+    const staging = path.join(this.dir, "pack-install");
+    fs.rmSync(staging, { recursive: true, force: true });
+    let last = 0;
+    let copied = null;
+    try {
+      await this.fetchPack(this.current, needed, staging, (done, total) => {
+        if (Date.now() - last < 500) return;
+        last = Date.now();
+        this.write({ pack_progress: { done, total } });
+      });
+      this.write({ pack_phase: "installing", pack_progress: null });
+      const pack = await verifyPack(staging, needed);
+      // The list goes in last: until it is there the install is still lite.
+      for (const f of pack.files) {
+        const target = safeTarget(this.packageRoot, f.path);
+        if (fs.existsSync(target)) throw Error("PACK_CONFLICT");
+      }
+      copied = pack;
+      // The install reads as full once the list is in, so the copies are checked before it.
+      await copyPack(staging, this.packageRoot, pack, { check: true });
+      return this.write({ pack_phase: "installed", pack_version: needed, pack_progress: null });
+    } catch (error) {
+      // Leave the install as it was: lite, with none of the pack's files. Only what this run copied
+      // is removed; a conflict stops before anything is copied.
+      if (copied) {
+        fs.rmSync(path.join(this.packageRoot, PACK_FILE), { force: true });
+        for (const f of copied.files) fs.rmSync(safeTarget(this.packageRoot, f.path), { force: true });
+      }
+      throw error;
+    } finally {
+      fs.rmSync(staging, { recursive: true, force: true });
+    }
   }
   /** Starts the helper from a copy outside the folder it is about to replace, then gets out of the way. */
   async install({ testArgs = [] } = {}) {
@@ -442,6 +553,7 @@ export class Updater {
   /** What a failure leaves behind. A verified download stays usable: installing needs no network. */
   fail(action, error) {
     const { code, message } = describe(error);
+    if (action === "pack") return this.write({ pack_phase: "error", pack_error: message, pack_error_code: code, pack_progress: null });
     const waiting = action === "check" ? this.status().ready_version : null;
     const ready = waiting && fs.existsSync(this.stagedDir(waiting));
     return this.write({ phase: ready ? "ready" : "error", ...(ready ? { latest_version: waiting } : {}), error: message, error_code: code, progress: null });
@@ -456,6 +568,8 @@ const MESSAGES = {
   CHECKSUM_MISMATCH: "下载的文件校验失败，请重试",
   DOWNLOAD_SIZE: "下载的文件大小不对，请重试",
   NOTHING_READY: "没有准备好的更新",
+  PACK_UNAVAILABLE: "这个版本没有 AI 组件",
+  PACK_CONFLICT: "程序文件夹里已有同名文件，没有安装 AI 组件",
   HELPER_FAILED: "没能开始安装，旧版本没有变动，请重试",
 };
 export function describe(error) {
@@ -468,7 +582,7 @@ export function describe(error) {
 
 async function main() {
   const [action, packageRoot, instanceDir, feed] = process.argv.slice(2);
-  if (!["check", "download", "install"].includes(action) || !packageRoot || !instanceDir) throw Error("UPDATER_ARGUMENTS");
+  if (!["check", "download", "install", "pack"].includes(action) || !packageRoot || !instanceDir) throw Error("UPDATER_ARGUMENTS");
   const updater = new Updater({ packageRoot, instanceDir, feed: feed || undefined });
   const lock = path.join(updater.dir, "updater.lock");
   fs.mkdirSync(updater.dir, { recursive: true });
@@ -500,6 +614,7 @@ async function main() {
     }
     if (action === "check") await updater.check();
     else if (action === "download") await updater.download();
+    else if (action === "pack") await updater.installPack();
     else await updater.install();
   } catch (error) {
     updater.fail(action, error);

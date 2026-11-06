@@ -2,6 +2,7 @@
 // Client keys are native hash-only api_keys; the raw key is shown once, on creation.
 import { updateApiKeyPermissions } from "../../db/apiKeys";
 import { getDbInstance } from "../../db/core";
+import { mcpClientScopes } from "../mcpTools";
 import { listModels, priceOf } from "./models";
 import { VIRTUAL } from "./routing";
 import { invalid, missing, snapshot, splitRoute, type Native, type Provider } from "./shared";
@@ -66,6 +67,7 @@ export async function clientInfos(native: Native) {
         weekly_cost_limit_usd: k.weeklyUsageLimitUsd ?? null,
         requests_per_minute: perMinute(k),
       },
+      mcp: Array.isArray(k.scopes) && k.scopes.includes("mcp:connect"),
       tokens_today: tokens,
       cost_today_usd: cost,
     });
@@ -85,6 +87,15 @@ export async function clientCreate(native: Native, name: string) {
   const list = await clientInfos(native);
   const client = list.find((c) => c.id === created.id) ?? list.find((c) => c.name === name);
   return { client, key: created.key };
+}
+
+/** Lets this client's key open Loadout's MCP endpoint, or takes that away. */
+export async function clientMcp(native: Native, name: string, enabled: boolean) {
+  const key = await byName(native, name);
+  const granted = new Set(mcpClientScopes());
+  const kept = ((key.scopes ?? []) as string[]).filter((s) => !granted.has(s));
+  await native(`/api/keys/${key.id}`, "PATCH", { scopes: enabled ? [...kept, ...granted] : kept });
+  return { mcp: enabled };
 }
 
 export async function clientRevoke(native: Native, name: string) {
