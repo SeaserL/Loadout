@@ -37,7 +37,7 @@ if (!$DesktopCandidate) {
 if (!$PreflightOnly) {
     $regression=Read-Json (Join-Path $RunRoot 'evidence\regression.json')
     $audit=Read-Json (Join-Path $RunRoot 'evidence\final-audit.json')
-    if (!$regression.complete -or $regression.passed -ne 280 -or $regression.releaseId -ne $release.releaseId -or
+    if (!$regression.complete -or $regression.passed -ne 292 -or $regression.releaseId -ne $release.releaseId -or
         $audit.releaseId -ne $release.releaseId -or $audit.remaining -ne 0 -or $audit.active -ne 0 -or @($audit.sourceMismatch).Count -ne 0) {throw 'ACCEPTANCE_FAILED'}
     if ((Get-FileHash -LiteralPath $release.archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $release.archiveSha256) {throw 'ARCHIVE_HASH'}
     $uiReviewPath=Join-Path $RunRoot $(if($DesktopCandidate){'evidence\desktop-review.json'}else{'evidence\ui-review.json'})

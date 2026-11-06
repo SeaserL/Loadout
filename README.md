@@ -9,12 +9,12 @@
 你手上的 API 密钥、编码套餐和本地模型，汇成电脑上的一个地址。<br/>
 所有软件都填它。账号出错自动换下一个，每个 token 往哪走都看得见。
 
-[![Version](https://img.shields.io/badge/version-1.0.0-0f766e)](https://github.com/SeaserL/Loadout/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.0-0f766e)](https://github.com/SeaserL/Loadout/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](#安装)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-OmniRoute%20v3.8.52-555)](backend/README.md)
 
-[下载](https://github.com/SeaserL/Loadout/releases/latest) · [安装](#安装) · [从 0.4 升级](#和-04-的关系)
+[下载](https://github.com/SeaserL/Loadout/releases/latest) · [两个版本](#两个版本) · [安装](#安装) · [从 0.4 升级](#和-04-的关系)
 
 </div>
 
@@ -22,7 +22,7 @@
 
 <sub>总览页。左边是上游账号，右边是使用它们的软件。线束的粗细是真实用量，光点是正在回复的请求，网关空闲时图是静止的。本页所有截图都用合成数据。</sub>
 
-> **English:** Loadout is a Windows desktop app and local gateway. It pools your API keys, coding plans and local models behind one OpenAI- and Anthropic-compatible address on `127.0.0.1`, fails over between accounts, and shows every request flowing from upstream to the app that made it. Keys stay in Windows Credential Manager; request logs hold metadata only. The interface is available in Simplified Chinese and English; the built-in guide is in Chinese.
+> **English:** Loadout is a Windows desktop app and local gateway. It pools your API keys, coding plans and local models behind one OpenAI- and Anthropic-compatible address on `127.0.0.1`, fails over between accounts, and shows every request flowing from upstream to the app that made it. Keys stay in Windows Credential Manager; request logs hold metadata only. Version 1.1 comes in two editions. The lite edition is the gateway (about 120 MB). The full edition adds a local AI pack for prompt compression, memory search and OCR, all of which handle Chinese. Models load from the program folder only and are never downloaded at run time. The interface is available in Simplified Chinese and English; the built-in guide is in Chinese.
 
 ## 一个地址
 
@@ -40,6 +40,7 @@ http://127.0.0.1:8318/v1
 | `服务商/模型` | 这家服务商的任一账号，按账号页的顺序选 |
 | `服务商/账号/模型` | 优先用这个账号。它不可用时由同一模型的其他账号接手 |
 | `loadout/default`、`fast`、`realtime` | 按测速结果自动排列候选，默认关闭。它们可能切换模型，要固定模型请用分组 |
+| `loadout/cheap` | 按输入单价从低到高排列候选，没有价格的排最后。同样默认关闭，可能切换模型 |
 
 ## 一个请求经过的路
 
@@ -61,7 +62,10 @@ http://127.0.0.1:8318/v1
 
 <img src="docs/images/models.png" alt="模型页：左边是分组，右边是所有账号提供的模型" width="100%" />
 
-把右边的模型拖到左边的分组上，这个分组对客户端来说就是一个模型名。分组怎么选账号由你定：按顺序、最快优先、轮转、快重置优先、便宜优先、最少使用优先、随机。
+把右边的模型拖到左边的分组上，这个分组对客户端来说就是一个模型名。分组怎么选账号由你定：
+
+- **基础**：按顺序、最快优先、轮转、快重置优先、便宜优先、最少使用优先、随机。
+- **高级**：两个里挑空闲的、洗牌轮流、剩余额度多的优先、上次成功的优先、上下文够用的优先、缓存命中优先。
 
 同一页还有**比价**（同一个模型在不同账号上的价格，按你的输入、输出、缓存比例算出综合单价）、**价格表**和**免费模型目录**（哪家有什么免费额度，标出可能用提示词训练的那些）。费用都是估算，查不到价格时显示未知，不当作免费。
 
@@ -82,6 +86,10 @@ http://127.0.0.1:8318/v1
 - **允许的模型**：输入时出现预测，按 Tab 或点击加入。不存在的名字存不进去。
 - **账号**：这把密钥只用这些账号。
 - **上限**：每天、每周、每月的费用，每分钟的请求数。到上限后这个客户端返回 429，其他客户端不受影响。
+
+**一键配置**：Claude Code、Codex 和 OpenCode 可以在客户端页直接接上。Loadout 新建一把密钥写进它们的配置文件，写之前先备份原文件；Codex 用单独的 `loadout` profile，不动默认登录。
+
+**MCP**：给某个客户端打开后，它能通过 MCP 查询健康状况、用量、路由解释和记忆。会改变状态的工具（代发请求、测试分组、清缓存、写记忆等）要另外打开。
 
 ## 看得见发生了什么
 
@@ -118,6 +126,24 @@ http://127.0.0.1:8318/v1
 
 只记录元数据：时间、客户端、模型、账号、状态、Token、耗时。提示词、回复和工具参数都不保存。点一行展开协议转换和切换记录。
 
+## 功能开关
+
+“功能”页集中放会改动请求内容的功能。除了凭据遮盖，其他都默认关闭：
+
+| 开关 | 默认 | 做什么 |
+|---|---|---|
+| 凭据遮盖 | 开 | 提示词里的密钥和令牌在发往上游前遮住 |
+| 个人信息脱敏 | 关 | 遮住邮箱、电话等，含中国大陆手机号、身份证号、银行卡号 |
+| 注入防护 | 关 | 识别“忽略之前的所有指令”一类的说法，中文和英文都认 |
+| 压缩 | 关 | 轻、标准、强、模型四档。“模型”档用 LLMLingua-2 多语言版，需要全量版 |
+| 记忆 | 关 | 从对话里记下偏好和决定，之后的请求里带上。检索用关键词、服务商的向量接口或本地的 bge-small-zh |
+| 看图桥 | 关 | 图片发给不能看图的模型时，先把图描述成文字，或在本机识别图里的字，不换模型 |
+| 响应缓存 | 关 | 相同的请求直接返回上次的回复 |
+| 缓存亲和 | 关 | 同一段对话尽量留在同一个账号上，让上游的提示词缓存多命中 |
+| MCP | 关 | 见[客户端](#客户端) |
+
+中文是直接处理的，不先翻译成英文：压缩、去重、记忆检索、个人信息和注入规则都按中文调过。响应缓存、记忆和标准以上的压缩会把内容存在本机，页面上有标注，关闭时清空。
+
 ## 外观
 
 <img src="docs/images/palettes.png" alt="六套配色：松石、青花、紫藤、琥珀、胭脂、水墨" width="100%" />
@@ -146,13 +172,24 @@ http://127.0.0.1:8318/v1
 - 网关只监听 `127.0.0.1`，检查 Host 和 Origin，`/v1` 的每个请求都要带客户端密钥。
 - 打开软件不用输密码，但管理接口不是敞开的：桌面窗口通过私有管道拿到会话，这台电脑上的其他用户和网页进不来。
 - 上游密钥只在 Windows 凭据管理器。客户端密钥只存哈希，只在创建时显示一次。
-- 请求正文不落盘。
+- 请求正文默认不落盘。只有你打开响应缓存、记忆或标准以上的压缩时，相应内容才存在本机，关闭时清空。
+- AI 组件包的模型只从程序文件夹读取，运行时不从任何模型网站下载。识字时图片只在内存里解码。
 - 空闲时不连接任何上游。OmniRoute 自带的更新检查和公网 IP 查询被拦下了。打开免费目录同步后，它会访问目录服务，只传目录请求。
 - 窗口打开时，最多每 6 小时查一次 GitHub 上有没有新版本，可以在设置页关掉。窗口关着时不查。
 
+## 两个版本
+
+| | lite | 全量 |
+|---|---|---|
+| 下载 | `Loadout-1.1.0-lite-portable-windows-x64.zip`，约 120 MB | `Loadout-1.1.0-portable-windows-x64.zip`，约 335 MB |
+| 包含 | 网关、控制台、全部账号和路由功能 | lite 的全部，加 AI 组件包：本地推理运行库、LLMLingua-2 多语言版、bge-small-zh、PP-OCRv4 |
+| 压缩“模型”档、本地记忆检索、本地识字 | 不可用 | 可用 |
+
+lite 版可以随时在“功能”页补装组件包，不用重装。组件包也单独放在 Release 里（`Loadout-ai-1-windows-x64.zip`，约 215 MB）。
+
 ## 安装
 
-1. 从 [Releases](https://github.com/SeaserL/Loadout/releases/latest) 下载 `Loadout-1.0.0-portable-windows-x64.zip`（约 380 MB），解压到一个路径不太深的文件夹，比如 `D:\Apps\Loadout`。
+1. 从 [Releases](https://github.com/SeaserL/Loadout/releases/latest) 下载[全量版或 lite 版](#两个版本)，解压到一个路径不太深的文件夹，比如 `D:\Apps\Loadout`。
 2. 双击里面的 `Loadout.exe`。
 
 需要 Windows 10/11 x64 和 WebView2 Runtime（通常已预装）。这是绿色版，没有安装器，运行时自带。数据放在程序文件夹旁边的 `loadout-fusion-isolated`，密钥在 Windows 凭据管理器。要开机启动，在“设置”里打开“开机启动”：登录 Windows 时网关在后台启动，托盘里有图标，不弹窗口。
@@ -162,6 +199,10 @@ http://127.0.0.1:8318/v1
 ### 更新
 
 设置页可以检查、下载和安装新版本。下载和校验在后台进行，网关照常工作；点“安装并重启”时才换程序，进行中的请求会中断。新版本起不来时会自动恢复原来的版本。账号和数据不受影响。
+
+更新只下载本体（约 120 MB）。全量版的组件包版本没变时从当前文件夹复制，变了才另外下载。
+
+**从 1.0 更新到 1.1**：1.0 的更新器会下载一次全量包（约 335 MB），更新后就是全量版。1.1 的新默认值只在第一次启动时写入一次：账号自动限速关闭（单个请求从约 355 ms 降到约 15 ms），响应缓存关闭并清空，看图桥关闭。之后你在界面上的选择不会被覆盖。
 
 换了底层 OmniRoute 版本的更新不能自动安装，软件会提示按 Release 说明手动升级。
 

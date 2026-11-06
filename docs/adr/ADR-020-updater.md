@@ -72,7 +72,7 @@
 **发布资产**（每个 Release 都带）：
 
 - `Loadout-<版本>-lite-portable-windows-x64.zip`：本体。更新器只下载这个。
-- `Loadout-<版本>-portable-windows-x64.zip`：全量（本体 + 组件包），给第一次下载的人。沿用 1.0 的名字。
+- `Loadout-<版本>-portable-windows-x64.zip`：全量（本体 + 组件包），给第一次下载的人。沿用 1.0 的名字，所以 1.0 的更新器下载的就是它。1.0 的更新器拒绝清单之外的任何文件，因此这个 ZIP 里的 `fusion-manifest.json` 是完整清单：本体、组件包和 `ai-pack.json` 都列出（`archive.py` 打包时生成）。lite 和组件包的清单不变。1.1 只按 `ai-pack.json` 认组件包，更新器也只下载 lite，所以两种清单都能用。
 - `Loadout-ai-<组件包版本>-windows-x64.zip`：组件包单独一份。
 
 每个都配同名 `.sha256`。
