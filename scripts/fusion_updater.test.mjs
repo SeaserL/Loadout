@@ -15,6 +15,8 @@ import {
   Updater,
   assetName,
   assetsFor,
+  fullAssetName,
+  packAssetName,
   describe,
   downloadVerified,
   extractZip,
@@ -182,12 +184,17 @@ test("the latest version comes from where github.com redirects, and nowhere else
 });
 
 test("assets have one exact name and address per version", () => {
+  // 1.1 (ExecPlan 071): updates download the lite app; the full archive keeps 1.0's name for new
+  // downloads and for 1.0's updater; the AI pack has its own version.
   const assets = assetsFor("1.2.3");
-  assert.equal(assets.name, "Loadout-1.2.3-portable-windows-x64.zip");
-  assert.equal(assets.zipUrl, "https://github.com/SeaserL/Loadout/releases/download/v1.2.3/Loadout-1.2.3-portable-windows-x64.zip");
+  assert.equal(assets.name, "Loadout-1.2.3-lite-portable-windows-x64.zip");
+  assert.equal(assets.zipUrl, "https://github.com/SeaserL/Loadout/releases/download/v1.2.3/Loadout-1.2.3-lite-portable-windows-x64.zip");
   assert.equal(assets.checksumUrl, assets.zipUrl + ".sha256");
+  assert.equal(fullAssetName("1.2.3"), "Loadout-1.2.3-portable-windows-x64.zip");
+  const pack = assetsFor("1.2.3", undefined, packAssetName("4"));
+  assert.equal(pack.zipUrl, "https://github.com/SeaserL/Loadout/releases/download/v1.2.3/Loadout-ai-4-windows-x64.zip");
   // The name 0.4's updater looks for would make it download this package and fail to install it.
-  assert.notEqual(assets.name, "Loadout-1.2.3-windows-x64.zip");
+  for (const name of [assets.name, fullAssetName("1.2.3"), pack.name]) assert.notEqual(name, "Loadout-1.2.3-windows-x64.zip");
 });
 
 test("the size comes from the server and has a limit", async (t) => {

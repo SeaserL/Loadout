@@ -14,6 +14,7 @@ const groups = [
   ["console",7,"console.json"],
   ["desktop",10,"desktop.json"],
   ["control",23,"control.json"],
+  ["features",12,"features.json"],
 ];
 const rows = [];
 for (const [name, expected, resultName] of groups) {
@@ -23,9 +24,14 @@ for (const [name, expected, resultName] of groups) {
     cwd:repo, env:{...process.env,FUSION_PACKAGE:release.extracted,FUSION_UPSTREAM:source},
     stdio:["ignore","pipe","pipe"],windowsHide:true,
   });
-  for(const stream of [child.stdout,child.stderr]) stream.on("data",data=>fs.writeSync(fd,data));
+  let open=true;
+  for(const stream of [child.stdout,child.stderr]) stream.on("data",data=>{if(open)fs.writeSync(fd,data);});
   const code = await new Promise((resolve,reject)=>{child.on("error",reject);child.on("exit",resolve);});
-  fs.closeSync(fd);
+  // "exit" can come before the last output is read, and a closed fd number is reused by the next
+  // group's log: wait for both streams to end (briefly, a leftover grandchild may hold them), then
+  // drop anything later.
+  await Promise.race([Promise.all([child.stdout,child.stderr].map(s=>s.readableEnded?null:new Promise(r=>s.once("end",r)))),new Promise(r=>setTimeout(r,5000))]);
+  open=false;fs.closeSync(fd);
   const text=fs.readFileSync(logPath,"utf8"), matches=[...text.matchAll(/^RESULT (.+)$/gm)];
   const resultPath=resultName?path.join(root,"evidence",resultName):matches.length===1?matches[0][1].trim():null;
   const result=resultPath&&fs.existsSync(resultPath)?read(resultPath):{fatal:"RESULT_MISSING",cases:[]};
@@ -36,5 +42,6 @@ for (const [name, expected, resultName] of groups) {
   rows.push(row);console.log(JSON.stringify(row));
   fs.writeFileSync(path.join(root,"evidence/regression.json"),JSON.stringify({releaseId:release.releaseId,groups:rows,
     expectedGroups:groups.length,passed:rows.reduce((n,r)=>n+r.passed,0),complete:rows.length===groups.length&&rows.every(r=>r.ok)},null,2));
-  if(!row.ok){process.exitCode=1;break;}
+  // SUITE_KEEP_GOING=1 runs every group and reports all failures; a release stops at the first.
+  if(!row.ok){process.exitCode=1;if(process.env.SUITE_KEEP_GOING!=="1")break;}
 }

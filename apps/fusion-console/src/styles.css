@@ -6104,3 +6104,42 @@ main:focus {
   border-radius: 50%;
   background: var(--accent);
 }
+
+/* Features page (1.1): one row per switch, its options right under it. */
+.feature-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.feature-row {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.feature-row:first-child {
+  border-top: none;
+}
+
+.feature-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feature-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding-left: 12px;
+  flex-wrap: wrap;
+}
+
+.feature-option > .muted {
+  min-width: 72px;
+}
+
+.feature-option select {
+  max-width: 100%;
+  min-width: 240px;
+}

@@ -1,0 +1,34 @@
+{
+  "packVersion": "1",
+  "note": "Models in the full edition's AI pack (ExecPlan 071). Each file is fetched from its pinned revision and must match its SHA-256; null means not yet recorded (run `node scripts/fusion/ai-pack.mjs fetch --record` once, then commit).",
+  "models": [
+    {
+      "repo": "atjsh/llmlingua-2-js-bert-base-multilingual-cased-meetingbank-onnx-v4",
+      "revision": "db67b6283d60e7190b32a6b8a8a87c87a6c1375a",
+      "use": "LLMLingua-2 prompt compression, Chinese and English (int8)",
+      "license": "Apache-2.0",
+      "files": {
+        "onnx/model_quantized.onnx": "a1268c6b428fe7e3efe217a0cd62fd2a0051fbf8c70aaa20806e2024164809d3",
+        "config.json": "4f2bb37d041c8595ec24952241a5d27decb3fff03ae048233eebdc2d1b5b68b4",
+        "tokenizer.json": "bf1b59b7b11c95f194f51708d918eea378e09d05f84c0e1656dc5180e8117088",
+        "tokenizer_config.json": "a532a4e4b860e3d1fcebada29f5a24ea8d54f7357dfdfd1cae23e6f6df70b049",
+        "special_tokens_map.json": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+        "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "NOTICE": "71fcc5543b5eecbd1f0b0a1e509e49d02a5349b55edcb830844c96558416cccc"
+      }
+    },
+    {
+      "repo": "Xenova/bge-small-zh-v1.5",
+      "revision": "75c43b069aac4d136ba6bc1122f995fedcfd2781",
+      "use": "Memory search embeddings, Chinese (int8)",
+      "license": "MIT (BAAI/bge-small-zh-v1.5)",
+      "files": {
+        "onnx/model_quantized.onnx": "15b717c382bcb518ba457b93ea6850ede7f4f1cd8937454aa06972366cd19bcc",
+        "config.json": "d4193ead3a810fd694fa8a31d7fc72fbaebc0668b603e398734bf2f6538ff42f",
+        "tokenizer.json": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26",
+        "tokenizer_config.json": "e6f3b96db926a37d4039995fbf5ad17de158dfb8f6343d607e4dbaad18d75f5a",
+        "special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3"
+      }
+    }
+  ]
+}

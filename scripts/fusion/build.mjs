@@ -65,7 +65,19 @@ fs.writeFileSync(
   JSON.stringify({ run, work, pid: child.pid, cache }, null, 2),
 );
 console.log(JSON.stringify({ run, pid: child.pid }));
-const code = await new Promise((resolve) => child.on("exit", resolve));
+let code = await new Promise((resolve) => child.on("exit", resolve));
+// The upstream `postbuild` step: bundles the compression, call-log, health and LLMLingua workers
+// and co-locates the optional AI runtime. Calling the build script directly skips it, which left
+// 1.0 with placeholder workers (ExecPlan 071).
+if (code === 0) {
+  const post = spawnSync(process.execPath, ["scripts/build/colocate-standalone.mjs"], {
+    cwd: work,
+    env: { ...env, OMNIROUTE_STANDALONE_DIR: path.join(work, dist, "standalone") },
+    stdio: ["ignore", log, log],
+    windowsHide: true,
+  });
+  code = post.status ?? 1;
+}
 fs.closeSync(log);
 fs.writeFileSync(
   path.join(run, "result.json"),

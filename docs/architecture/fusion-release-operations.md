@@ -50,9 +50,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fusion-release.ps1 -
 
 ## 发布到 GitHub
 
-资产名用 `Loadout-<版本>-portable-windows-x64.zip`，配同名 `.sha256`。**不要用 `Loadout-<版本>-windows-x64.zip`**：0.4 的更新器默认会自动下载这个名字，包又低于它的 384 MiB 上限，下载完安装必然失败。
+1.1 起每个 Release 带三个资产，各配同名 `.sha256`（内容 `<哈希>  <文件名>`）：
 
-发布前运行 `node scripts/fusion/update-e2e.mjs <包.zip>`：它用真实的包走一遍检查、下载、安装和回滚，几分钟跑完，不会打开窗口。更新器只认比当前高的版本号，同一个版本号的新包不算更新。
+| 资产 | 来源（`dist/fusion/`） |
+|---|---|
+| `Loadout-<版本>-portable-windows-x64.zip`（全量，完整清单） | `<releaseId>.zip` |
+| `Loadout-<版本>-lite-portable-windows-x64.zip` | `<releaseId>-lite.zip` |
+| `Loadout-ai-<组件包版本>-windows-x64.zip` | `<releaseId>-ai-<组件包版本>.zip` |
+
+**不要用 `Loadout-<版本>-windows-x64.zip`**：0.4 的更新器默认会自动下载这个名字，包又低于它的 384 MiB 上限，下载完安装必然失败。
+
+发布前运行两个更新测试，都用真实的包和本地模拟的 GitHub，几分钟跑完，不会打开窗口：
+
+- `node scripts/fusion/update-e2e.mjs <全量.zip> <lite.zip> <组件包.zip>`：1.1 自己的检查、下载、安装、回滚和 lite 补装组件包。
+- `node scripts/fusion/update-from-1.0-e2e.mjs <1.0 全量.zip> <全量.zip> <lite.zip>`：1.0 用自己的更新器升到这一版，再按 1.1 的方式升一次。
+
+更新器只认比当前高的版本号，同一个版本号的新包不算更新。
 
 不要在要打包的目录上跑实例：运行时文件会留在里面，`archive.py` 报 `ARCHIVE_MEMBERS`。要预览就先用它，再重新运行 `assemble.mjs`。发布前从 ZIP 解压到一个新文件夹，确认不带参数也能启动。
 

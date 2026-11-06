@@ -180,6 +180,24 @@ fs.copyFileSync(
   path.join(repo, "development/fusion/notices/Node-v24.22.1-LICENSE.txt"),
   path.join(directory, "Node-LICENSE.txt"),
 );
+// ExecPlan 071: the AI pack goes into the same folder, then what no edition uses comes out.
+const { stage } = await import("./ai-pack.mjs");
+await stage(directory);
+const { unused, inAiPack, PACK_FILE } = await import("./editions.mjs");
+const packVersion = JSON.parse(
+  fs.readFileSync(path.join(repo, "development/fusion/ai-models.json"), "utf8"),
+).packVersion;
+function prune(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    const rel = path.relative(directory, file).replaceAll("\\", "/");
+    if (entry.isDirectory()) {
+      prune(file);
+      if (fs.readdirSync(file).length === 0) fs.rmdirSync(file);
+    } else if (unused(rel)) fs.unlinkSync(file);
+  }
+}
+prune(directory);
 const files = [];
 function walk(dir) {
   for (const entry of fs
@@ -187,6 +205,7 @@ function walk(dir) {
     .sort((a, b) => a.name.localeCompare(b.name))) {
     const file = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(file);
+    else if (entry.isFile() && dir === directory && entry.name === PACK_FILE) continue;
     else if (entry.isFile())
       files.push({
         path: path.relative(directory, file).replaceAll("\\", "/"),
@@ -196,6 +215,9 @@ function walk(dir) {
   }
 }
 walk(directory);
+// The app is every file outside the AI pack: the lite edition. The pack lists itself.
+const packFiles = files.filter((f) => inAiPack(f.path));
+files.splice(0, files.length, ...files.filter((f) => !inAiPack(f.path)));
 const manifest = {
   releaseId,
   productVersion,
@@ -207,6 +229,7 @@ const manifest = {
   adapterProfile: profile,
   workbuddy: "25680ca7f7ff5d7b84bb35f45de766519fccbc9d",
   node: process.version,
+  aiPack: packVersion,
   treeHash: sha(JSON.stringify(files)),
   files,
 };
@@ -214,6 +237,14 @@ manifest.releaseId += "-" + manifest.treeHash.slice(0, 12);
 fs.writeFileSync(
   path.join(directory, "fusion-manifest.json"),
   JSON.stringify(manifest, null, 2),
+);
+fs.writeFileSync(
+  path.join(directory, PACK_FILE),
+  JSON.stringify(
+    { packVersion, productVersion, treeHash: sha(JSON.stringify(packFiles)), files: packFiles },
+    null,
+    2,
+  ),
 );
 fs.mkdirSync(path.join(root, "evidence/v" + version), { recursive: true });
 const diff = spawnSync("git", ["-C", source, "diff", "--binary"], {
@@ -236,6 +267,8 @@ const receipt = {
   directory,
   releaseId: manifest.releaseId,
   files: files.length,
+  packFiles: packFiles.length,
+  packVersion,
   treeHash: manifest.treeHash,
 };
 fs.writeFileSync(

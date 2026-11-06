@@ -94,6 +94,27 @@ const DEFS: Def[] = [
     check: positive,
   },
   {
+    key: "routing.request_queue",
+    name: "账号自动限速",
+    default: "false",
+    description:
+      "给每个 API key 账号排队：每分钟最多 60 个请求，两次之间至少隔 350 毫秒，同时最多 6 个。关闭时不排队，上游返回 429 才换号。",
+    check: bool,
+    write: async (value) => {
+      const { getSettings, updateSettings } = await import("../../db/settings");
+      const { resolveResilienceSettings } = await import("../../resilience/settings");
+      const settings = (await getSettings()) as Record<string, any>;
+      const raw = settings.resilienceSettings;
+      const stored: Record<string, any> = raw && typeof raw === "object" ? { ...raw } : {};
+      stored.requestQueue = { ...(stored.requestQueue ?? {}), autoEnableApiKeyProviders: value === "true" };
+      await updateSettings({ resilienceSettings: stored });
+      const { applyRequestQueueSettings } = await import("@omniroute/open-sse/services/rateLimitManager");
+      await applyRequestQueueSettings(
+        resolveResilienceSettings({ ...settings, resilienceSettings: stored }).requestQueue
+      );
+    },
+  },
+  {
     key: "catalog.radar_opt_in",
     name: "自动检查免费模型目录",
     default: "false",

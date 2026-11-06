@@ -9,6 +9,7 @@ import {
   KeyRound,
   ScrollText,
   Settings as SettingsIcon,
+  Sparkles,
   Spline,
   Waypoints,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { Clients } from "./pages/Clients";
 import { Logs } from "./pages/Logs";
 import { Stats } from "./pages/Stats";
 import { Settings } from "./pages/Settings";
+import { Features } from "./pages/Features";
 import { Help } from "./pages/Help";
 
 type NavItem = { id: string; label: MessageKey; icon: ReactNode };
@@ -42,6 +44,7 @@ const WATCH: NavItem[] = [
   { id: "logs", label: "nav.logs", icon: <ScrollText size={SIZE} aria-hidden /> },
 ];
 const FOOT: NavItem[] = [
+  { id: "features", label: "nav.features", icon: <Sparkles size={SIZE} aria-hidden /> },
   { id: "help", label: "nav.help", icon: <BookOpen size={SIZE} aria-hidden /> },
   { id: "settings", label: "nav.settings", icon: <SettingsIcon size={SIZE} aria-hidden /> },
 ];
@@ -175,6 +178,7 @@ export function App() {
             {page === "clients" && <Clients gateway={status.data.gateway.addr} />}
             {page === "stats" && <Stats day={route.section} />}
             {page === "logs" && <Logs />}
+            {page === "features" && <Features />}
             {page === "help" && <Help section={route.section} gateway={status.data.gateway.addr} />}
             {page === "settings" && <Settings status={status.data} onDaemonChange={status.reload} />}
           </div>

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, Plus, SlidersHorizontal, X } from "lucide-react";
-import { api, native, type ClientCreated, type ClientInfo, type ClientPolicy, type ModelInfo, type VirtualInfo } from "../api";
+import { Ban, Plus, SlidersHorizontal, Wand2, X } from "lucide-react";
+import { api, native, type ClientCreated, type ClientInfo, type ClientPolicy, type ModelInfo, type ToolConnected, type VirtualInfo } from "../api";
 import {
   Badge,
   Button,
@@ -14,6 +14,8 @@ import {
   Modal,
   Notice,
   Page,
+  Segmented,
+  Switch,
   useConfirm,
 } from "../components";
 import { num, time, usd } from "../format";
@@ -42,6 +44,8 @@ export function Clients(props: { gateway: string }) {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<ClientCreated>();
   const [policyOf, setPolicyOf] = useState<ClientInfo>();
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState<ToolConnected>();
   // Keys made on one PC share a machine prefix; the column only helps when it tells them apart.
   const showPrefix = new Set((clients.data ?? []).map((c) => c.key_prefix)).size > 1;
   const base = `http://${props.gateway}/v1`;
@@ -51,9 +55,14 @@ export function Clients(props: { gateway: string }) {
       title={t("clients.title")}
       help="clients"
       actions={
-        <Button kind="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>
-          {t("clients.new")}
-        </Button>
+        <>
+          <Button icon={<Wand2 size={16} />} onClick={() => setConnecting(true)}>
+            {t("clients.connectTool")}
+          </Button>
+          <Button kind="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>
+            {t("clients.new")}
+          </Button>
+        </>
       }
     >
       <div className="connect-strip top">
@@ -85,6 +94,7 @@ export function Clients(props: { gateway: string }) {
                   <th>{t("clients.status")}</th>
                   <th>{t("clients.today")}</th>
                   <th>{t("clients.policy")}</th>
+                  <th>MCP</th>
                   <th>{t("clients.created")}</th>
                   <th />
                 </tr>
@@ -110,6 +120,19 @@ export function Clients(props: { gateway: string }) {
                     </td>
                     <td className="small" title={describe(c.policy, true)}>
                       {describe(c.policy)}
+                    </td>
+                    <td>
+                      <Switch
+                        checked={c.mcp}
+                        disabled={action.busy || !!c.revoked_at_ms}
+                        label={t("clients.mcpFor", { name: c.name })}
+                        onChange={(on) =>
+                          void action.run(async () => {
+                            await api.setClientMcp(c.name, on);
+                            await clients.reload();
+                          })
+                        }
+                      />
                     </td>
                     <td className="small muted" style={{ whiteSpace: "nowrap" }}>
                       {time(c.created_at_ms)}
@@ -163,6 +186,17 @@ export function Clients(props: { gateway: string }) {
         />
       )}
       {created && <KeyShown created={created} base={base} onClose={() => setCreated(undefined)} />}
+      {connecting && (
+        <ConnectDialog
+          onClose={() => setConnecting(false)}
+          onDone={(result) => {
+            setConnecting(false);
+            setConnected(result);
+            void clients.reload();
+          }}
+        />
+      )}
+      {connected && <Connected result={connected} onClose={() => setConnected(undefined)} />}
       {policyOf && (
         <PolicyDialog client={policyOf} onClose={() => setPolicyOf(undefined)} onDone={() => void clients.reload()} />
       )}
@@ -202,6 +236,102 @@ function CreateDialog(props: { onClose: () => void; onCreated: (c: ClientCreated
         />
       </Field>
       <ErrorText error={action.error} />
+    </Modal>
+  );
+}
+
+/** Makes a key for one tool and writes it into that tool's own config (backed up first). */
+function ConnectDialog(props: { onClose: () => void; onDone: (result: ToolConnected) => void }) {
+  const action = useAction();
+  const tools = usePoll(api.clientTools, 0);
+  const models = usePoll(api.models, 0);
+  const virtuals = usePoll(api.virtuals, 0);
+  const options = useMemo(
+    () => (models.data && virtuals.data ? modelOptions(models.data, virtuals.data) : []),
+    [models.data, virtuals.data],
+  );
+  const [tool, setTool] = useState<string>();
+  const [model, setModel] = useState("");
+  const [mcp, setMcp] = useState(false);
+  const chosen = tool ?? tools.data?.find((x) => x.installed)?.id ?? tools.data?.[0]?.id;
+  const target = tools.data?.find((x) => x.id === chosen);
+  return (
+    <Modal
+      title={t("clients.connectTool")}
+      onClose={props.onClose}
+      footer={
+        <>
+          <Button onClick={props.onClose}>{t("common.cancel")}</Button>
+          <Button
+            kind="primary"
+            disabled={action.busy || !target?.installed || !model}
+            onClick={() => void action.run(async () => props.onDone(await api.connectClientTool(target!.id, model, mcp)))}
+          >
+            {t("clients.connectWrite")}
+          </Button>
+        </>
+      }
+    >
+      <Field label={t("clients.connectWhich")}>
+        <Segmented
+          label={t("clients.connectWhich")}
+          value={chosen ?? ""}
+          options={(tools.data ?? []).map((x) => ({
+            value: x.id,
+            label: x.name,
+            ...(x.installed ? {} : { title: t("clients.toolMissing") }),
+          }))}
+          onChange={(id) => setTool(id)}
+        />
+      </Field>
+      {target && <div className="small muted mono">{target.config_path}</div>}
+      {target && !target.installed && <Notice tone="warn">{t("clients.toolMissing")}</Notice>}
+      <Field label={t("clients.connectModel")}>
+        <select value={model} onChange={(e) => setModel(e.target.value)}>
+          <option value="">{t("features.pickModel")}</option>
+          {options.map((o) => (
+            <option key={o.name} value={o.name}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="MCP">
+        <Switch checked={mcp} label={t("clients.connectMcp")} onChange={setMcp} />
+      </Field>
+      <ErrorText error={action.error ?? tools.error?.message} />
+    </Modal>
+  );
+}
+
+function Connected(props: { result: ToolConnected; onClose: () => void }) {
+  const r = props.result;
+  return (
+    <Modal
+      title={t("clients.connectedTitle", { name: r.client.name })}
+      onClose={props.onClose}
+      footer={
+        <Button kind="primary" onClick={props.onClose}>
+          {t("common.done")}
+        </Button>
+      }
+    >
+      <dl className="kv left">
+        <dt>{t("clients.connectedFile")}</dt>
+        <dd className="mono small">{r.written}</dd>
+        {r.backup && (
+          <>
+            <dt>{t("clients.connectedBackup")}</dt>
+            <dd className="mono small">{r.backup}</dd>
+          </>
+        )}
+        {r.usage && (
+          <>
+            <dt>{t("clients.connectedUsage")}</dt>
+            <dd className="mono">{r.usage}</dd>
+          </>
+        )}
+      </dl>
     </Modal>
   );
 }

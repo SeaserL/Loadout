@@ -37,7 +37,7 @@ if (!$DesktopCandidate) {
 if (!$PreflightOnly) {
     $regression=Read-Json (Join-Path $RunRoot 'evidence\regression.json')
     $audit=Read-Json (Join-Path $RunRoot 'evidence\final-audit.json')
-    if (!$regression.complete -or $regression.passed -ne 280 -or $regression.releaseId -ne $release.releaseId -or
+    if (!$regression.complete -or $regression.passed -ne 292 -or $regression.releaseId -ne $release.releaseId -or
         $audit.releaseId -ne $release.releaseId -or $audit.remaining -ne 0 -or $audit.active -ne 0 -or @($audit.sourceMismatch).Count -ne 0) {throw 'ACCEPTANCE_FAILED'}
     if ((Get-FileHash -LiteralPath $release.archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $release.archiveSha256) {throw 'ARCHIVE_HASH'}
     $uiReviewPath=Join-Path $RunRoot $(if($DesktopCandidate){'evidence\desktop-review.json'}else{'evidence\ui-review.json'})
@@ -66,12 +66,22 @@ if (!$PreflightOnly) {
     $archive=(Resolve-Path -LiteralPath $release.archive).Path
     if (!$archive.StartsWith($RunRoot+'\') -or !$target.StartsWith($dist+'\')) {throw 'PROMOTION_SCOPE'}
     Move-Item -LiteralPath $archive -Destination $target
-    $current=[ordered]@{releaseId=$release.releaseId;treeHash=$release.treeHash;archive=$target;archiveSha256=$release.archiveSha256;bytes=$release.bytes;files=$release.files;evidence=$evidence;profile='067.1';activationReady=$false}
+    # 1.1 (ExecPlan 071): the lite app and the AI pack travel with the full archive.
+    $liteTarget=Join-Path $dist ($release.releaseId+'-lite.zip')
+    $packTarget=Join-Path $dist ($release.releaseId+'-ai-'+$release.packVersion+'.zip')
+    foreach ($pair in @(@($release.liteArchive,$liteTarget,$release.liteSha256),@($release.packArchive,$packTarget,$release.packSha256))) {
+        $from=(Resolve-Path -LiteralPath $pair[0]).Path
+        if (!$from.StartsWith($RunRoot+'\') -or (Test-Path -LiteralPath $pair[1])) {throw 'PROMOTION_SCOPE'}
+        if ((Get-FileHash -LiteralPath $from -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pair[2]) {throw 'ARCHIVE_HASH'}
+        Move-Item -LiteralPath $from -Destination $pair[1]
+    }
+    $current=[ordered]@{releaseId=$release.releaseId;treeHash=$release.treeHash;archive=$target;archiveSha256=$release.archiveSha256;bytes=$release.bytes;files=$release.files;evidence=$evidence;profile='067.1';activationReady=$false;liteArchive=$liteTarget;liteSha256=$release.liteSha256;liteBytes=$release.liteBytes;packArchive=$packTarget;packSha256=$release.packSha256;packBytes=$release.packBytes;packVersion=$release.packVersion}
     if($DesktopCandidate){$current.desktopAcceptance=$uiReview.status;$current.runtime=$release.extracted;$current.actualMigrationRepeated=$false}
     if($RetainCleanupPending){$current.cleanupPending=$true;$current.cleanupScript=(Join-Path $repo 'scripts\fusion\cleanup-superseded.ps1')}
     Write-Json (Join-Path $area 'current.json') $current
     if(!$RetainCleanupPending){
     Remove-Owned $old.archive
+    foreach ($p in @($old.liteArchive,$old.packArchive)) {if ($p) {Remove-Owned $p}}
     if($build.mode -ne 'verified-compiled-backend-reuse') {
         Remove-Owned (Join-Path $build.work '.build\loadout-fusion')
         Remove-Owned $script:buildCache

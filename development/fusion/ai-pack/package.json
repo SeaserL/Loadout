@@ -1,0 +1,13 @@
+{
+  "name": "loadout-ai-pack",
+  "private": true,
+  "description": "Local text recognition for the full edition's AI pack (ExecPlan 071). The AI runtime itself (onnxruntime-node, sharp, transformers.js) comes from the backend build; these overrides keep a single copy of each.",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@gutenye/ocr-node": "1.4.9"
+  },
+  "overrides": {
+    "sharp": "0.35.5",
+    "onnxruntime-node": "1.30.0"
+  }
+}

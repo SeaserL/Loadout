@@ -31,6 +31,47 @@ Local files: backend/omniroute-v3.8.52.patch. backend/src/** is original Loadout
              (Apache-2.0) written against OmniRoute's internal modules.
 ```
 
+### Loadout 1.1 AI pack (ExecPlan 071, full edition)
+
+Shipped unmodified in the full edition's AI pack and in the separate AI pack asset; the lite
+edition carries none of it. Pins: `development/fusion/ai-models.json` (models, per-file SHA-256)
+and `development/fusion/ai-pack/package-lock.json` (npm packages).
+
+```text
+Component: LLMLingua-2 multilingual (mBERT, MeetingBank), ONNX int8 port
+Source: https://huggingface.co/atjsh/llmlingua-2-js-bert-base-multilingual-cased-meetingbank-onnx-v4
+Upstream revision: db67b6283d60e7190b32a6b8a8a87c87a6c1375a
+License: Apache-2.0 (the repository's LICENSE and NOTICE ship with the model files)
+Base model: microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank (Apache-2.0)
+Reuse: UNMODIFIED model files under ai/models/
+```
+
+```text
+Component: bge-small-zh-v1.5, ONNX int8 port
+Source: https://huggingface.co/Xenova/bge-small-zh-v1.5
+Upstream revision: 75c43b069aac4d136ba6bc1122f995fedcfd2781
+License: MIT (base model BAAI/bge-small-zh-v1.5; the ONNX port declares no separate license)
+Reuse: UNMODIFIED model files under ai/models/
+```
+
+```text
+Component: @gutenye/ocr-node, @gutenye/ocr-common, @gutenye/ocr-models 1.4.x
+Source: https://github.com/gutenye/ocr
+License: MIT. ocr-models carries PaddleOCR PP-OCRv4 models (Apache-2.0, PaddlePaddle).
+Reuse: UNMODIFIED npm packages under node_modules/
+```
+
+```text
+Component: @techstark/opencv-js (Apache-2.0), js-clipper (Boost Software License 1.0),
+           tiny-invariant (MIT)
+Source: npm registry, versions in development/fusion/ai-pack/package-lock.json
+Reuse: UNMODIFIED npm packages (dependencies of the OCR packages)
+```
+
+The AI runtime the pack moves out of the lite edition (onnxruntime-node/-web/-common,
+@huggingface/transformers and tokenizers, @atjsh/llmlingua-2, js-tiktoken, omniglyph,
+gpt-tokenizer) comes from the OmniRoute build and is covered by its THIRD_PARTY_NOTICES.md.
+
 ### Fusion desktop redesign (ExecPlan 065, development)
 
 Original code in `apps/fusion-console` visually references yetone/magpie at

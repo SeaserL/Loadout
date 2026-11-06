@@ -16,7 +16,7 @@ use serde::Deserialize;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::webview::Cookie;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 
 const WINDOW: &str = "main";
 const TRAY: &str = "main";
@@ -268,20 +268,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
-            // Closing the window keeps the tray and the gateway, as the original app does.
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+        .build(tauri::generate_context!())?
+        .run(|_app, event| {
+            // Closing the window keeps the tray and the gateway, as the original app does, but the
+            // window really closes: its WebView holds about 350 MB, and the tray builds a new one
+            // on demand. Only the tray's own exits end the process.
+            if let RunEvent::ExitRequested { api, code, .. } = event
+                && !exit_allowed(code)
+            {
+                api.prevent_exit();
             }
-        })
-        .run(tauri::generate_context!())?;
+        });
     Ok(())
+}
+
+/// The last window closing asks to exit with no code; the tray's exits pass one.
+fn exit_allowed(code: Option<i32>) -> bool {
+    code.is_some()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{background_requested, is_local_console};
+    use super::{background_requested, exit_allowed, is_local_console};
+
+    #[test]
+    fn closing_the_window_does_not_exit() {
+        assert!(!exit_allowed(None));
+        assert!(exit_allowed(Some(0)));
+    }
 
     #[test]
     fn config_is_separate_from_the_installed_app() {
