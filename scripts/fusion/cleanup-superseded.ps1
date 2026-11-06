@@ -10,13 +10,15 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 if ($repo -ne 'D:\Loadout') { throw 'WORKSPACE_SCOPE' }
 $current = Get-Content -LiteralPath (Join-Path $repo 'development\fusion\current.json') -Raw | ConvertFrom-Json
 $keep = [IO.Path]::GetFullPath($current.runtime)
+# 1.1 (ExecPlan 071): the candidate is three archives, the full one, the lite app and the AI pack.
+$currentArchives = @($current.archive, $current.liteArchive, $current.packArchive) | Where-Object { $_ }
 $runs = Join-Path $repo 'development\fusion\runs'
 # Every run is a work folder: promotion has copied what it proved to development\fusion\evidence.
 # Not for the time between a new candidate's build and its promotion: that run would go too.
 $targets = @(
     (Join-Path $repo 'development\fusion\runtime\current'),
     (Join-Path $repo '.build\fusion-desktop')
-) + @(Get-ChildItem -LiteralPath (Join-Path $repo 'dist\fusion') -File -Filter '*.zip' | Where-Object { $_.FullName -ne $current.archive } | ForEach-Object { $_.FullName }
+) + @(Get-ChildItem -LiteralPath (Join-Path $repo 'dist\fusion') -File -Filter '*.zip' | Where-Object { $_.FullName -notin $currentArchives } | ForEach-Object { $_.FullName }
 ) + @(if (Test-Path -LiteralPath $runs) { Get-ChildItem -LiteralPath $runs -Directory | ForEach-Object { $_.FullName } })
 $running = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($runs + '\', [StringComparison]::OrdinalIgnoreCase) })
 if ($running.Count) { throw "Still running from the work folders: $($running.ProcessId -join ', '). Stop them first." }
@@ -24,7 +26,7 @@ $total = 0L
 foreach ($target in $targets) {
     if (!(Test-Path -LiteralPath $target)) { continue }
     $full = (Resolve-Path -LiteralPath $target).Path
-    if ($full -ne $target -or !$full.StartsWith($repo + '\') -or $keep.StartsWith($full + '\') -or $full -eq $keep -or $full -eq $current.archive) { throw "CLEANUP_SCOPE: $full" }
+    if ($full -ne $target -or !$full.StartsWith($repo + '\') -or $keep.StartsWith($full + '\') -or $full -eq $keep -or $full -in $currentArchives) { throw "CLEANUP_SCOPE: $full" }
     $item = Get-Item -LiteralPath $full -Force
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "CLEANUP_LINK: $full" }
     $bytes = if ($item.PSIsContainer) { (Get-ChildItem -LiteralPath $full -Force -Recurse -File | Measure-Object Length -Sum).Sum } else { $item.Length }
